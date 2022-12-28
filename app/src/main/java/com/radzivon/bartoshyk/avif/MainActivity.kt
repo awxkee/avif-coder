@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import okio.buffer
@@ -31,8 +32,33 @@ class MainActivity : AppCompatActivity() {
         val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png)
         binding.imageView.setImageBitmap(decodedBitmap)
         binding.imageView.setImageBitmap(bitmap)
-        val bytes = HeifCoder().encodeAvif(decodedBitmap)
-        val ff = File(this.filesDir, "result.avif")
+//        val bytes = HeifCoder().encodeAvif(decodedBitmap)
+//        val ff = File(this.filesDir, "result.avif")
+//        ff.delete()
+//        val output = FileOutputStream(ff)
+//        output.sink().buffer().use {
+//            it.write(bytes)
+//            it.flush()
+//        }
+//        output.close()
+//        Log.d("p", bytes.size.toString())
+//        writeHevc(decodedBitmap)
+        val numbers = IntArray(5) { 1 * (it + 1) }
+        numbers.forEach {
+            testEncoder("test_${it}.jpg")
+        }
+    }
+
+    private fun testEncoder(assetName: String) {
+        val buffer = this.assets.open(assetName).source().buffer().readByteArray()
+        val opts = BitmapFactory.Options()
+        opts.inMutable = true
+        val bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size, opts)
+//        val newBitmap = bitmap.aspectFit(bitmap.width, bitmap.height)
+//        bitmap.recycle()
+        val bytes = HeifCoder().encodeAvif(bitmap)
+        bitmap.recycle()
+        val ff = File(this.filesDir, "${File(assetName).nameWithoutExtension}.avif")
         ff.delete()
         val output = FileOutputStream(ff)
         output.sink().buffer().use {
@@ -41,7 +67,43 @@ class MainActivity : AppCompatActivity() {
         }
         output.close()
         Log.d("p", bytes.size.toString())
-        writeHevc(decodedBitmap)
+    }
+
+    fun Bitmap.aspectFit(maxWidth: Int, maxHeight: Int): Bitmap {
+        val image = this
+        val width: Int = image.width
+        val height: Int = image.height
+        val ratioBitmap = width.toFloat() / height.toFloat()
+        val ratioMax = maxWidth.toFloat() / maxHeight.toFloat()
+
+        var finalWidth = maxWidth
+        var finalHeight = maxHeight
+        if (ratioMax > ratioBitmap) {
+            finalWidth = (maxHeight.toFloat() * ratioBitmap).toInt()
+        } else {
+            finalHeight = (maxWidth.toFloat() / ratioBitmap).toInt()
+        }
+        return Bitmap.createScaledBitmap(image, finalWidth, finalHeight, true)
+    }
+
+    fun aspectScale(sourceSize: Size, dstSize: Size): Size {
+        val isHorizontal = sourceSize.width > sourceSize.height
+        val targetSize = if (isHorizontal) dstSize else Size(dstSize.height, dstSize.width)
+        if (targetSize.width > sourceSize.width && targetSize.width > sourceSize.height) {
+            return sourceSize
+        }
+        val imageAspectRatio = sourceSize.width.toFloat() / sourceSize.height.toFloat()
+        val canvasAspectRation = targetSize.width.toFloat() / targetSize.height.toFloat()
+        val resizeFactor: Float
+        if (imageAspectRatio > canvasAspectRation) {
+            resizeFactor = targetSize.width.toFloat() / sourceSize.width.toFloat()
+        } else {
+            resizeFactor = targetSize.height.toFloat() / sourceSize.height.toFloat()
+        }
+        return Size(
+            (sourceSize.width.toFloat() * resizeFactor).toInt(),
+            (sourceSize.height.toFloat() * resizeFactor).toInt()
+        )
     }
 
     private fun writeHevc(bitmap: Bitmap) {

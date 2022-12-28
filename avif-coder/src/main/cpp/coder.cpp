@@ -32,6 +32,12 @@ jint throwCantEncodeImageException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
+jint throwPixelsException(JNIEnv *env) {
+    jclass exClass;
+    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/GetPixelsException");
+    return env->ThrowNew(exClass, "");
+}
+
 struct AvifMemEncoder {
     std::vector<char> buffer;
 };
@@ -64,22 +70,24 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         return static_cast<jbyteArray>(nullptr);
     }
     heif_encoder_set_lossy_quality(encoder, quality);
-
     AndroidBitmapInfo info;
     int ret;
     if ((ret = AndroidBitmap_getInfo(env, bitmap, &info)) < 0) {
-        throwCantEncodeImageException(env);
+        heif_context_free(ctx);
+        throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
     if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        throwCantEncodeImageException(env);
+        heif_context_free(ctx);
+        throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
     void *addr;
     if ((ret = AndroidBitmap_lockPixels(env, bitmap, &addr)) != 0) {
-        throwCantEncodeImageException(env);
+        heif_context_free(ctx);
+        throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
