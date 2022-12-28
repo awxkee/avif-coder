@@ -4,12 +4,21 @@ plugins {
     id 'maven-publish'
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            groupId = 'com.github.awxkee'
-            artifactId = 'avif-coder'
-            version = '1.0.6'
+task androidSourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from android.sourceSets.main.java.srcDirs
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                groupId = 'com.github.awxkee'
+                artifactId = 'avif-coder'
+                version = '1.0.7'
+                from components.release
+                artifact androidSourcesJar
+            }
         }
     }
 }
