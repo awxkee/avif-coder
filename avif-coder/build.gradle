@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace 'com.github.jitpack.avif-coder'
+    namespace 'com.github.awxkee.avif-coder'
     compileSdk 33
 
     defaultConfig {
