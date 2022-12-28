@@ -4,6 +4,16 @@ plugins {
     id 'maven-publish'
 }
 
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = 'com.github.awxkee'
+            artifactId = 'avif-coder'
+            version = '1.0.6'
+        }
+    }
+}
+
 android {
     namespace 'com.github.awxkee.avifcoder'
     compileSdk 33
