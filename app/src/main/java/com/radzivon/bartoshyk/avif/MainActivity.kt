@@ -28,10 +28,15 @@ class MainActivity : AppCompatActivity() {
         binding.sampleText.text = HeifCoder().stringFromJNI()
 
         val buffer = this.assets.open("test_avif.avif").source().buffer().readByteArray()
-        val bitmap = HeifCoder().decodeAvif(buffer)
+        assert(HeifCoder().isAvif(buffer))
+        val bitmap = HeifCoder().decode(buffer)
         val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png)
         binding.imageView.setImageBitmap(decodedBitmap)
         binding.imageView.setImageBitmap(bitmap)
+        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
+        assert(HeifCoder().isHeif(heicBuffer))
+        val heicBitmap = HeifCoder().decode(heicBuffer)
+        binding.imageView.setImageBitmap(heicBitmap)
 //        val bytes = HeifCoder().encodeAvif(decodedBitmap)
 //        val ff = File(this.filesDir, "result.avif")
 //        ff.delete()
@@ -43,10 +48,10 @@ class MainActivity : AppCompatActivity() {
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //        writeHevc(decodedBitmap)
-        val numbers = IntArray(5) { 1 * (it + 1) }
-        numbers.forEach {
-            testEncoder("test_${it}.jpg")
-        }
+//        val numbers = IntArray(5) { 1 * (it + 1) }
+//        numbers.forEach {
+//            testEncoder("test_${it}.jpg")
+//        }
     }
 
     private fun testEncoder(assetName: String) {

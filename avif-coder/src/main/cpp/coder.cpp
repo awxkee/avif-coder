@@ -20,6 +20,12 @@ jint throwCannotReadFileException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
+jint throwCoderCreationException(JNIEnv *env) {
+    jclass exClass;
+    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantCreateCodecException");
+    return env->ThrowNew(exClass, "");
+}
+
 jint throwCantDecodeImageException(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantDecoderImageException");
@@ -60,33 +66,36 @@ struct heif_error writeHeifData(struct heif_context *ctx, // TODO: why do we nee
 jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                         jobject bitmap, heif_compression_format heifCompressionFormat,
                         int quality) {
-    heif_context *ctx = heif_context_alloc();
+    std::shared_ptr<heif_context> ctx(heif_context_alloc(),
+                                      [](heif_context *c) { heif_context_free(c); });
+    if (!ctx) {
+        throwCoderCreationException(env);
+        return static_cast<jbyteArray>(nullptr);
+    }
 
-    heif_encoder *encoder;
-    auto result = heif_context_get_encoder_for_format(ctx, heifCompressionFormat, &encoder);
+    heif_encoder *mEncoder;
+    auto result = heif_context_get_encoder_for_format(ctx.get(), heifCompressionFormat, &mEncoder);
     if (result.code != heif_error_Ok) {
-        heif_context_free(ctx);
         throwCantEncodeImageException(env);
         return static_cast<jbyteArray>(nullptr);
     }
-    heif_encoder_set_lossy_quality(encoder, quality);
+    std::shared_ptr<heif_encoder> encoder(mEncoder,
+                                          [](heif_encoder *he) { heif_encoder_release(he); });
+    heif_encoder_set_lossy_quality(encoder.get(), quality);
     AndroidBitmapInfo info;
     int ret;
     if ((ret = AndroidBitmap_getInfo(env, bitmap, &info)) < 0) {
-        heif_context_free(ctx);
         throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
     if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        heif_context_free(ctx);
         throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
     void *addr;
     if ((ret = AndroidBitmap_lockPixels(env, bitmap, &addr)) != 0) {
-        heif_context_free(ctx);
         throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
@@ -96,8 +105,6 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                heif_chroma_interleaved_RGBA, &image);
     if (result.code != heif_error_Ok) {
         AndroidBitmap_unlockPixels(env, bitmap);
-        heif_encoder_release(encoder);
-        heif_context_free(ctx);
         throwCantEncodeImageException(env);
         return static_cast<jbyteArray>(nullptr);
     }
@@ -106,8 +113,6 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                   (int) info.height, 32);
     if (result.code != heif_error_Ok) {
         AndroidBitmap_unlockPixels(env, bitmap);
-        heif_encoder_release(encoder);
-        heif_context_free(ctx);
         throwCantEncodeImageException(env);
         return static_cast<jbyteArray>(nullptr);
     }
@@ -123,38 +128,37 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     AndroidBitmap_unlockPixels(env, bitmap);
 
     heif_image_handle *handle;
-    auto options = heif_encoding_options_alloc();
+    std::shared_ptr<heif_encoding_options> options(heif_encoding_options_alloc(),
+                                                   [](heif_encoding_options *o) {
+                                                       heif_encoding_options_free(o);
+                                                   });
     options->version = 5;
     options->image_orientation = heif_orientation_normal;
-    result = heif_context_encode_image(ctx, image, encoder, options, &handle);
-    heif_encoding_options_free(options);
+    result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
+    options.reset();
     if (handle) {
-        heif_context_set_primary_image(ctx, handle);
+        heif_context_set_primary_image(ctx.get(), handle);
         heif_image_handle_release(handle);
     }
     heif_image_release(image);
     if (result.code != heif_error_Ok) {
-        heif_encoder_release(encoder);
-        heif_context_free(ctx);
         throwCantEncodeImageException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
-    heif_encoder_release(encoder);
+    encoder.reset();
 
     std::vector<char> buf;
     heif_writer writer = {};
     writer.writer_api_version = 1;
     writer.write = writeHeifData;
     AvifMemEncoder memEncoder;
-    result = heif_context_write(ctx, &writer, &memEncoder);
+    result = heif_context_write(ctx.get(), &writer, &memEncoder);
     if (result.code != heif_error_Ok) {
-        heif_context_free(ctx);
         throwCantEncodeImageException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
-    heif_context_free(ctx);
     jbyteArray byteArray = env->NewByteArray((jsize) memEncoder.buffer.size());
     char *memBuf = (char *) ((void *) memEncoder.buffer.data());
     env->SetByteArrayRegion(byteArray, 0, (jint) memEncoder.buffer.size(),
@@ -177,39 +181,86 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, job
 }
 
 extern "C"
-JNIEXPORT jobject JNICALL
-Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeAvifImpl(JNIEnv *env, jobject thiz,
-                                                                jbyteArray byte_array) {
-    heif_context *ctx = heif_context_alloc();
+JNIEXPORT jboolean JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isHeifImageImpl(JNIEnv *env, jobject thiz,
+                                                                 jbyteArray byte_array) {
     auto totalLength = env->GetArrayLength(byte_array);
-    auto srcBuffer = malloc(totalLength);
-    env->GetByteArrayRegion(byte_array, 0, totalLength, reinterpret_cast<jbyte *>(srcBuffer));
-    auto result = heif_context_read_from_memory_without_copy(ctx, srcBuffer, totalLength, nullptr);
+    std::shared_ptr<void> srcBuffer(static_cast<char *>(malloc(totalLength)),
+                                    [](void *b) { free(b); });
+    env->GetByteArrayRegion(byte_array, 0, totalLength, reinterpret_cast<jbyte *>(srcBuffer.get()));
+    auto mime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.get()),
+                                        totalLength);
+    return strcmp(mime, "image/heic") == 0 || strcmp(mime, "image/heif") == 0 ||
+           strcmp(mime, "image/heic-sequence") == 0 || strcmp(mime, "image/heif-sequence") == 0;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isAvifImageImpl(JNIEnv *env, jobject thiz,
+                                                                 jbyteArray byte_array) {
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::shared_ptr<void> srcBuffer(static_cast<char *>(malloc(totalLength)),
+                                    [](void *b) { free(b); });
+    env->GetByteArrayRegion(byte_array, 0, totalLength, reinterpret_cast<jbyte *>(srcBuffer.get()));
+    auto mime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.get()),
+                                        totalLength);
+    return strcmp(mime, "image/avif") == 0 || strcmp(mime, "image/avif-sequence") == 0;
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImpl(JNIEnv *env, jobject thiz,
+                                                                      jbyteArray byte_array) {
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::shared_ptr<void> srcBuffer(static_cast<char *>(malloc(totalLength)),
+                                    [](void *b) { free(b); });
+    env->GetByteArrayRegion(byte_array, 0, totalLength, reinterpret_cast<jbyte *>(srcBuffer.get()));
+    auto mime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.get()),
+                                        totalLength);
+    return strcmp(mime, "image/heic") == 0 || strcmp(mime, "image/heif") == 0 ||
+           strcmp(mime, "image/heic-sequence") == 0 || strcmp(mime, "image/heif-sequence") == 0 ||
+           strcmp(mime, "image/avif") == 0 || strcmp(mime, "image/avif-sequence") == 0;
+}
+
+extern "C"
+JNIEXPORT jobject JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject thiz,
+                                                            jbyteArray byte_array) {
+    std::shared_ptr<heif_context> ctx(heif_context_alloc(),
+                                      [](heif_context *c) { heif_context_free(c); });
+    if (!ctx) {
+        throwCoderCreationException(env);
+        return static_cast<jobject>(nullptr);
+    }
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::shared_ptr<void> srcBuffer(static_cast<char *>(malloc(totalLength)),
+                                    [](void *b) { free(b); });
+    env->GetByteArrayRegion(byte_array, 0, totalLength, reinterpret_cast<jbyte *>(srcBuffer.get()));
+    auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.get(),
+                                                             totalLength,
+                                                             nullptr);
     if (result.code != heif_error_Ok) {
-        free(srcBuffer);
-        heif_context_free(ctx);
         throwCannotReadFileException(env);
         return static_cast<jobject>(nullptr);
     }
 
     heif_image_handle *handle;
-    result = heif_context_get_primary_image_handle(ctx, &handle);
+    result = heif_context_get_primary_image_handle(ctx.get(), &handle);
     if (result.code != heif_error_Ok) {
-        free(srcBuffer);
-        heif_context_free(ctx);
         throwCannotReadFileException(env);
         return static_cast<jobject>(nullptr);
     }
     heif_image *img;
-    auto options = heif_decoding_options_alloc();
+    std::shared_ptr<heif_decoding_options> options(heif_decoding_options_alloc(),
+                                                   [](heif_decoding_options *deo) {
+                                                       heif_decoding_options_free(deo);
+                                                   });
     options->convert_hdr_to_8bit = true;
     result = heif_decode_image(handle, &img, heif_colorspace_RGB, heif_chroma_interleaved_RGBA,
                                nullptr);
-    heif_decoding_options_free(options);
+    options.reset();
     if (result.code != heif_error_Ok) {
         heif_image_handle_release(handle);
-        free(srcBuffer);
-        heif_context_free(ctx);
         throwCantDecodeImageException(env);
         return static_cast<jobject>(nullptr);
     }
@@ -239,10 +290,8 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeAvifImpl(JNIEnv *env, job
         dstARGB[i + 3] = tmpA;
     }
 
-    free(srcBuffer);
     heif_image_release(img);
     heif_image_handle_release(handle);
-    heif_context_free(ctx);
 
     jclass bitmapConfig = env->FindClass("android/graphics/Bitmap$Config");
     jfieldID rgba8888FieldID = env->GetStaticFieldID(bitmapConfig, "ARGB_8888",

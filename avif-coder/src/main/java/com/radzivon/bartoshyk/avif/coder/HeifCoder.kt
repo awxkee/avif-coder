@@ -10,8 +10,20 @@ class HeifCoder {
      */
     external fun stringFromJNI(): String
 
-    fun decodeAvif(byteArray: ByteArray): Bitmap {
-        return decodeAvifImpl(byteArray)
+    fun isAvif(byteArray: ByteArray): Boolean {
+        return isAvifImageImpl(byteArray)
+    }
+
+    fun isHeif(byteArray: ByteArray): Boolean {
+        return isHeifImageImpl(byteArray)
+    }
+
+    fun isSupportedImage(byteArray: ByteArray): Boolean {
+        return isSupportedImageImpl(byteArray)
+    }
+
+    fun decode(byteArray: ByteArray): Bitmap {
+        return decodeImpl(byteArray)
     }
 
     fun encodeAvif(bitmap: Bitmap): ByteArray {
@@ -22,7 +34,10 @@ class HeifCoder {
         return encodeHeicImpl(bitmap)
     }
 
-    private external fun decodeAvifImpl(byteArray: ByteArray): Bitmap
+    private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
+    private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
+    private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
+    private external fun decodeImpl(byteArray: ByteArray): Bitmap
     private external fun encodeAvifImpl(bitmap: Bitmap): ByteArray
     private external fun encodeHeicImpl(bitmap: Bitmap): ByteArray
 
