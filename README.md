@@ -1,4 +1,4 @@
-# AVIF/HEIF Coder for Android 26+
+# AVIF/HEIF Coder for Android 24+
 
 Library provides simple interface to decode or encode ( create ) AVIF and HEIF images for Android
 26+. Based on libheif, libde265, libx265, libyuv and libaom
