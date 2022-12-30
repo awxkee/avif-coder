@@ -1,6 +1,7 @@
 package com.radzivon.bartoshyk.avif.coder
 
 import android.graphics.Bitmap
+import android.util.Size
 
 class HeifCoder {
 
@@ -22,8 +23,16 @@ class HeifCoder {
         return isSupportedImageImpl(byteArray)
     }
 
+    fun getSize(bytes: ByteArray): Size? {
+        return getSizeImpl(bytes)
+    }
+
     fun decode(byteArray: ByteArray): Bitmap {
-        return decodeImpl(byteArray)
+        return decodeImpl(byteArray, 0, 0)
+    }
+
+    fun decodeSampled(byteArray: ByteArray, scaledWidth: Int, scaledHeight: Int): Bitmap {
+        return decodeImpl(byteArray, scaledWidth, scaledHeight)
     }
 
     fun encodeAvif(bitmap: Bitmap): ByteArray {
@@ -34,10 +43,11 @@ class HeifCoder {
         return encodeHeicImpl(bitmap)
     }
 
+    private external fun getSizeImpl(byteArray: ByteArray): Size?
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
-    private external fun decodeImpl(byteArray: ByteArray): Bitmap
+    private external fun decodeImpl(byteArray: ByteArray, scaledWidth: Int, scaledHeight: Int): Bitmap
     private external fun encodeAvifImpl(bitmap: Bitmap): ByteArray
     private external fun encodeHeicImpl(bitmap: Bitmap): ByteArray
 

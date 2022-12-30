@@ -32,6 +32,12 @@ jint throwCantDecodeImageException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
+jint throwInvalidScale(JNIEnv *env) {
+    jclass exClass;
+    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/HeifCantScaleException");
+    return env->ThrowNew(exClass, "");
+}
+
 jint throwCantEncodeImageException(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantEncodeImageException");
@@ -224,8 +230,63 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImpl(JNIEnv *en
 
 extern "C"
 JNIEXPORT jobject JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobject thiz,
+                                                             jbyteArray byte_array) {
+    std::shared_ptr<heif_context> ctx(heif_context_alloc(),
+                                      [](heif_context *c) { heif_context_free(c); });
+    if (!ctx) {
+        return static_cast<jobject>(nullptr);
+    }
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::shared_ptr<void> srcBuffer(static_cast<char *>(malloc(totalLength)),
+                                    [](void *b) { free(b); });
+    env->GetByteArrayRegion(byte_array, 0, totalLength, reinterpret_cast<jbyte *>(srcBuffer.get()));
+    auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.get(),
+                                                             totalLength,
+                                                             nullptr);
+    if (result.code != heif_error_Ok) {
+        throwCannotReadFileException(env);
+        return static_cast<jobject>(nullptr);
+    }
+
+    heif_image_handle *handle;
+    result = heif_context_get_primary_image_handle(ctx.get(), &handle);
+    if (result.code != heif_error_Ok) {
+        throwCannotReadFileException(env);
+        return static_cast<jobject>(nullptr);
+    }
+    heif_image *img;
+    std::shared_ptr<heif_decoding_options> options(heif_decoding_options_alloc(),
+                                                   [](heif_decoding_options *deo) {
+                                                       heif_decoding_options_free(deo);
+                                                   });
+    options->convert_hdr_to_8bit = true;
+    result = heif_decode_image(handle, &img, heif_colorspace_RGB, heif_chroma_interleaved_RGBA,
+                               nullptr);
+    options.reset();
+    if (result.code != heif_error_Ok) {
+        heif_image_handle_release(handle);
+        throwCantDecodeImageException(env);
+        return static_cast<jobject>(nullptr);
+    }
+
+    auto width = heif_image_get_primary_width(img);
+    auto height = heif_image_get_primary_height(img);
+
+    heif_image_release(img);
+    heif_image_handle_release(handle);
+
+    jclass sizeClass = env->FindClass("android/util/Size");
+    jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
+    auto sizeObject = env->NewObject(sizeClass, methodID, width, height);
+    return sizeObject;
+}
+
+extern "C"
+JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject thiz,
-                                                            jbyteArray byte_array) {
+                                                            jbyteArray byte_array, jint scaledWidth,
+                                                            jint scaledHeight) {
     std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                       [](heif_context *c) { heif_context_free(c); });
     if (!ctx) {
@@ -263,6 +324,19 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         heif_image_handle_release(handle);
         throwCantDecodeImageException(env);
         return static_cast<jobject>(nullptr);
+    }
+
+    if (scaledHeight > 0 && scaledWidth > 0) {
+        heif_image *scaledImg;
+        result = heif_image_scale_image(img, &scaledImg, scaledWidth, scaledHeight, nullptr);
+        if (result.code != heif_error_Ok) {
+            heif_image_release(img);
+            heif_image_handle_release(handle);
+            throwInvalidScale(env);
+            return static_cast<jobject>(nullptr);
+        }
+        heif_image_release(img);
+        img = scaledImg;
     }
 
     int stride;
