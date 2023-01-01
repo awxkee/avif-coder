@@ -19,7 +19,7 @@ add_library( # Sets the name of the library.
         # Sets the library as a shared library.
         SHARED
         # Provides a relative path to your source file(s).
-        coder.cpp)
+        coder.cpp jni_exception.cpp scaler.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -49,9 +49,6 @@ target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOU
 
 find_library( # Sets the name of the path variable.
         log-lib
-
-        # Specifies the name of the NDK library that
-        # you want CMake to locate.
         log)
 
 # Specifies libraries CMake should link to your target library. You

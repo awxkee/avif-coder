@@ -78,7 +78,7 @@ class HeifDecoder(
     private fun aspectScale(sourceSize: Size, dstSize: Size): Size {
         val isHorizontal = sourceSize.width > sourceSize.height
         val targetSize = if (isHorizontal) dstSize else Size(dstSize.height, dstSize.width)
-        if (targetSize.width > sourceSize.width && targetSize.width > sourceSize.height) {
+        if (targetSize.width > sourceSize.width && targetSize.height > sourceSize.height) {
             return sourceSize
         }
         val imageAspectRatio = sourceSize.width.toFloat() / sourceSize.height.toFloat()

@@ -7,62 +7,8 @@
 #include <vector>
 #include <float.h>
 #include <arm_fp16.h>
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_stringFromJNI(
-        JNIEnv *env,
-        jobject /* this */) {
-    std::string hello = "Hello from C++";
-    return env->NewStringUTF(hello.c_str());
-}
-
-jint throwCannotReadFileException(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantReadHeifFileException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwBitDepthException(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CorruptedBitDepthException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwCoderCreationException(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantCreateCodecException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwCantDecodeImageException(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantDecoderImageException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwInvalidScale(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/HeifCantScaleException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwCantEncodeImageException(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantEncodeImageException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwInvalidPixelsFormat(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/UnsupportedImageFormatException");
-    return env->ThrowNew(exClass, "");
-}
-
-jint throwPixelsException(JNIEnv *env) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/GetPixelsException");
-    return env->ThrowNew(exClass, "");
-}
+#include "jni_exception.h"
+#include "scaler.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -322,7 +268,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
                                                    });
     options->convert_hdr_to_8bit = true;
     result = heif_decode_image(handle, &img, heif_colorspace_RGB, heif_chroma_interleaved_RGBA,
-                               nullptr);
+                               options.get());
     options.reset();
     if (result.code != heif_error_Ok) {
         heif_image_handle_release(handle);
@@ -392,6 +338,19 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         return static_cast<jobject>(nullptr);
     }
 
+//    auto totalMemoryImageSize = heif_image_get_width(img, heif_channel_interleaved) *
+//                                heif_image_get_height(img, heif_channel_interleaved) * 4;
+//    auto maxAvailableMemory = 34 * 1024 * 1024;
+//
+//    if (scaledHeight <= 0 && scaledWidth <= 0 && totalMemoryImageSize > maxAvailableMemory) {
+//        auto scaledSize = resizeAspect(
+//                std::pair<int, int>(heif_image_get_width(img, heif_channel_interleaved),
+//                                    heif_image_get_height(img, heif_channel_interleaved)),
+//                std::pair<int, int>(2550, 1440));
+//        scaledWidth = scaledSize.first;
+//        scaledHeight = scaledSize.second;
+//    }
+
     if (scaledHeight > 0 && scaledWidth > 0) {
         heif_image *scaledImg;
         result = heif_image_scale_image(img, &scaledImg, scaledWidth, scaledHeight, nullptr);
@@ -445,9 +404,9 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                                                             "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;");
     jobject bitmapObj = env->CallStaticObjectMethod(bitmapClass, createBitmapMethodID,
                                                     imageWidth, imageHeight, rgba8888Obj);
-    auto returningLength = stride * imageHeight;
-    jintArray pixels = env->NewIntArray(stride * imageHeight);
-    env->SetIntArrayRegion(pixels, 0, (jsize) returningLength / sizeof(uint32_t),
+    auto returningLength = stride * imageHeight / sizeof(uint32_t);
+    jintArray pixels = env->NewIntArray((jsize) returningLength);
+    env->SetIntArrayRegion(pixels, 0, (jsize) returningLength,
                            reinterpret_cast<const jint *>(dstARGB.get()));
     dstARGB.reset();
     jmethodID setPixelsMid = env->GetMethodID(bitmapClass, "setPixels", "([IIIIIII)V");

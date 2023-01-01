@@ -31,7 +31,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Example of a call to a native method
-        binding.sampleText.text = HeifCoder().stringFromJNI()
 
         val buffer = this.assets.open("test_avif.avif").source().buffer().readByteArray()
         assert(HeifCoder().isAvif(buffer))
@@ -50,7 +49,8 @@ class MainActivity : AppCompatActivity() {
         binding.imageView.setImageBitmap(decodedBitmap)
         binding.imageView.setImageBitmap(bitmap)
         binding.imageView.setImageBitmap(cc16)
-        val avif12DepthBuffer = this.assets.open("test_avif_12_bitdepth.avif").source().buffer().readByteArray()
+        val avif12DepthBuffer =
+            this.assets.open("test_avif_12_bitdepth.avif").source().buffer().readByteArray()
         assert(HeifCoder().isAvif(avif12DepthBuffer))
         val avifHDRBitmap = HeifCoder().decode(avif12DepthBuffer)
         binding.imageView.setImageBitmap(avifHDRBitmap)
@@ -62,6 +62,12 @@ class MainActivity : AppCompatActivity() {
         assert(HeifCoder().getSize(buffer) != null)
         val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
         binding.imageView.setImageBitmap(heicScaled)
+        val extremlyLargeBitmapBuffer =
+            this.assets.open("extremly_large.avif").source().buffer().readByteArray()
+        assert(HeifCoder().isAvif(extremlyLargeBitmapBuffer))
+        val extremlyLargeBitmap = HeifCoder().decode(extremlyLargeBitmapBuffer)
+        binding.imageView.setImageBitmap(extremlyLargeBitmap)
+
 //        val bytes = HeifCoder().encodeAvif(cc16)
 //        val ff = File(this.filesDir, "result.avif")
 //        ff.delete()

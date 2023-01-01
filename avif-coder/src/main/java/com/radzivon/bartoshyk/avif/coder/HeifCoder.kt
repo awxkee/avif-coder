@@ -5,12 +5,6 @@ import android.util.Size
 
 class HeifCoder {
 
-    /**
-     * A native method that is implemented by the 'coder' native library,
-     * which is packaged with this application.
-     */
-    external fun stringFromJNI(): String
-
     fun isAvif(byteArray: ByteArray): Boolean {
         return isAvifImageImpl(byteArray)
     }
