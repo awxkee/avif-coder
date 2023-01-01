@@ -9,8 +9,11 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
+import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okio.buffer
 import okio.sink
 import okio.source
@@ -59,6 +62,21 @@ class MainActivity : AppCompatActivity() {
         assert(HeifCoder().getSize(buffer) != null)
         val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
         binding.imageView.setImageBitmap(heicScaled)
+//        val bytes = HeifCoder().encodeAvif(cc16)
+//        val ff = File(this.filesDir, "result.avif")
+//        ff.delete()
+//        val output = FileOutputStream(ff)
+//        output.sink().buffer().use {
+//            it.write(bytes)
+//            it.flush()
+//        }
+//        output.close()
+//        Log.d("p", bytes.size.toString())
+//        writeHevc(decodedBitmap)
+//        val numbers = IntArray(5) { 1 * (it + 1) }
+//        numbers.forEach {
+//            testEncoder("test_${it}.jpg")
+//        }
 //        val bytes = HeifCoder().encodeAvif(cc16)
 //        val ff = File(this.filesDir, "result.avif")
 //        ff.delete()
