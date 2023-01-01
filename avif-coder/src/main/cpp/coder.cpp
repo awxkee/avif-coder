@@ -56,7 +56,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 
     if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 &&
         info.format != ANDROID_BITMAP_FORMAT_RGB_565 &&
-        info.format != ANDROID_BITMAP_FORMAT_RGBA_F16) {
+        info.format != ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+        info.format != ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         throwInvalidPixelsFormat(env);
         return static_cast<jbyteArray>(nullptr);
     }
@@ -85,7 +86,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         bitDepth = 8;
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         bitDepth = 10;
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+        bitDepth = 10;
     }
+
     result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
                                   (int) info.height, bitDepth);
     if (result.code != heif_error_Ok) {
@@ -102,6 +106,14 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         libyuv::RGB565ToARGB(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);
         libyuv::ARGBToABGR(imgData, stride, imgData, stride, (int) info.width, (int) info.height);
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+        auto dstY = (char *) imgData;
+        auto srcY = (char *) addr;
+        for (int y = 0; y < info.height; ++y) {
+            memcpy(dstY, srcY, info.width * 4 * sizeof(uint32_t));
+            srcY += info.width * sizeof(uint64_t);
+            dstY += stride;
+        }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         std::shared_ptr<char> dstARGB(
                 static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),

@@ -42,8 +42,8 @@ class MainActivity : AppCompatActivity() {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
         val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png_with_alpha)
-        var cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            decodedBitmap.copy(Bitmap.Config.RGB_565, true)
+        var cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            decodedBitmap.copy(Bitmap.Config.RGBA_1010102, true)
         } else {
             decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         }
@@ -76,13 +76,15 @@ class MainActivity : AppCompatActivity() {
 //        binding.imageView.setImageBitmap(extremlyLargeBitmap)
 
         val bytes = HeifCoder().encodeAvif(cc16)
-        val ff = File(this.filesDir, "result.avif")
-        ff.delete()
-        val output = FileOutputStream(ff)
-        output.sink().buffer().use {
-            it.write(bytes)
-            it.flush()
-        }
+        val decodedBytes = HeifCoder().decode(bytes)
+        binding.imageView.setImageBitmap(decodedBytes)
+//        val ff = File(this.filesDir, "result.avif")
+//        ff.delete()
+//        val output = FileOutputStream(ff)
+//        output.sink().buffer().use {
+//            it.write(bytes)
+//            it.flush()
+//        }
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //        writeHevc(decodedBitmap)
@@ -101,10 +103,10 @@ class MainActivity : AppCompatActivity() {
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //        writeHevc(decodedBitmap)
-        val numbers = IntArray(5) { 1 * (it + 1) }
-        numbers.forEach {
-            testEncoder("test_${it}.jpg")
-        }
+//        val numbers = IntArray(5) { 1 * (it + 1) }
+//        numbers.forEach {
+//            testEncoder("test_${it}.jpg")
+//        }
     }
 
     private fun testEncoder(assetName: String) {
