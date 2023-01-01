@@ -26,6 +26,22 @@ val bitmap: Bitmap = decodeSampled(byteArray, scaledWidth, scaledHeight)
 implementation 'com.github.awxkee:avif-coder:1.0.10' // or any version above picker from release tags
 ```
 
+# Also supports coil integration
+
+Just add to image loader heif decoder factory and use it as image loader in coil
+
+```kotlin
+val imageLoader = ImageLoader.Builder(context)
+    .components {
+        add(HeifDecoder.Factory())
+    }
+    .build()
+```
+
+```groovy
+implementation 'com.github.awxkee:avif-coder-coil:1.0.0' // or any version above picker from release tags
+```
+
 # Disclaimer
 
 ## AVIF

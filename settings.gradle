@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 rootProject.name = "Avif"
 include ':app'
 include ':avif-coder'
+include ':avif-coder-coil'

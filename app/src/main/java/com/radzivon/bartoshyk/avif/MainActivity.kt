@@ -2,6 +2,9 @@ package com.radzivon.bartoshyk.avif
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
@@ -30,25 +33,36 @@ class MainActivity : AppCompatActivity() {
         val buffer = this.assets.open("test_avif.avif").source().buffer().readByteArray()
         assert(HeifCoder().isAvif(buffer))
         val bitmap = HeifCoder().decode(buffer)
+        val opts = BitmapFactory.Options()
+        opts.inMutable = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
+        }
         val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png)
+        val cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            decodedBitmap.copy(Bitmap.Config.RGBA_F16, true)
+        } else {
+            decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        }
         binding.imageView.setImageBitmap(decodedBitmap)
         binding.imageView.setImageBitmap(bitmap)
-        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
-        assert(HeifCoder().isHeif(heicBuffer))
-        val heicBitmap = HeifCoder().decode(heicBuffer)
-        binding.imageView.setImageBitmap(heicBitmap)
-        assert(HeifCoder().getSize(heicBuffer) != null)
-        assert(HeifCoder().getSize(buffer) != null)
-        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
-        binding.imageView.setImageBitmap(heicScaled)
-//        val bytes = HeifCoder().encodeAvif(decodedBitmap)
-//        val ff = File(this.filesDir, "result.avif")
-//        ff.delete()
-//        val output = FileOutputStream(ff)
-//        output.sink().buffer().use {
-//            it.write(bytes)
-//            it.flush()
-//        }
+        binding.imageView.setImageBitmap(cc16)
+//        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
+//        assert(HeifCoder().isHeif(heicBuffer))
+//        val heicBitmap = HeifCoder().decode(heicBuffer)
+//        binding.imageView.setImageBitmap(heicBitmap)
+//        assert(HeifCoder().getSize(heicBuffer) != null)
+//        assert(HeifCoder().getSize(buffer) != null)
+//        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
+//        binding.imageView.setImageBitmap(heicScaled)
+        val bytes = HeifCoder().encodeAvif(cc16)
+        val ff = File(this.filesDir, "result.avif")
+        ff.delete()
+        val output = FileOutputStream(ff)
+        output.sink().buffer().use {
+            it.write(bytes)
+            it.flush()
+        }
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //        writeHevc(decodedBitmap)

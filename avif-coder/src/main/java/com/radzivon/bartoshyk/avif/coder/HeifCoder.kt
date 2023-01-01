@@ -47,7 +47,12 @@ class HeifCoder {
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
-    private external fun decodeImpl(byteArray: ByteArray, scaledWidth: Int, scaledHeight: Int): Bitmap
+    private external fun decodeImpl(
+        byteArray: ByteArray,
+        scaledWidth: Int,
+        scaledHeight: Int
+    ): Bitmap
+
     private external fun encodeAvifImpl(bitmap: Bitmap): ByteArray
     private external fun encodeHeicImpl(bitmap: Bitmap): ByteArray
 

@@ -5,6 +5,8 @@
 #include "android/bitmap.h"
 #include "libyuv/convert_argb.h"
 #include <vector>
+#include <float.h>
+#include <arm_fp16.h>
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_stringFromJNI(
@@ -44,6 +46,12 @@ jint throwCantEncodeImageException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
+jint throwInvalidPixelsFormat(JNIEnv *env) {
+    jclass exClass;
+    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/UnsupportedImageFormatException");
+    return env->ThrowNew(exClass, "");
+}
+
 jint throwPixelsException(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/GetPixelsException");
@@ -54,7 +62,7 @@ struct AvifMemEncoder {
     std::vector<char> buffer;
 };
 
-struct heif_error writeHeifData(struct heif_context *ctx, // TODO: why do we need this parameter?
+struct heif_error writeHeifData(struct heif_context *ctx,
                                 const void *data,
                                 size_t size,
                                 void *userdata) {
@@ -89,34 +97,45 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                           [](heif_encoder *he) { heif_encoder_release(he); });
     heif_encoder_set_lossy_quality(encoder.get(), quality);
     AndroidBitmapInfo info;
-    int ret;
-    if ((ret = AndroidBitmap_getInfo(env, bitmap, &info)) < 0) {
+    if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
         throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
-    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        throwPixelsException(env);
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 &&
+        info.format != ANDROID_BITMAP_FORMAT_RGB_565 &&
+        info.format != ANDROID_BITMAP_FORMAT_RGBA_F16) {
+        throwInvalidPixelsFormat(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
     void *addr;
-    if ((ret = AndroidBitmap_lockPixels(env, bitmap, &addr)) != 0) {
+    if (AndroidBitmap_lockPixels(env, bitmap, &addr) != 0) {
         throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
     heif_image *image;
+    heif_chroma chroma = heif_chroma_interleaved_RGBA;
+    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+        chroma = heif_chroma_interleaved_RGBA;
+    }
     result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
-                               heif_chroma_interleaved_RGBA, &image);
+                               chroma, &image);
     if (result.code != heif_error_Ok) {
         AndroidBitmap_unlockPixels(env, bitmap);
         throwCantEncodeImageException(env);
         return static_cast<jbyteArray>(nullptr);
     }
 
+    int bitDepth = 8;
+    if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+        bitDepth = 8;
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+        bitDepth = 8;
+    }
     result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
-                                  (int) info.height, 32);
+                                  (int) info.height, bitDepth);
     if (result.code != heif_error_Ok) {
         AndroidBitmap_unlockPixels(env, bitmap);
         throwCantEncodeImageException(env);
@@ -124,13 +143,39 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     }
     int stride;
     uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
-    auto srcARGB = malloc(info.height * stride);
-    libyuv::RGBAToARGB(reinterpret_cast<const uint8_t *>(addr), (int) info.stride,
-                       static_cast<uint8_t *>(srcARGB), stride,
-                       (int) info.width, (int) info.height);
-    libyuv::ARGBToRGBA(reinterpret_cast<const uint8_t *>(srcARGB), (int) stride, imgData, stride,
-                       (int) info.width, (int) info.height);
-    free(srcARGB);
+    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
+        libyuv::ARGBCopy(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+                         stride, (int) info.width, (int) info.height);
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+        libyuv::RGB565ToARGB(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+                             stride, (int) info.width, (int) info.height);
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+        std::shared_ptr<char> dstARGB(
+                static_cast<char *>(malloc(info.stride * info.height * 4 * sizeof(char))),
+                [](char *f) { free(f); });
+        auto *srcData = static_cast<float16_t *>(addr);
+        int i, k = 0;
+        char tmpR;
+        char tmpG;
+        char tmpB;
+        char tmpA;
+        auto *dataPtr = reinterpret_cast<uint32_t *>(dstARGB.get());
+        const float maxColors = (float) pow(2.0, 8.0) - 1;
+        for (i = 0, k = 0; i < info.stride * info.height; i += 4) {
+            tmpR = (char) (srcData[i] * maxColors);
+            tmpG = (char) (srcData[i + 1] * maxColors);
+            tmpB = (char) (srcData[i + 2] * maxColors);
+            tmpA = (char) (srcData[i + 3] * maxColors);
+            uint32_t color = ((uint32_t) tmpA & 0xff) << 24 | ((uint32_t) tmpB & 0xff) << 16 |
+                             ((uint32_t) tmpG & 0xff) << 8 | ((uint32_t) tmpR & 0xff);
+            dataPtr[k] = color;
+            k += 1;
+        }
+        libyuv::ARGBCopy(reinterpret_cast<const uint8_t *>(dstARGB.get()), (int) info.width * 4,
+                         imgData,
+                         stride, (int) info.width, (int) info.height);
+        dstARGB.reset();
+    }
     AndroidBitmap_unlockPixels(env, bitmap);
 
     heif_image_handle *handle;
@@ -345,23 +390,25 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     auto imageWidth = heif_image_get_width(img, heif_channel_interleaved);
     auto imageHeight = heif_image_get_height(img, heif_channel_interleaved);
 
-    char *dstARGB = static_cast<char *>(malloc(stride * imageHeight));
+    std::shared_ptr<char> dstARGB(static_cast<char *>(malloc(stride * imageHeight)),
+                                  [](char *f) { free(f); });
 
     int i;
     char tmpR;
     char tmpG;
     char tmpB;
     char tmpA;
+    char *dataPtr = dstARGB.get();
     for (i = 0; i < stride * imageHeight; i += 4) {
         //swap R and B; raw_image[i + 1] is G, so it stays where it is.
         tmpR = data[i];
         tmpG = data[i + 1];
         tmpB = data[i + 2];
         tmpA = data[i + 3];
-        dstARGB[i + 0] = tmpB;
-        dstARGB[i + 1] = tmpG;
-        dstARGB[i + 2] = tmpR;
-        dstARGB[i + 3] = tmpA;
+        dataPtr[i + 0] = tmpB;
+        dataPtr[i + 1] = tmpG;
+        dataPtr[i + 2] = tmpR;
+        dataPtr[i + 3] = tmpA;
     }
 
     heif_image_release(img);
@@ -380,7 +427,8 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     auto returningLength = stride * imageHeight;
     jintArray pixels = env->NewIntArray(stride * imageHeight);
     env->SetIntArrayRegion(pixels, 0, (jsize) returningLength / sizeof(uint32_t),
-                           reinterpret_cast<const jint *>(dstARGB));
+                           reinterpret_cast<const jint *>(dstARGB.get()));
+    dstARGB.reset();
     jmethodID setPixelsMid = env->GetMethodID(bitmapClass, "setPixels", "([IIIIIII)V");
     env->CallVoidMethod(bitmapObj, setPixelsMid, pixels, 0,
                         static_cast<jint >(stride / sizeof(uint32_t)), 0, 0, imageWidth,
