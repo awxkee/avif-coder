@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
+import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
@@ -32,50 +33,56 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 
-        val buffer = this.assets.open("test_avif.avif").source().buffer().readByteArray()
-        assert(HeifCoder().isAvif(buffer))
-        val bitmap = HeifCoder().decode(buffer)
-        val opts = BitmapFactory.Options()
-        opts.inMutable = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
-        }
-        val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png)
-        val cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            decodedBitmap.copy(Bitmap.Config.RGBA_F16, true)
+//        val buffer = this.assets.open("test_avif.avif").source().buffer().readByteArray()
+//        assert(HeifCoder().isAvif(buffer))
+//        val bitmap = HeifCoder().decode(buffer)
+//        val opts = BitmapFactory.Options()
+//        opts.inMutable = true
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
+//        }
+        val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png_with_alpha)
+        var cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            decodedBitmap.copy(Bitmap.Config.RGB_565, true)
         } else {
             decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         }
-        binding.imageView.setImageBitmap(decodedBitmap)
-        binding.imageView.setImageBitmap(bitmap)
+        val rescaledSize =
+            aspectScale(Size(decodedBitmap.width, decodedBitmap.height), Size(1400, 720))
+        val cc16Rescaled = cc16.scale(rescaledSize.width, rescaledSize.height, true)
+        cc16.recycle()
+        cc16 = cc16Rescaled
         binding.imageView.setImageBitmap(cc16)
-        val avif12DepthBuffer =
-            this.assets.open("test_avif_12_bitdepth.avif").source().buffer().readByteArray()
-        assert(HeifCoder().isAvif(avif12DepthBuffer))
-        val avifHDRBitmap = HeifCoder().decode(avif12DepthBuffer)
-        binding.imageView.setImageBitmap(avifHDRBitmap)
-        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
-        assert(HeifCoder().isHeif(heicBuffer))
-        val heicBitmap = HeifCoder().decode(heicBuffer)
-        binding.imageView.setImageBitmap(heicBitmap)
-        assert(HeifCoder().getSize(heicBuffer) != null)
-        assert(HeifCoder().getSize(buffer) != null)
-        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
-        binding.imageView.setImageBitmap(heicScaled)
-        val extremlyLargeBitmapBuffer =
-            this.assets.open("extremly_large.avif").source().buffer().readByteArray()
-        assert(HeifCoder().isAvif(extremlyLargeBitmapBuffer))
-        val extremlyLargeBitmap = HeifCoder().decode(extremlyLargeBitmapBuffer)
-        binding.imageView.setImageBitmap(extremlyLargeBitmap)
+//        binding.imageView.setImageBitmap(decodedBitmap)
+//        binding.imageView.setImageBitmap(bitmap)
+//        binding.imageView.setImageBitmap(cc16)
+//        val avif12DepthBuffer =
+//            this.assets.open("test_avif_12_bitdepth.avif").source().buffer().readByteArray()
+//        assert(HeifCoder().isAvif(avif12DepthBuffer))
+//        val avifHDRBitmap = HeifCoder().decode(avif12DepthBuffer)
+//        binding.imageView.setImageBitmap(avifHDRBitmap)
+//        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
+//        assert(HeifCoder().isHeif(heicBuffer))
+//        val heicBitmap = HeifCoder().decode(heicBuffer)
+//        binding.imageView.setImageBitmap(heicBitmap)
+//        assert(HeifCoder().getSize(heicBuffer) != null)
+//        assert(HeifCoder().getSize(buffer) != null)
+//        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
+//        binding.imageView.setImageBitmap(heicScaled)
+//        val extremlyLargeBitmapBuffer =
+//            this.assets.open("extremly_large.avif").source().buffer().readByteArray()
+//        assert(HeifCoder().isAvif(extremlyLargeBitmapBuffer))
+//        val extremlyLargeBitmap = HeifCoder().decode(extremlyLargeBitmapBuffer)
+//        binding.imageView.setImageBitmap(extremlyLargeBitmap)
 
-//        val bytes = HeifCoder().encodeAvif(cc16)
-//        val ff = File(this.filesDir, "result.avif")
-//        ff.delete()
-//        val output = FileOutputStream(ff)
-//        output.sink().buffer().use {
-//            it.write(bytes)
-//            it.flush()
-//        }
+        val bytes = HeifCoder().encodeAvif(cc16)
+        val ff = File(this.filesDir, "result.avif")
+        ff.delete()
+        val output = FileOutputStream(ff)
+        output.sink().buffer().use {
+            it.write(bytes)
+            it.flush()
+        }
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //        writeHevc(decodedBitmap)
@@ -94,17 +101,24 @@ class MainActivity : AppCompatActivity() {
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //        writeHevc(decodedBitmap)
-//        val numbers = IntArray(5) { 1 * (it + 1) }
-//        numbers.forEach {
-//            testEncoder("test_${it}.jpg")
-//        }
+        val numbers = IntArray(5) { 1 * (it + 1) }
+        numbers.forEach {
+            testEncoder("test_${it}.jpg")
+        }
     }
 
     private fun testEncoder(assetName: String) {
         val buffer = this.assets.open(assetName).source().buffer().readByteArray()
         val opts = BitmapFactory.Options()
         opts.inMutable = true
-        val bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size, opts)
+        var bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size, opts)
+        val rr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            bitmap.copy(Bitmap.Config.RGBA_F16, true)
+        } else {
+            bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        }
+        bitmap.recycle()
+        bitmap = rr
 //        val newBitmap = bitmap.aspectFit(bitmap.width, bitmap.height)
 //        bitmap.recycle()
         val bytes = HeifCoder().encodeAvif(bitmap)

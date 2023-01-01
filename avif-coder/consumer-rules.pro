@@ -1,0 +1,1 @@
+-keepclasseswithmembernames class com.radzivon.bartoshyk.avif.coder.** { *; }

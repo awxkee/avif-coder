@@ -101,6 +101,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         libyuv::RGB565ToARGB(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);
+        libyuv::ARGBToABGR(imgData, stride, imgData, stride, (int) info.width, (int) info.height);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         std::shared_ptr<char> dstARGB(
                 static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
@@ -113,7 +114,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         auto *dataPtr = reinterpret_cast<uint16_t *>(dstARGB.get());
         auto *data64Ptr = reinterpret_cast<uint64_t *>(dstARGB.get());
         const float maxColors = (float) pow(2.0, bitDepth) - 1;
-        for (int i = 0, k = 0; i < info.stride * info.height; i += 4, k += 1) {
+        for (int i = 0, k = 0; i < std::min(info.stride * info.height,
+                                            info.width * info.height * 4); i += 4, k += 1) {
             tmpR = (uint16_t) (srcData[i] * maxColors);
             tmpG = (uint16_t) (srcData[i + 1] * maxColors);
             tmpB = (uint16_t) (srcData[i + 2] * maxColors);

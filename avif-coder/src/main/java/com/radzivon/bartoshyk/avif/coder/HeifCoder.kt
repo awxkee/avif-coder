@@ -2,7 +2,9 @@ package com.radzivon.bartoshyk.avif.coder
 
 import android.graphics.Bitmap
 import android.util.Size
+import androidx.annotation.Keep
 
+@Keep
 class HeifCoder {
 
     fun isAvif(byteArray: ByteArray): Boolean {

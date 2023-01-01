@@ -42,7 +42,7 @@ class HeifDecoder(
             )
         }
         val originalImage = HeifCoder().decode(byteArray)
-        val resizedBitmap = resizeAspectFill(originalImage, originalSize, Size(dstWidth, dstHeight))
+        val resizedBitmap = resizeAspectFill(originalImage, Size(dstWidth, dstHeight))
         originalImage.recycle()
         return@runInterruptible DecodeResult(
             BitmapDrawable(
@@ -52,10 +52,10 @@ class HeifDecoder(
         )
     }
 
-    private fun resizeAspectFill(sourceBitmap: Bitmap, sourceSize: Size, dstSize: Size): Bitmap {
+    private fun resizeAspectFill(sourceBitmap: Bitmap,dstSize: Size): Bitmap {
         val background = Bitmap.createBitmap(dstSize.width, dstSize.height, Bitmap.Config.ARGB_8888)
-        val originalWidth: Float = sourceSize.width.toFloat()
-        val originalHeight: Float = sourceSize.height.toFloat()
+        val originalWidth: Float = background.width.toFloat()
+        val originalHeight: Float = background.height.toFloat()
         val canvas = Canvas(background)
 
         val scale: Float =
