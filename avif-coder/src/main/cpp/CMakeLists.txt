@@ -21,37 +21,19 @@ add_library( # Sets the name of the library.
         # Provides a relative path to your source file(s).
         coder.cpp)
 
-add_library(
-        libaom
-        STATIC
-        IMPORTED
-)
-add_library(
-        libx265
-        STATIC
-        IMPORTED
-)
-add_library(
-        libheif
-        STATIC
-        IMPORTED
-)
-add_library(
-        libyuv
-        STATIC
-        IMPORTED
-)
-add_library(
-        libde265
-        STATIC
-        IMPORTED
-)
+add_library(libaom STATIC IMPORTED)
+add_library(libx265 STATIC IMPORTED)
+add_library(libheif STATIC IMPORTED)
+add_library(libyuv STATIC IMPORTED)
+add_library(libde265 STATIC IMPORTED)
+add_library(libdav1d STATIC IMPORTED)
 
 set_target_properties(libaom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.a)
 set_target_properties(libx265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.a)
 set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.a)
 set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libyuv.a)
 set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.a)
+set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.a)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
 target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpufeatures)
@@ -81,4 +63,4 @@ target_link_libraries( # Specifies the target library.
 
         # Links the target library to the log library
         # included in the NDK.
-        ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics libde265)
+        ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics libde265 libdav1d)

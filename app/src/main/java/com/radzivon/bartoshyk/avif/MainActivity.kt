@@ -59,21 +59,21 @@ class MainActivity : AppCompatActivity() {
         assert(HeifCoder().getSize(buffer) != null)
         val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
         binding.imageView.setImageBitmap(heicScaled)
-        val bytes = HeifCoder().encodeAvif(cc16)
-        val ff = File(this.filesDir, "result.avif")
-        ff.delete()
-        val output = FileOutputStream(ff)
-        output.sink().buffer().use {
-            it.write(bytes)
-            it.flush()
-        }
-        output.close()
-        Log.d("p", bytes.size.toString())
-        writeHevc(decodedBitmap)
-        val numbers = IntArray(5) { 1 * (it + 1) }
-        numbers.forEach {
-            testEncoder("test_${it}.jpg")
-        }
+//        val bytes = HeifCoder().encodeAvif(cc16)
+//        val ff = File(this.filesDir, "result.avif")
+//        ff.delete()
+//        val output = FileOutputStream(ff)
+//        output.sink().buffer().use {
+//            it.write(bytes)
+//            it.flush()
+//        }
+//        output.close()
+//        Log.d("p", bytes.size.toString())
+//        writeHevc(decodedBitmap)
+//        val numbers = IntArray(5) { 1 * (it + 1) }
+//        numbers.forEach {
+//            testEncoder("test_${it}.jpg")
+//        }
     }
 
     private fun testEncoder(assetName: String) {
