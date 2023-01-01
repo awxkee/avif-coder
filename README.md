@@ -39,10 +39,6 @@ val imageLoader = ImageLoader.Builder(context)
     .build()
 ```
 
-```groovy
-implementation 'com.github.awxkee:avif-coder-coil:1.0.0' // or any version above picker from release tags
-```
-
 # Disclaimer
 
 ## AVIF
