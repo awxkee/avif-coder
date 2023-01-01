@@ -54,6 +54,11 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         return static_cast<jbyteArray>(nullptr);
     }
 
+    if (info.flags & ANDROID_BITMAP_FLAGS_IS_HARDWARE) {
+        throwHardwareBitmapException(env);
+        return static_cast<jbyteArray>(nullptr);
+    }
+
     if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 &&
         info.format != ANDROID_BITMAP_FORMAT_RGB_565 &&
         info.format != ANDROID_BITMAP_FORMAT_RGBA_F16 &&

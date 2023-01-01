@@ -15,5 +15,6 @@ jint throwInvalidScale(JNIEnv *env);
 jint throwCantEncodeImageException(JNIEnv *env);
 jint throwInvalidPixelsFormat(JNIEnv *env);
 jint throwPixelsException(JNIEnv *env);
+jint throwHardwareBitmapException(JNIEnv *env);
 
 #endif //AVIF_JNI_EXCEPTION_H

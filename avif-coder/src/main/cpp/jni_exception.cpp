@@ -28,6 +28,12 @@ jint throwCantDecodeImageException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
+jint throwHardwareBitmapException(JNIEnv *env) {
+    jclass exClass;
+    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/HardwareBitmapIsNotImplementedException");
+    return env->ThrowNew(exClass, "");
+}
+
 jint throwInvalidScale(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/HeifCantScaleException");
