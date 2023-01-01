@@ -22,6 +22,12 @@ jint throwCannotReadFileException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
+jint throwBitDepthException(JNIEnv *env) {
+    jclass exClass;
+    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CorruptedBitDepthException");
+    return env->ThrowNew(exClass, "");
+}
+
 jint throwCoderCreationException(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantCreateCodecException");
@@ -118,7 +124,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     heif_image *image;
     heif_chroma chroma = heif_chroma_interleaved_RGBA;
     if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
-        chroma = heif_chroma_interleaved_RGBA;
+        chroma = heif_chroma_interleaved_RRGGBBAA_LE;
     }
     result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
                                chroma, &image);
@@ -132,7 +138,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         bitDepth = 8;
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
-        bitDepth = 8;
+        bitDepth = 10;
     }
     result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
                                   (int) info.height, bitDepth);
@@ -151,29 +157,32 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                              stride, (int) info.width, (int) info.height);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         std::shared_ptr<char> dstARGB(
-                static_cast<char *>(malloc(info.stride * info.height * 4 * sizeof(char))),
+                static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
                 [](char *f) { free(f); });
         auto *srcData = static_cast<float16_t *>(addr);
-        int i, k = 0;
-        char tmpR;
-        char tmpG;
-        char tmpB;
-        char tmpA;
-        auto *dataPtr = reinterpret_cast<uint32_t *>(dstARGB.get());
-        const float maxColors = (float) pow(2.0, 8.0) - 1;
-        for (i = 0, k = 0; i < info.stride * info.height; i += 4) {
-            tmpR = (char) (srcData[i] * maxColors);
-            tmpG = (char) (srcData[i + 1] * maxColors);
-            tmpB = (char) (srcData[i + 2] * maxColors);
-            tmpA = (char) (srcData[i + 3] * maxColors);
-            uint32_t color = ((uint32_t) tmpA & 0xff) << 24 | ((uint32_t) tmpB & 0xff) << 16 |
-                             ((uint32_t) tmpG & 0xff) << 8 | ((uint32_t) tmpR & 0xff);
-            dataPtr[k] = color;
-            k += 1;
+        uint16_t tmpR;
+        uint16_t tmpG;
+        uint16_t tmpB;
+        uint16_t tmpA;
+        auto *dataPtr = reinterpret_cast<uint16_t *>(dstARGB.get());
+        auto *data64Ptr = reinterpret_cast<uint64_t *>(dstARGB.get());
+        const float maxColors = (float) pow(2.0, bitDepth) - 1;
+        for (int i = 0, k = 0; i < info.stride * info.height; i += 4, k += 1) {
+            tmpR = (uint16_t) (srcData[i] * maxColors);
+            tmpG = (uint16_t) (srcData[i + 1] * maxColors);
+            tmpB = (uint16_t) (srcData[i + 2] * maxColors);
+            tmpA = (uint16_t) (srcData[i + 3] * maxColors);
+            uint64_t color = ((uint64_t) tmpA & 0xffff) << 48 | ((uint64_t) tmpB & 0xffff) << 32 |
+                             ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
+            data64Ptr[k] = color;
         }
-        libyuv::ARGBCopy(reinterpret_cast<const uint8_t *>(dstARGB.get()), (int) info.width * 4,
-                         imgData,
-                         stride, (int) info.width, (int) info.height);
+        auto srcY = (char *) dataPtr;
+        auto dstY = (char *) imgData;
+        for (int y = 0; y < info.height; ++y) {
+            memcpy(dstY, srcY, info.width * 4 * sizeof(uint64_t));
+            srcY += info.width * sizeof(uint64_t);
+            dstY += stride;
+        }
         dstARGB.reset();
     }
     AndroidBitmap_unlockPixels(env, bitmap);
@@ -187,7 +196,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     options->image_orientation = heif_orientation_normal;
     result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
     options.reset();
-    if (handle) {
+    if (handle && result.code == heif_error_Ok) {
         heif_context_set_primary_image(ctx.get(), handle);
         heif_image_handle_release(handle);
     }
@@ -300,6 +309,12 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
         throwCannotReadFileException(env);
         return static_cast<jobject>(nullptr);
     }
+    int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle);
+    if (bitDepth < 0) {
+        heif_image_handle_release(handle);
+        throwBitDepthException(env);
+        return static_cast<jobject>(nullptr);
+    }
     heif_image *img;
     std::shared_ptr<heif_decoding_options> options(heif_decoding_options_alloc(),
                                                    [](heif_decoding_options *deo) {
@@ -356,6 +371,12 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         throwCannotReadFileException(env);
         return static_cast<jobject>(nullptr);
     }
+    int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle);
+    if (bitDepth < 0) {
+        heif_image_handle_release(handle);
+        throwBitDepthException(env);
+        return static_cast<jobject>(nullptr);
+    }
     heif_image *img;
     std::shared_ptr<heif_decoding_options> options(heif_decoding_options_alloc(),
                                                    [](heif_decoding_options *deo) {
@@ -363,7 +384,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                                                    });
     options->convert_hdr_to_8bit = true;
     result = heif_decode_image(handle, &img, heif_colorspace_RGB, heif_chroma_interleaved_RGBA,
-                               nullptr);
+                               options.get());
     options.reset();
     if (result.code != heif_error_Ok) {
         heif_image_handle_release(handle);

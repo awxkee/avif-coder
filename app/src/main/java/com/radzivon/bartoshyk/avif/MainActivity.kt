@@ -47,14 +47,18 @@ class MainActivity : AppCompatActivity() {
         binding.imageView.setImageBitmap(decodedBitmap)
         binding.imageView.setImageBitmap(bitmap)
         binding.imageView.setImageBitmap(cc16)
-//        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
-//        assert(HeifCoder().isHeif(heicBuffer))
-//        val heicBitmap = HeifCoder().decode(heicBuffer)
-//        binding.imageView.setImageBitmap(heicBitmap)
-//        assert(HeifCoder().getSize(heicBuffer) != null)
-//        assert(HeifCoder().getSize(buffer) != null)
-//        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
-//        binding.imageView.setImageBitmap(heicScaled)
+        val avif12DepthBuffer = this.assets.open("test_avif_12_bitdepth.avif").source().buffer().readByteArray()
+        assert(HeifCoder().isAvif(avif12DepthBuffer))
+        val avifHDRBitmap = HeifCoder().decode(avif12DepthBuffer)
+        binding.imageView.setImageBitmap(avifHDRBitmap)
+        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
+        assert(HeifCoder().isHeif(heicBuffer))
+        val heicBitmap = HeifCoder().decode(heicBuffer)
+        binding.imageView.setImageBitmap(heicBitmap)
+        assert(HeifCoder().getSize(heicBuffer) != null)
+        assert(HeifCoder().getSize(buffer) != null)
+        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
+        binding.imageView.setImageBitmap(heicScaled)
         val bytes = HeifCoder().encodeAvif(cc16)
         val ff = File(this.filesDir, "result.avif")
         ff.delete()
@@ -63,13 +67,13 @@ class MainActivity : AppCompatActivity() {
             it.write(bytes)
             it.flush()
         }
-//        output.close()
-//        Log.d("p", bytes.size.toString())
-//        writeHevc(decodedBitmap)
-//        val numbers = IntArray(5) { 1 * (it + 1) }
-//        numbers.forEach {
-//            testEncoder("test_${it}.jpg")
-//        }
+        output.close()
+        Log.d("p", bytes.size.toString())
+        writeHevc(decodedBitmap)
+        val numbers = IntArray(5) { 1 * (it + 1) }
+        numbers.forEach {
+            testEncoder("test_${it}.jpg")
+        }
     }
 
     private fun testEncoder(assetName: String) {

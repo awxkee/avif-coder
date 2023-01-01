@@ -1,15 +1,16 @@
 # AVIF/HEIF Coder for Android 24+
 
 Library provides simple interface to decode or encode ( create ) AVIF and HEIF images for Android
-26+. Based on libheif, libde265, libx265, libyuv and libaom
+Very fast and convinient to use AVIF in android apps with api version 24+
+26+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d
 
 # Usage example
 
 ```kotlin
-// May decode AVIF(AV1) and HEIC (HEVC) images
+// May decode AVIF(AV1) and HEIC (HEVC) images, all HDR images currently will be converted in 8bit
 val bitmap: Bitmap = HeifCoder().decode(buffer) // Decode avif from ByteArray
 val bytes: ByteArray = HeifCoder().encodeAvif(decodedBitmap) // Encode Bitmap to AVIF
-val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC
+val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports HDR in RGBA_F16
 // Check if image is valid AVIF(AV1) image
 val isAvif = HeifCoder().isAvif(byteArray)
 // Check if image is valid HEIF(HEVC) image
@@ -23,7 +24,7 @@ val bitmap: Bitmap = decodeSampled(byteArray, scaledWidth, scaledHeight)
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.0.10' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.0.13' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
