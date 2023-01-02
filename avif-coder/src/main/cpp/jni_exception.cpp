@@ -34,16 +34,16 @@ jint throwHardwareBitmapException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
-jint throwInvalidScale(JNIEnv *env) {
+jint throwInvalidScale(JNIEnv *env, const char * msg) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/HeifCantScaleException");
-    return env->ThrowNew(exClass, "");
+    return env->ThrowNew(exClass, msg);
 }
 
-jint throwCantEncodeImageException(JNIEnv *env) {
+jint throwCantEncodeImageException(JNIEnv *env, const char * msg) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantEncodeImageException");
-    return env->ThrowNew(exClass, "");
+    return env->ThrowNew(exClass, msg);
 }
 
 jint throwInvalidPixelsFormat(JNIEnv *env) {

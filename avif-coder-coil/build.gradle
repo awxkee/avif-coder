@@ -15,7 +15,7 @@ afterEvaluate {
             mavenJava(MavenPublication) {
                 groupId = 'com.github.awxkee'
                 artifactId = 'avif-coder-coil'
-                version = '1.0.1'
+                version = '1.0.17'
                 from components.release
                 artifact androidSourcesJar
             }

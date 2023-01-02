@@ -42,7 +42,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     heif_encoder *mEncoder;
     auto result = heif_context_get_encoder_for_format(ctx.get(), heifCompressionFormat, &mEncoder);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env);
+        throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
     std::shared_ptr<heif_encoder> encoder(mEncoder,
@@ -82,7 +82,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                chroma, &image);
     if (result.code != heif_error_Ok) {
         AndroidBitmap_unlockPixels(env, bitmap);
-        throwCantEncodeImageException(env);
+        throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
 
@@ -99,7 +99,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                   (int) info.height, bitDepth);
     if (result.code != heif_error_Ok) {
         AndroidBitmap_unlockPixels(env, bitmap);
-        throwCantEncodeImageException(env);
+        throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
     int stride;
@@ -128,7 +128,6 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         uint16_t tmpG;
         uint16_t tmpB;
         uint16_t tmpA;
-        auto *dataPtr = reinterpret_cast<uint16_t *>(dstARGB.get());
         auto *data64Ptr = reinterpret_cast<uint64_t *>(dstARGB.get());
         const float maxColors = (float) pow(2.0, bitDepth) - 1;
         for (int i = 0, k = 0; i < std::min(info.stride * info.height,
@@ -141,11 +140,13 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                              ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
             data64Ptr[k] = color;
         }
+        auto *dataPtr = reinterpret_cast<void *>(dstARGB.get());
         auto srcY = (char *) dataPtr;
         auto dstY = (char *) imgData;
+        const auto sourceStride = info.width * 4 * sizeof(uint16_t);
         for (int y = 0; y < info.height; ++y) {
-            memcpy(dstY, srcY, info.width * 4 * sizeof(uint64_t));
-            srcY += info.width * sizeof(uint64_t);
+            memcpy(dstY, srcY, sourceStride);
+            srcY += sourceStride;
             dstY += stride;
         }
         dstARGB.reset();
@@ -167,7 +168,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     }
     heif_image_release(image);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env);
+        throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
 
@@ -180,7 +181,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     AvifMemEncoder memEncoder;
     result = heif_context_write(ctx.get(), &writer, &memEncoder);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env);
+        throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
 
@@ -376,7 +377,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         if (result.code != heif_error_Ok) {
             heif_image_release(img);
             heif_image_handle_release(handle);
-            throwInvalidScale(env);
+            throwInvalidScale(env, result.message);
             return static_cast<jobject>(nullptr);
         }
         heif_image_release(img);

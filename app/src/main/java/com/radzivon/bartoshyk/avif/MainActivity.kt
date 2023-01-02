@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
 //        }
         val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png_with_alpha)
         var cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            decodedBitmap.copy(Bitmap.Config.RGBA_1010102, true)
+            decodedBitmap.copy(Bitmap.Config.RGBA_F16, true)
         } else {
             decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
         }
@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
 //        val extremlyLargeBitmap = HeifCoder().decode(extremlyLargeBitmapBuffer)
 //        binding.imageView.setImageBitmap(extremlyLargeBitmap)
 
-        val bytes = HeifCoder().encodeAvif(cc16)
+        val bytes = HeifCoder().encodeHeic(cc16)
         val decodedBytes = HeifCoder().decode(bytes)
         binding.imageView.setImageBitmap(decodedBytes)
 //        val ff = File(this.filesDir, "result.avif")

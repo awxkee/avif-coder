@@ -3,6 +3,7 @@ package com.radzivon.bartoshyk.avif.coder
 import androidx.annotation.Keep
 
 @Keep
-class CantEncodeImageException: Exception("Can't encode image exception") {
+class CantEncodeImageException(override val message: String?) :
+    Exception("Can't encode image: $message") {
 
 }
