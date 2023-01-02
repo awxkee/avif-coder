@@ -75,7 +75,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 
     heif_image *image;
     heif_chroma chroma = heif_chroma_interleaved_RGBA;
-    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+        heifCompressionFormat == heif_compression_AV1) {
         chroma = heif_chroma_interleaved_RRGGBBAA_LE;
     }
     result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
@@ -89,9 +90,11 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     int bitDepth = 8;
     if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         bitDepth = 8;
-    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+               heifCompressionFormat == heif_compression_AV1) {
         bitDepth = 10;
-    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
+               heifCompressionFormat == heif_compression_AV1) {
         bitDepth = 10;
     }
 
@@ -112,44 +115,85 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                              stride, (int) info.width, (int) info.height);
         libyuv::ARGBToABGR(imgData, stride, imgData, stride, (int) info.width, (int) info.height);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
-        auto dstY = (char *) imgData;
-        auto srcY = (char *) addr;
-        for (int y = 0; y < info.height; ++y) {
-            memcpy(dstY, srcY, info.width * 4 * sizeof(uint32_t));
-            srcY += info.width * sizeof(uint64_t);
-            dstY += stride;
+        if (heifCompressionFormat == heif_compression_HEVC) {
+            auto dstY = (char *) imgData;
+            auto srcY = (char *) addr;
+            for (int y = 0; y < info.height; ++y) {
+                memcpy(dstY, srcY, info.width * 4 * sizeof(uint32_t));
+                srcY += info.width * sizeof(uint64_t);
+                dstY += stride;
+            }
+        } else {
+            libyuv::AR30ToABGR(static_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+                               stride, (int) info.width,
+                               (int) info.height);
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
-        std::shared_ptr<char> dstARGB(
-                static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
-                [](char *f) { free(f); });
-        auto *srcData = static_cast<float16_t *>(addr);
-        uint16_t tmpR;
-        uint16_t tmpG;
-        uint16_t tmpB;
-        uint16_t tmpA;
-        auto *data64Ptr = reinterpret_cast<uint64_t *>(dstARGB.get());
-        const float maxColors = (float) pow(2.0, bitDepth) - 1;
-        for (int i = 0, k = 0; i < std::min(info.stride * info.height,
-                                            info.width * info.height * 4); i += 4, k += 1) {
-            tmpR = (uint16_t) (srcData[i] * maxColors);
-            tmpG = (uint16_t) (srcData[i + 1] * maxColors);
-            tmpB = (uint16_t) (srcData[i + 2] * maxColors);
-            tmpA = (uint16_t) (srcData[i + 3] * maxColors);
-            uint64_t color = ((uint64_t) tmpA & 0xffff) << 48 | ((uint64_t) tmpB & 0xffff) << 32 |
-                             ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
-            data64Ptr[k] = color;
+        if (heifCompressionFormat == heif_compression_AV1) {
+            std::shared_ptr<char> dstARGB(
+                    static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
+                    [](char *f) { free(f); });
+            auto *srcData = static_cast<float16_t *>(addr);
+            uint16_t tmpR;
+            uint16_t tmpG;
+            uint16_t tmpB;
+            uint16_t tmpA;
+            auto *data64Ptr = reinterpret_cast<uint64_t *>(dstARGB.get());
+            const float maxColors = (float) pow(2.0, bitDepth) - 1;
+            for (int i = 0, k = 0; i < std::min(info.stride * info.height,
+                                                info.width * info.height * 4); i += 4, k += 1) {
+                tmpR = (uint16_t) (srcData[i] * maxColors);
+                tmpG = (uint16_t) (srcData[i + 1] * maxColors);
+                tmpB = (uint16_t) (srcData[i + 2] * maxColors);
+                tmpA = (uint16_t) (srcData[i + 3] * maxColors);
+                uint64_t color =
+                        ((uint64_t) tmpA & 0xffff) << 48 | ((uint64_t) tmpB & 0xffff) << 32 |
+                        ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
+                data64Ptr[k] = color;
+            }
+            auto *dataPtr = reinterpret_cast<void *>(dstARGB.get());
+            auto srcY = (char *) dataPtr;
+            auto dstY = (char *) imgData;
+            const auto sourceStride = info.width * 4 * sizeof(uint16_t);
+            for (int y = 0; y < info.height; ++y) {
+                memcpy(dstY, srcY, sourceStride);
+                srcY += sourceStride;
+                dstY += stride;
+            }
+            dstARGB.reset();
+        } else {
+            std::shared_ptr<char> dstARGB(
+                    static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint8_t))),
+                    [](char *f) { free(f); });
+            auto *srcData = static_cast<float16_t *>(addr);
+            char tmpR;
+            char tmpG;
+            char tmpB;
+            char tmpA;
+            auto *data64Ptr = reinterpret_cast<uint32_t *>(dstARGB.get());
+            const float maxColors = (float) pow(2.0, 8) - 1;
+            for (int i = 0, k = 0; i < std::min(info.stride * info.height,
+                                                info.width * info.height * 4); i += 4, k += 1) {
+                tmpR = (char) (srcData[i] * maxColors);
+                tmpG = (char) (srcData[i + 1] * maxColors);
+                tmpB = (char) (srcData[i + 2] * maxColors);
+                tmpA = (char) (srcData[i + 3] * maxColors);
+                uint32_t color =
+                        ((uint32_t) tmpA & 0xff) << 24 | ((uint32_t) tmpB & 0xff) << 16 |
+                        ((uint32_t) tmpG & 0xff) << 8 | ((uint32_t) tmpR & 0xff);
+                data64Ptr[k] = color;
+            }
+            auto *dataPtr = reinterpret_cast<void *>(dstARGB.get());
+            auto srcY = (char *) dataPtr;
+            auto dstY = (char *) imgData;
+            const auto sourceStride = info.width * 4 * sizeof(uint8_t);
+            for (int y = 0; y < info.height; ++y) {
+                memcpy(dstY, srcY, sourceStride);
+                srcY += sourceStride;
+                dstY += stride;
+            }
+            dstARGB.reset();
         }
-        auto *dataPtr = reinterpret_cast<void *>(dstARGB.get());
-        auto srcY = (char *) dataPtr;
-        auto dstY = (char *) imgData;
-        const auto sourceStride = info.width * 4 * sizeof(uint16_t);
-        for (int y = 0; y < info.height; ++y) {
-            memcpy(dstY, srcY, sourceStride);
-            srcY += sourceStride;
-            dstY += stride;
-        }
-        dstARGB.reset();
     }
     AndroidBitmap_unlockPixels(env, bitmap);
 
