@@ -23,6 +23,14 @@ val imageSize: Size? = HeifCoder().getSize(byteArray)
 val bitmap: Bitmap = decodeSampled(byteArray, scaledWidth, scaledHeight)
 ```
 
+# Add Jitpack repository
+
+```groovy
+repositories {
+    maven { url "https://jitpack.io" }
+}
+```
+
 ```groovy
 implementation 'com.github.awxkee:avif-coder:1.0.18' // or any version above picker from release tags
 ```
@@ -37,6 +45,42 @@ val imageLoader = ImageLoader.Builder(context)
         add(HeifDecoder.Factory())
     }
     .build()
+```
+
+# Self-build
+
+## Requirements
+
+libdav1d:
+
+- ndk
+- meson
+- ninja
+- cmake
+
+libyuv, de265, x265, aom:
+
+- ndk
+- ninja
+- cmake
+
+libheif:
+- ndk
+- ninja
+- cmake
+- and all built libraries above
+
+If you wish to build by yourself you may use ready `build_aom.sh`
+script, `build_dav1d.sh`, `build_x265.sh`, `build_de265.sh`, `build_yuv.sh`, `build_heif.sh` or you
+may use `build_all.sh`
+
+**All commands are require the NDK path set by NDK_PATH environment variable**
+
+* If you wish to build for **x86** you have to add a **$INCLUDE_X86** environment variable for
+  example:*
+
+```shell
+NDK_PATH=/path/to/ndk INCLUDE_X86=yes bash build_aom.sh
 ```
 
 # Disclaimer

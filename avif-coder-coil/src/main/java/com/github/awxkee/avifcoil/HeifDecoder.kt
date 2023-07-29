@@ -41,7 +41,20 @@ class HeifDecoder(
                 ), true
             )
         }
-        val originalImage = HeifCoder().decode(byteArray)
+        val isHorizontal = originalSize.width > originalSize.height
+        val square = originalSize.width * originalSize.height
+        val maxSquare = 2480 * 1440
+        val targetSizeNotAspect: Size =
+            if (square > maxSquare) (if (isHorizontal) Size(
+                2480,
+                1440
+            ) else Size(
+                1440,
+                2480
+            )) else originalSize
+        val aspectSize = aspectScale(originalSize, targetSizeNotAspect)
+        val originalImage =
+            HeifCoder().decodeSampled(byteArray, aspectSize.width, aspectSize.height)
         val resizedBitmap = resizeAspectFill(originalImage, Size(dstWidth, dstHeight))
         originalImage.recycle()
         return@runInterruptible DecodeResult(
@@ -75,9 +88,13 @@ class HeifDecoder(
         return background
     }
 
-    private fun aspectScale(sourceSize: Size, dstSize: Size): Size {
+    private fun aspectScale(
+        sourceSize: Size,
+        dstSize: Size
+    ): Size {
         val isHorizontal = sourceSize.width > sourceSize.height
-        val targetSize = if (isHorizontal) dstSize else Size(dstSize.height, dstSize.width)
+        val targetSize =
+            if (isHorizontal) dstSize else Size(dstSize.height, dstSize.width)
         if (targetSize.width > sourceSize.width && targetSize.height > sourceSize.height) {
             return sourceSize
         }

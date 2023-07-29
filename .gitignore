@@ -14,3 +14,13 @@
 .cxx
 local.properties
 .idea
+/app/src/main/assets/test_1.avif
+/app/src/main/assets/test_2.avif
+/app/src/main/assets/test_3.avif
+/app/src/main/assets/test_4.avif
+/app/src/main/assets/test_5.avif
+/aom/
+/dav1d/
+/x265/
+/libde265/
+/libheif/
