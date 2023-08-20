@@ -47,7 +47,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     }
     std::shared_ptr<heif_encoder> encoder(mEncoder,
                                           [](heif_encoder *he) { heif_encoder_release(he); });
-    heif_encoder_set_lossy_quality(encoder.get(), quality);
+    if (quality < 100) {
+        heif_encoder_set_lossy_quality(encoder.get(), quality);
+    }
+
     AndroidBitmapInfo info;
     if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
         throwPixelsException(env);
@@ -239,15 +242,15 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap) {
-    return encodeBitmap(env, thiz, bitmap, heif_compression_AV1, 70);
+                                                                jobject bitmap, jint quality) {
+    return encodeBitmap(env, thiz, bitmap, heif_compression_AV1, quality);
 }
 
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap) {
-    return encodeBitmap(env, thiz, bitmap, heif_compression_HEVC, 70);
+                                                                jobject bitmap, jint quality) {
+    return encodeBitmap(env, thiz, bitmap, heif_compression_HEVC, quality);
 }
 
 extern "C"
