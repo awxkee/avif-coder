@@ -1,6 +1,10 @@
+@file:Suppress("unused")
+
 package com.radzivon.bartoshyk.avif.coder
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Size
 import androidx.annotation.Keep
 
@@ -31,13 +35,14 @@ class HeifCoder {
         return decodeImpl(byteArray, scaledWidth, scaledHeight)
     }
 
-    fun encodeAvif(bitmap: Bitmap): ByteArray {
-        return encodeAvifImpl(bitmap)
+    fun encodeAvif(bitmap: Bitmap, quality: Int): ByteArray {
+        return encodeAvifImpl(bitmap, quality)
     }
 
-    fun encodeHeic(bitmap: Bitmap): ByteArray {
-        return encodeHeicImpl(bitmap)
+    fun encodeHeic(bitmap: Bitmap, quality: Int): ByteArray {
+        return encodeHeicImpl(bitmap, quality)
     }
+
 
     private external fun getSizeImpl(byteArray: ByteArray): Size?
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
@@ -49,12 +54,15 @@ class HeifCoder {
         scaledHeight: Int
     ): Bitmap
 
-    private external fun encodeAvifImpl(bitmap: Bitmap): ByteArray
-    private external fun encodeHeicImpl(bitmap: Bitmap): ByteArray
+    private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int): ByteArray
+    private external fun encodeHeicImpl(bitmap: Bitmap, quality: Int): ByteArray
 
+    @SuppressLint("ObsoleteSdkInt")
     companion object {
         init {
-            System.loadLibrary("coder")
+            if (Build.VERSION.SDK_INT >= 24) {
+                System.loadLibrary("coder")
+            }
         }
     }
 }
