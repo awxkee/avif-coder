@@ -1,75 +1,70 @@
+@file:Suppress("UnstableApiUsage")
+
 plugins {
-    id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
-    id 'maven-publish'
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
 }
 
-task androidSourcesJar(type: Jar) {
-    archiveClassifier.set('sources')
-    from android.sourceSets.main.java.srcDirs
-}
-
-afterEvaluate {
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                groupId = 'com.github.awxkee'
-                artifactId = 'avif-coder'
-                version = '1.0.17'
-                from components.release
-                artifact androidSourcesJar
-            }
-        }
-    }
-}
 
 android {
-    namespace 'com.github.awxkee.avifcoder'
-    compileSdk 33
+    namespace = "com.github.awxkee.avifcoder"
+    compileSdk = 34
 
     defaultConfig {
-        minSdk 24
-        targetSdk 33
+        minSdk = 24
+        targetSdk = 34
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles "consumer-rules.pro"
         externalNativeBuild {
             cmake {
-                cppFlags ""
-                abiFilters 'x86_64', 'armeabi-v7a', 'arm64-v8a'
-                ndkVersion '25.1.8937393'
+                cppFlags(
+                    "-Wl,--build-id=none",
+                    "-Wl,--gc-sections",
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                    "-fvisibility=hidden"
+                )
+                cFlags(
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                    "-fvisibility=hidden",
+                    "-Wl,--build-id=none",
+                    "-Wl,--gc-sections",
+                )
+                abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64")
             }
         }
+
     }
 
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            consumerProguardFiles("consumer-rules.pro")
         }
     }
     externalNativeBuild {
-        cmake {
-            path "src/main/cpp/CMakeLists.txt"
-            version "3.18.1"
-        }
+        cmake { path("src/main/cpp/CMakeLists.txt") }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    packaging {
+        jniLibs {
+            excludes.add("lib/*/liblog.so")
+            useLegacyPackaging = false
+            keepDebugSymbols.clear()
+        }
+    }
 }
-
 dependencies {
-
-    implementation 'androidx.core:core-ktx:1.9.0'
-    implementation 'androidx.appcompat:appcompat:1.5.1'
-    implementation 'com.google.android.material:material:1.7.0'
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.4'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
+    implementation("androidx.annotation:annotation-jvm:1.6.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }
