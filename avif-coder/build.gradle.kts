@@ -16,6 +16,7 @@ android {
 
         externalNativeBuild {
             cmake {
+                ndkVersion = "25.1.8937393"
                 cppFlags(
                     "-Wl,--build-id=none",
                     "-Wl,--gc-sections",
@@ -46,7 +47,10 @@ android {
         }
     }
     externalNativeBuild {
-        cmake { path("src/main/cpp/CMakeLists.txt") }
+        cmake {
+            version = "3.18.1"
+            path("src/main/cpp/CMakeLists.txt")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -55,16 +59,7 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
-
-    packaging {
-        jniLibs {
-            excludes.add("lib/*/liblog.so")
-            useLegacyPackaging = false
-            keepDebugSymbols.clear()
-        }
-    }
 }
 dependencies {
     implementation("androidx.annotation:annotation-jvm:1.6.0")
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }

@@ -35,11 +35,17 @@ class HeifCoder {
         return decodeImpl(byteArray, scaledWidth, scaledHeight)
     }
 
-    fun encodeAvif(bitmap: Bitmap, quality: Int): ByteArray {
+    fun encodeAvif(bitmap: Bitmap, quality: Int = 80): ByteArray {
+        require(quality in 0..100) {
+            throw IllegalStateException("Quality should be in 0..100 range")
+        }
         return encodeAvifImpl(bitmap, quality)
     }
 
-    fun encodeHeic(bitmap: Bitmap, quality: Int): ByteArray {
+    fun encodeHeic(bitmap: Bitmap, quality: Int = 80): ByteArray {
+        require(quality in 0..100) {
+            throw IllegalStateException("Quality should be in 0..100 range")
+        }
         return encodeHeicImpl(bitmap, quality)
     }
 
