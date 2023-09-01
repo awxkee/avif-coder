@@ -6,7 +6,34 @@ plugins {
     id("maven-publish")
 }
 
+task("androidSourcesJar", Jar::class) {
+    archiveClassifier.set("sources")
+    from(android.sourceSets.getByName("main").java.srcDirs)
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                groupId = "com.github.awxkee"
+                artifactId = "avif-coder-coil"
+                version = "1.0.20"
+                from(components.findByName("release"))
+                artifact("androidSourcesJar")
+            }
+        }
+    }
+}
+
+
 android {
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+
     namespace = "com.github.awxkee.avifcoil"
     compileSdk = 34
 
@@ -35,7 +62,6 @@ android {
 dependencies {
     api(project(":avif-coder"))
     api("io.coil-kt:coil:2.4.0")
-    implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("io.coil-kt:coil-gif:2.4.0")
     implementation("io.coil-kt:coil-svg:2.4.0")
 }
