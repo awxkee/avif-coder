@@ -19,7 +19,7 @@ afterEvaluate {
                 artifactId = "avif-coder-coil"
                 version = "1.0.23"
                 from(components.findByName("release"))
-                artifact("androidSourcesJar")
+//                artifact("androidSourcesJar")
             }
         }
     }

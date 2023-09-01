@@ -19,7 +19,7 @@ afterEvaluate {
                 artifactId = "avif-coder"
                 version = "1.0.23"
                 from(components["release"])
-                artifact("androidSourcesJar")
+//                artifact("androidSourcesJar")
             }
         }
     }
