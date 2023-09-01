@@ -12,7 +12,7 @@ afterEvaluate {
             create<MavenPublication>("mavenJava") {
                 groupId = "com.github.awxkee"
                 artifactId = "avif-coder"
-                version = "1.0.20"
+                version = "1.0.21"
                 from(components["release"])
             }
         }
