@@ -16,7 +16,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                ndkVersion = "25.1.8937393"
+                ndkVersion = "25.2.9519653"
                 cppFlags(
                     "-Wl,--build-id=none",
                     "-Wl,--gc-sections",
@@ -48,7 +48,7 @@ android {
     }
     externalNativeBuild {
         cmake {
-            version = "3.18.1"
+            version = "3.22.1"
             path("src/main/cpp/CMakeLists.txt")
         }
     }
