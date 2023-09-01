@@ -6,20 +6,33 @@ plugins {
     id("maven-publish")
 }
 
+task("androidSourcesJar", Jar::class) {
+    archiveClassifier.set("sources")
+    from(android.sourceSets.getByName("main").java.srcDirs)
+}
+
 afterEvaluate {
     publishing {
         publications {
             create<MavenPublication>("mavenJava") {
                 groupId = "com.github.awxkee"
                 artifactId = "avif-coder"
-                version = "1.0.21"
+                version = "1.0.23"
                 from(components["release"])
+                artifact("androidSourcesJar")
             }
         }
     }
 }
 
 android {
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+
     namespace = "com.github.awxkee.avifcoder"
     compileSdk = 34
 
