@@ -3,8 +3,21 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("maven-publish")
 }
 
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                groupId = "com.github.awxkee"
+                artifactId = "avif-coder"
+                version = "1.0.20"
+                from(components["release"])
+            }
+        }
+    }
+}
 
 android {
     namespace = "com.github.awxkee.avifcoder"
