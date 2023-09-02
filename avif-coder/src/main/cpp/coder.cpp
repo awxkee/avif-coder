@@ -9,10 +9,24 @@
 #include <arm_fp16.h>
 #include "jni_exception.h"
 #include "scaler.h"
+#include <android/log.h>
+#include <android/data_space.h>
+#include <sys/system_properties.h>
+#include "icc/lcms2.h"
+#include "rgba_to_bgra.h"
+#include "bg_2020_with_pq_color.h"
+#include <math.h>
+#include <limits>
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
 };
+
+int androidOSVersion() {
+    char osVersion[PROP_VALUE_MAX + 1];
+    int osVersionLength = __system_property_get("ro.build.version.release", osVersion);
+    return osVersionLength;
+}
 
 struct heif_error writeHeifData(struct heif_context *ctx,
                                 const void *data,
@@ -396,6 +410,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                                                        heif_decoding_options_free(deo);
                                                    });
     options->convert_hdr_to_8bit = true;
+    options->ignore_transformations = false;
     result = heif_decode_image(handle, &img, heif_colorspace_RGB, heif_chroma_interleaved_RGBA,
                                options.get());
     options.reset();
@@ -405,18 +420,80 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         return static_cast<jobject>(nullptr);
     }
 
-//    auto totalMemoryImageSize = heif_image_get_width(img, heif_channel_interleaved) *
-//                                heif_image_get_height(img, heif_channel_interleaved) * 4;
-//    auto maxAvailableMemory = 34 * 1024 * 1024;
-//
-//    if (scaledHeight <= 0 && scaledWidth <= 0 && totalMemoryImageSize > maxAvailableMemory) {
-//        auto scaledSize = resizeAspect(
-//                std::pair<int, int>(heif_image_get_width(img, heif_channel_interleaved),
-//                                    heif_image_get_height(img, heif_channel_interleaved)),
-//                std::pair<int, int>(2550, 1440));
-//        scaledWidth = scaledSize.first;
-//        scaledHeight = scaledSize.second;
-//    }
+    /*
+     *     SRGB,
+        LINEAR_SRGB,
+        EXTENDED_SRGB,
+        LINEAR_EXTENDED_SRGB,
+        BT709,
+        BT2020,
+        DCI_P3,
+        DISPLAY_P3,
+        NTSC_1953,
+        SMPTE_C,
+        ADOBE_RGB,
+        PRO_PHOTO_RGB,
+        ACES,
+        ACESCG,
+        CIE_XYZ,
+        CIE_LAB,
+        BT2020_HLG,
+        BT2020_PQ;
+     */
+
+    std::vector<uint8_t> profile;
+    bool hasICC = false;
+
+    heif_color_profile_nclx *colorProfileNclx = nullptr;
+    auto type = heif_image_get_color_profile_type(img);
+
+    int dataSpace = -1;
+    uint8_t colorSpaceRequiredVersion = 29;
+    const char *colorSpaceName = nullptr;
+
+    auto nclxColorProfile = heif_image_handle_get_nclx_color_profile(handle, &colorProfileNclx);
+    if (nclxColorProfile.code == heif_error_Ok) {
+        if (colorProfileNclx && colorProfileNclx->color_primaries != 0 &&
+            colorProfileNclx->transfer_characteristics != 0) {
+            auto transfer = colorProfileNclx->transfer_characteristics;
+            auto colorPrimaries = colorProfileNclx->color_primaries;
+            if (transfer & heif_transfer_characteristic_ITU_R_BT_2100_0_PQ &&
+                colorPrimaries & heif_color_primaries_ITU_R_BT_2020_2_and_2100_0) {
+                dataSpace = (int) ADataSpace::ADATASPACE_BT2020_ITU_PQ;
+                colorSpaceName = "BT2020_PQ";
+                colorSpaceRequiredVersion = 34;
+            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_709_5) {
+                colorSpaceName = "BT709";
+            } else if (transfer & heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
+                       transfer & heif_transfer_characteristic_ITU_R_BT_2020_2_12bit) {
+                colorSpaceName = "BT2020";
+            } else if (colorPrimaries & heif_color_primaries_SMPTE_EG_432_1) {
+                colorSpaceName = "DISPLAY_P3";
+            } else if (transfer & heif_transfer_characteristic_ITU_R_BT_709_5) {
+                colorSpaceName = "BT709";
+            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_2020_2_and_2100_0) {
+                colorSpaceName = "BT2020";
+            }
+        }
+    } else if (type == heif_color_profile_type_prof || type == heif_color_profile_type_rICC) {
+        auto profileSize = heif_image_get_raw_color_profile_size(img);
+        if (profileSize > 0) {
+            profile.resize(profileSize);
+            auto iccStatus = heif_image_get_raw_color_profile(img, profile.data());
+            if (iccStatus.code == heif_error_Ok) {
+                hasICC = true;
+            } else {
+                if (iccStatus.message) {
+                    __android_log_print(ANDROID_LOG_ERROR, "AVIF",
+                                        "ICC profile retrieving failed with: %s",
+                                        iccStatus.message);
+                } else {
+                    __android_log_print(ANDROID_LOG_ERROR, "AVIF",
+                                        "ICC profile retrieving failed with unknown error");
+                }
+            }
+        }
+    }
 
     if (scaledHeight > 0 && scaledWidth > 0) {
         heif_image *scaledImg;
@@ -432,6 +509,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     }
 
     int stride;
+
     const uint8_t *data = heif_image_get_plane_readonly(img, heif_channel_interleaved, &stride);
 
     auto imageWidth = heif_image_get_width(img, heif_channel_interleaved);
@@ -440,26 +518,70 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     std::shared_ptr<char> dstARGB(static_cast<char *>(malloc(stride * imageHeight)),
                                   [](char *f) { free(f); });
 
-    int i;
-    char tmpR;
-    char tmpG;
-    char tmpB;
-    char tmpA;
-    char *dataPtr = dstARGB.get();
-    for (i = 0; i < stride * imageHeight; i += 4) {
-        //swap R and B; raw_image[i + 1] is G, so it stays where it is.
-        tmpR = data[i];
-        tmpG = data[i + 1];
-        tmpB = data[i + 2];
-        tmpA = data[i + 3];
-        dataPtr[i + 0] = tmpB;
-        dataPtr[i + 1] = tmpG;
-        dataPtr[i + 2] = tmpR;
-        dataPtr[i + 3] = tmpA;
-    }
+    std::copy(data, data + stride * imageHeight, dstARGB.get());
 
     heif_image_release(img);
     heif_image_handle_release(handle);
+
+    int osVersion = androidOSVersion();
+
+    if (hasICC) {
+        cmsContext context = cmsCreateContext(nullptr, nullptr);
+        cmsHPROFILE srcProfile = cmsOpenProfileFromMem(profile.data(), profile.size());
+        std::shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
+            cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
+        });
+        cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(context);
+        std::shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
+            cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
+        });
+        cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
+                                                     TYPE_RGBA_8,
+                                                     ptrDstProfile.get(),
+                                                     TYPE_RGBA_8,
+                                                     INTENT_PERCEPTUAL,
+                                                     cmsFLAGS_BLACKPOINTCOMPENSATION |
+                                                     cmsFLAGS_NOWHITEONWHITEFIXUP |
+                                                     cmsFLAGS_COPY_ALPHA);
+        std::shared_ptr<void> ptrTransform(transform, [](void *transform) {
+            cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
+        });
+        std::shared_ptr<char> iccARGB(static_cast<char *>(malloc(stride * imageHeight)),
+                                      [](char *f) { free(f); });
+        cmsDoTransformLineStride(ptrTransform.get(),
+                                 dstARGB.get(),
+                                 iccARGB.get(),
+                                 stride,
+                                 imageHeight,
+                                 stride,
+                                 stride,
+                                 stride / 4,
+                                 stride / 4);
+        dstARGB.reset();
+        dstARGB = iccARGB;
+        cmsDeleteContext(context);
+
+        colorSpaceName = "SRGB";
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_PQ") == 0 &&
+               osVersion < colorSpaceRequiredVersion) {
+        convertBP2020PQToRGBA(dstARGB, stride, imageHeight);
+        colorSpaceName = "SRGB";
+    }
+
+    std::shared_ptr<char> bgraPtr(static_cast<char *>(malloc(stride * imageHeight)),
+                                  [](char *f) { free(f); });
+
+#if defined(HAVE_NEON)
+    convertRGBAtoBGRA_NEON(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                           reinterpret_cast<uint8_t *>(bgraPtr.get()),
+                           stride * imageHeight / 4);
+#else
+    convertRGBAtoBGRA(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                      reinterpret_cast<uint8_t *>(bgraPtr.get()),
+                      stride * imageHeight / 4);
+#endif
+    dstARGB.reset();
+    dstARGB = bgraPtr;
 
     jclass bitmapConfig = env->FindClass("android/graphics/Bitmap$Config");
     jfieldID rgba8888FieldID = env->GetStaticFieldID(bitmapConfig, "ARGB_8888",
@@ -480,6 +602,29 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     env->CallVoidMethod(bitmapObj, setPixelsMid, pixels, 0,
                         static_cast<jint >(stride / sizeof(uint32_t)), 0, 0, imageWidth,
                         imageHeight);
+
+    if ((dataSpace != -1 || colorSpaceName != nullptr) && osVersion >= 29) {
+        if (osVersion >= colorSpaceRequiredVersion) {
+            jclass cls = env->FindClass("android/graphics/ColorSpace");
+            jmethodID staticMethodGetColorSpace = env->GetStaticMethodID(cls, "get",
+                                                                         "(Landroid/graphics/ColorSpace$Named;)Landroid/graphics/ColorSpace;");
+            jclass colorSpaceNameCls = env->FindClass("android/graphics/ColorSpace$Named");
+            jfieldID colorSpaceNameFieldID = env->GetStaticFieldID(colorSpaceNameCls,
+                                                                   colorSpaceName,
+                                                                   "Landroid/graphics/ColorSpace$Named;");
+            jobject colorSpaceNameObj = env->GetStaticObjectField(colorSpaceNameCls,
+                                                                  colorSpaceNameFieldID);
+            jobject colorSpace = env->CallStaticObjectMethod(cls, staticMethodGetColorSpace,
+                                                             colorSpaceNameObj);
+            jmethodID setColorSpaceMethod = env->GetMethodID(bitmapClass, "setColorSpace",
+                                                             "(Landroid/graphics/ColorSpace;)V");
+            if (setColorSpaceMethod) {
+                env->CallVoidMethod(bitmapObj, setColorSpaceMethod, colorSpace);
+            }
+            env->DeleteLocalRef(colorSpaceNameCls);
+            env->DeleteLocalRef(cls);
+        }
+    }
     env->DeleteLocalRef(pixels);
 
     return bitmapObj;

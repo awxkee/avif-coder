@@ -17,7 +17,7 @@ afterEvaluate {
             create<MavenPublication>("mavenJava") {
                 groupId = "com.github.awxkee"
                 artifactId = "avif-coder"
-                version = "1.0.23"
+                version = "1.0.26"
                 from(components["release"])
 //                artifact("androidSourcesJar")
             }
@@ -44,8 +44,6 @@ android {
             cmake {
                 ndkVersion = "25.2.9519653"
                 cppFlags(
-                    "-Wl,--build-id=none",
-                    "-Wl,--gc-sections",
                     "-ffunction-sections",
                     "-fdata-sections",
                     "-fvisibility=hidden"
@@ -54,8 +52,6 @@ android {
                     "-ffunction-sections",
                     "-fdata-sections",
                     "-fvisibility=hidden",
-                    "-Wl,--build-id=none",
-                    "-Wl,--gc-sections",
                 )
                 abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64")
             }

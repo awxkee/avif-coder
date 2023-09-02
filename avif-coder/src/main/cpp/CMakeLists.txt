@@ -14,7 +14,10 @@ add_library( # Sets the name of the library.
         # Sets the library as a shared library.
         SHARED
         # Provides a relative path to your source file(s).
-        coder.cpp jni_exception.cpp scaler.cpp)
+        coder.cpp jni_exception.cpp scaler.cpp icc/cmsalpha.c icc/cmscam02.c icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
+        icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c icc/cmsio1.c icc/cmslut.c icc/cmsmd5.c icc/cmsmtrx.c icc/cmsnamed.c
+        icc/cmsopt.c icc/cmspack.c icc/cmspcs.c icc/cmsplugin.c icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
+        icc/cmswtpnt.c icc/cmsxform.c rgba_to_bgra_neon.cpp rgba_to_bgra.cpp bg_2020_with_pq_color.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -35,6 +38,15 @@ target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpu
 target_link_libraries(cpufeatures dl)
 list(APPEND EXTRA_LIBS cpufeatures)
 
+include(CheckCXXCompilerFlag)
+if(ANDROID_ABI STREQUAL armeabi-v7a)
+    set_source_files_properties(coder.cpp PROPERTIES COMPILE_FLAGS -mfpu=neon)
+    add_definitions("-DHAVE_NEON=1")
+elseif(ANDROID_ABI STREQUAL arm64-v8a)
+    set_target_properties(coder PROPERTIES COMPILE_FLAGS -mfpu=neon)
+    add_definitions("-DHAVE_NEON=1")
+endif()
+
 target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv)
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
@@ -49,6 +61,8 @@ find_library( # Sets the name of the path variable.
 # Specifies libraries CMake should link to your target library. You
 # can link multiple libraries, such as libraries you define in this
 # build script, prebuilt third-party libraries, or system libraries.
+
+include_directories(icc)
 
 target_link_libraries( # Specifies the target library.
         coder

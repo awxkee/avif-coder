@@ -33,27 +33,15 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 
-//        val buffer = this.assets.open("test_avif.avif").source().buffer().readByteArray()
-//        assert(HeifCoder().isAvif(buffer))
-//        val bitmap = HeifCoder().decode(buffer)
+        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
+        assert(HeifCoder().isAvif(buffer))
+        val bitmap = HeifCoder().decode(buffer)
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
-        val decodedBitmap = BitmapFactory.decodeResource(resources, R.drawable.test_png_with_alpha)
-        var cc16 = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            decodedBitmap.copy(Bitmap.Config.RGBA_F16, true)
-        } else {
-            decodedBitmap.copy(Bitmap.Config.ARGB_8888, true)
-        }
-        val rescaledSize =
-            aspectScale(Size(decodedBitmap.width, decodedBitmap.height), Size(1400, 720))
-        val cc16Rescaled = cc16.scale(rescaledSize.width, rescaledSize.height, true)
-        cc16.recycle()
-        cc16 = cc16Rescaled
-        binding.imageView.setImageBitmap(cc16)
-//        binding.imageView.setImageBitmap(decodedBitmap)
+        binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(cc16)
 //        val avif12DepthBuffer =
@@ -75,9 +63,6 @@ class MainActivity : AppCompatActivity() {
 //        val extremlyLargeBitmap = HeifCoder().decode(extremlyLargeBitmapBuffer)
 //        binding.imageView.setImageBitmap(extremlyLargeBitmap)
 
-        val bytes = HeifCoder().encodeHeic(cc16)
-        val decodedBytes = HeifCoder().decode(bytes)
-        binding.imageView.setImageBitmap(decodedBytes)
 //        val ff = File(this.filesDir, "result.avif")
 //        ff.delete()
 //        val output = FileOutputStream(ff)
