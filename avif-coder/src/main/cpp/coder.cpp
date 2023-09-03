@@ -14,7 +14,7 @@
 #include <sys/system_properties.h>
 #include "icc/lcms2.h"
 #include "rgba_to_bgra.h"
-#include "bg_2020_with_pq_color.h"
+#include "colorspace.h"
 #include <math.h>
 #include <limits>
 
@@ -398,6 +398,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         throwCannotReadFileException(env);
         return static_cast<jobject>(nullptr);
     }
+
     int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle);
     if (bitDepth < 0) {
         heif_image_handle_release(handle);
@@ -462,15 +463,31 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                 dataSpace = (int) ADataSpace::ADATASPACE_BT2020_ITU_PQ;
                 colorSpaceName = "BT2020_PQ";
                 colorSpaceRequiredVersion = 34;
-            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_709_5) {
+            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_709_5 &&
+                       transfer & heif_transfer_characteristic_linear) {
+                colorSpaceName = "LINEAR_SRGB";
+            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_709_5 &&
+                       transfer & heif_transfer_characteristic_ITU_R_BT_709_5) {
                 colorSpaceName = "BT709";
-            } else if (transfer & heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
-                       transfer & heif_transfer_characteristic_ITU_R_BT_2020_2_12bit) {
+            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_2020_2_and_2100_0 &&
+                       transfer & heif_transfer_characteristic_linear) {
+                hasICC = true;
+                profile.resize(sizeof(linearExtendedBT2020));
+                std::copy(&linearExtendedBT2020[0],
+                          &linearExtendedBT2020[0] + sizeof(linearExtendedBT2020), profile.data());
+            } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_2020_2_and_2100_0 &&
+                       (transfer & heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
+                        transfer & heif_transfer_characteristic_ITU_R_BT_2020_2_12bit)) {
                 colorSpaceName = "BT2020";
-            } else if (colorPrimaries & heif_color_primaries_SMPTE_EG_432_1) {
+            } else if (colorPrimaries & heif_color_primaries_SMPTE_EG_432_1 &&
+                       transfer & heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
+                hasICC = true;
+                profile.resize(sizeof(displayP3_HLG));
+                std::copy(&displayP3_HLG[0],
+                          &displayP3_HLG[0] + sizeof(displayP3_HLG), profile.data());
+            } else if (colorPrimaries & heif_color_primaries_SMPTE_EG_432_1 &&
+                       transfer & heif_transfer_characteristic_IEC_61966_2_1) {
                 colorSpaceName = "DISPLAY_P3";
-            } else if (transfer & heif_transfer_characteristic_ITU_R_BT_709_5) {
-                colorSpaceName = "BT709";
             } else if (colorPrimaries & heif_color_primaries_ITU_R_BT_2020_2_and_2100_0) {
                 colorSpaceName = "BT2020";
             }
@@ -526,45 +543,29 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     int osVersion = androidOSVersion();
 
     if (hasICC) {
-        cmsContext context = cmsCreateContext(nullptr, nullptr);
-        cmsHPROFILE srcProfile = cmsOpenProfileFromMem(profile.data(), profile.size());
-        std::shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
-            cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
-        });
-        cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(context);
-        std::shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
-            cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
-        });
-        cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
-                                                     TYPE_RGBA_8,
-                                                     ptrDstProfile.get(),
-                                                     TYPE_RGBA_8,
-                                                     INTENT_PERCEPTUAL,
-                                                     cmsFLAGS_BLACKPOINTCOMPENSATION |
-                                                     cmsFLAGS_NOWHITEONWHITEFIXUP |
-                                                     cmsFLAGS_COPY_ALPHA);
-        std::shared_ptr<void> ptrTransform(transform, [](void *transform) {
-            cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
-        });
-        std::shared_ptr<char> iccARGB(static_cast<char *>(malloc(stride * imageHeight)),
-                                      [](char *f) { free(f); });
-        cmsDoTransformLineStride(ptrTransform.get(),
-                                 dstARGB.get(),
-                                 iccARGB.get(),
-                                 stride,
-                                 imageHeight,
-                                 stride,
-                                 stride,
-                                 stride / 4,
-                                 stride / 4);
-        dstARGB.reset();
-        dstARGB = iccARGB;
-        cmsDeleteContext(context);
-
+        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, profile.data(), profile.size());
         colorSpaceName = "SRGB";
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_PQ") == 0 &&
                osVersion < colorSpaceRequiredVersion) {
-        convertBP2020PQToRGBA(dstARGB, stride, imageHeight);
+        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &bt2020PQ[0], sizeof(bt2020PQ));
+        colorSpaceName = "SRGB";
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020") == 0 &&
+               osVersion < colorSpaceRequiredVersion) {
+        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &bt2020[0], sizeof(bt2020));
+        colorSpaceName = "SRGB";
+    } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3") == 0 &&
+               osVersion < colorSpaceRequiredVersion) {
+        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &displayP3[0], sizeof(displayP3));
+        colorSpaceName = "SRGB";
+    } else if (colorSpaceName && strcmp(colorSpaceName, "LINEAR_SRGB") == 0 &&
+               osVersion < colorSpaceRequiredVersion) {
+        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &linearSRGB[0],
+                                    sizeof(linearSRGB));
+        colorSpaceName = "SRGB";
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT709") == 0 &&
+               osVersion < colorSpaceRequiredVersion) {
+        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &bt709[0],
+                                    sizeof(bt709));
         colorSpaceName = "SRGB";
     }
 

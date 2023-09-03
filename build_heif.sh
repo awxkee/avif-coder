@@ -42,6 +42,8 @@ for abi in ${ABI_LIST}; do
     -DLIBDE265_INCLUDE_DIR=../../libde265 \
     -DDAV1D_INCLUDE_DIR=../../dav1d/include \
     -DDAV1D_LIBRARY=../../dav1d/build-${abi}/src/libdav1d.a \
+    -DENABLE_MULTITHREADING_SUPPORT=TRUE \
+    -DENABLE_PARALLEL_TILE_DECODING=TRUE \
     -DANDROID_ABI=${abi}
   ninja
   cd ..

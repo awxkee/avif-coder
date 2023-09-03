@@ -33,8 +33,8 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 
-        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
-        assert(HeifCoder().isAvif(buffer))
+        val buffer = this.assets.open("heic_icc.heic").source().buffer().readByteArray()
+//        assert(HeifCoder().isAvif(buffer))
         val bitmap = HeifCoder().decode(buffer)
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
