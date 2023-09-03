@@ -4,6 +4,7 @@ package com.radzivon.bartoshyk.avif.coder
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.ColorSpace
 import android.os.Build
 import android.util.Size

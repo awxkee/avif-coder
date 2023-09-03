@@ -13,8 +13,10 @@
 #include "linear_srgb_colorspace.h"
 #include "bt709_colorspace.h"
 #include "displayP3_HLG.h"
+#include "itur2100_pq_full.h"
 
 void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int height,
-                                 const unsigned char *colorSpace, size_t colorSpaceSize);
+                                 const unsigned char *colorSpace, size_t colorSpaceSize,
+                                 bool image16Bits);
 
 #endif //AVIF_COLORSPACE_H

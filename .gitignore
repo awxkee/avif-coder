@@ -41,3 +41,7 @@ local.properties
 /libyuv/build-armeabi-v7a/yuvconstants
 /libyuv/build-x86_64/yuvconstants
 libyuv
+lide265
+libheif
+x265
+aom

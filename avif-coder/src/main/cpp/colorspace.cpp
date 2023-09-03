@@ -6,13 +6,7 @@
 #include <cmath>
 #include "lcms2.h"
 #include <vector>
-
-#if HAVE_NEON
-
-#include <arm_neon.h>
 #include <android/log.h>
-
-#endif
 
 // Perceptual quantizer reverse EOTF (Electrical optical transform function)
 
@@ -34,6 +28,7 @@ double PQInverseEOTF(double q) {
     double rs = v / k;
     return pow(rs, m2);
 }
+
 /*
  BT 2020 PQ QUANTINIZER
  //    auto pixel = vector.get();
@@ -86,7 +81,9 @@ double PQInverseEOTF(double q) {
 //    }
  */
 
-void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int height, const unsigned char* colorSpace, size_t colorSpaceSize) {
+void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int height,
+                                 const unsigned char *colorSpace, size_t colorSpaceSize,
+                                 bool image16Bits) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);
     std::shared_ptr<void> contextPtr(context, [](void *profile) {
         cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
@@ -94,27 +91,28 @@ void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int 
     cmsHPROFILE srcProfile = cmsOpenProfileFromMem(colorSpace, colorSpaceSize);
     if (!srcProfile) {
         // JUST RETURN without signalling error, better proceed with invalid photo than crash
-        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder","ColorProfile Allocation Failed");
+        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Allocation Failed");
         return;
     }
     std::shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
         cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
     });
-    cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(reinterpret_cast<cmsContext>(contextPtr.get()));
+    cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(
+            reinterpret_cast<cmsContext>(contextPtr.get()));
     std::shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
         cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
     });
     cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
-                                                 TYPE_RGBA_8,
+                                                 image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
                                                  ptrDstProfile.get(),
-                                                 TYPE_RGBA_8,
+                                                 image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
                                                  INTENT_PERCEPTUAL,
                                                  cmsFLAGS_BLACKPOINTCOMPENSATION |
                                                  cmsFLAGS_NOWHITEONWHITEFIXUP |
                                                  cmsFLAGS_COPY_ALPHA);
     if (!transform) {
         // JUST RETURN without signalling error, better proceed with invalid photo than crash
-        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder","ColorProfile Creation has hailed");
+        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
         return;
     }
     std::shared_ptr<void> ptrTransform(transform, [](void *transform) {
@@ -122,7 +120,8 @@ void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int 
     });
     std::shared_ptr<char> iccARGB(static_cast<char *>(malloc(stride * height)),
                                   [](char *f) { free(f); });
-    cmsDoTransform(ptrTransform.get(), vector.get(), iccARGB.get(), stride * height / 4);
+    cmsDoTransform(ptrTransform.get(), vector.get(), iccARGB.get(),
+                   stride * height / (image16Bits ? sizeof(uint64_t) : sizeof(uint32_t)));
     vector.reset();
     vector = iccARGB;
 }
