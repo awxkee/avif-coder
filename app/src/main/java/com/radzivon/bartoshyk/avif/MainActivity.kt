@@ -33,14 +33,17 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 
-        val buffer = this.assets.open("sdr_cosmos12920_cicp1-13-6_yuv444_full_qp20.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
-        val bitmap = HeifCoder().decode(buffer)
+        val size = HeifCoder().getSize(buffer)!!
+        val bitmap = HeifCoder().decodeSampled(buffer, size.width / 3, size.height / 3)
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
+//        val encoded = HeifCoder().encodeAvif(bitmap)
+//        val decodedSample = HeifCoder().decode(encoded)
         binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(cc16)

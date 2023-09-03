@@ -129,7 +129,12 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         libyuv::RGB565ToARGB(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);
-        libyuv::ARGBToABGR(imgData, stride, imgData, stride, (int) info.width, (int) info.height);
+        for (int i = 0; i < stride / 4 * info.height; i += 4) {
+            imgData[i] = imgData[i + 1]; // R
+            imgData[i + 1] = imgData[i + 2]; // G
+            imgData[i + 2] = imgData[i + 3]; // B
+            imgData[i + 3] = imgData[i]; // A
+        }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         if (heifCompressionFormat == heif_compression_HEVC) {
             auto dstY = (char *) imgData;
@@ -140,9 +145,15 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                 dstY += stride;
             }
         } else {
-            libyuv::AR30ToABGR(static_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+            libyuv::AR30ToARGB(static_cast<const uint8_t *>(addr), (int) info.stride, imgData,
                                stride, (int) info.width,
                                (int) info.height);
+            for (int i = 0; i < stride / 4 * info.height; i += 4) {
+                imgData[i] = imgData[i + 1]; // R
+                imgData[i + 1] = imgData[i + 2]; // G
+                imgData[i + 2] = imgData[i + 3]; // B
+                imgData[i + 3] = imgData[i]; // A
+            }
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         if (heifCompressionFormat == heif_compression_AV1) {
@@ -532,32 +543,86 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         alphaPremultiplied = false;
     }
 
+    int imageWidth;
+    int imageHeight;
+    int stride;
+    std::vector<uint8_t> initialData;
+
     if (scaledHeight > 0 && scaledWidth > 0) {
-        heif_image *scaledImg;
-        result = heif_image_scale_image(img, &scaledImg, scaledWidth, scaledHeight, nullptr);
-        if (result.code != heif_error_Ok) {
+        if (bitDepth == 8) {
+            auto data = heif_image_get_plane_readonly(img, heif_channel_interleaved, &stride);
+            if (!data) {
+                heif_image_release(img);
+                heif_image_handle_release(handle);
+                throwCannotReadFileException(env);
+                return nullptr;
+            }
+            imageWidth = heif_image_get_width(img, heif_channel_interleaved);
+            imageHeight = heif_image_get_height(img, heif_channel_interleaved);
+            if (result.code != heif_error_Ok) {
+                heif_image_release(img);
+                heif_image_handle_release(handle);
+                throwInvalidScale(env, result.message);
+                return static_cast<jobject>(nullptr);
+            }
+
+            // For unknown reason some images doesn't scale properly by libheif in 8-bit
+            initialData.resize(scaledWidth * 4 * scaledHeight);
+            libyuv::ARGBScale(data, stride, imageWidth, imageHeight, initialData.data(),
+                              scaledWidth * 4, scaledWidth, scaledHeight, libyuv::kFilterBox);
+            stride = scaledWidth * 4;
+            imageHeight = scaledHeight;
+            imageWidth = scaledWidth;
+            heif_image_release(img);
+        } else {
+            heif_image *scaledImg;
+            result = heif_image_scale_image(img, &scaledImg, scaledWidth, scaledHeight, nullptr);
+            if (result.code != heif_error_Ok) {
+                heif_image_release(img);
+                heif_image_handle_release(handle);
+                throwInvalidScale(env, result.message);
+                return static_cast<jobject>(nullptr);
+            }
+
+            heif_image_release(img);
+
+            auto data = heif_image_get_plane_readonly(scaledImg, heif_channel_interleaved, &stride);
+            if (!data) {
+                heif_image_release(scaledImg);
+                heif_image_handle_release(handle);
+                throwCannotReadFileException(env);
+                return nullptr;
+            }
+            imageWidth = heif_image_get_width(scaledImg, heif_channel_interleaved);
+            imageHeight = heif_image_get_height(scaledImg, heif_channel_interleaved);
+            initialData.resize(stride * imageHeight);
+            std::copy(data, data + stride * imageHeight, initialData.begin());
+            heif_image_release(scaledImg);
+        }
+
+    } else {
+        auto data = heif_image_get_plane_readonly(img, heif_channel_interleaved, &stride);
+        if (!data) {
             heif_image_release(img);
             heif_image_handle_release(handle);
-            throwInvalidScale(env, result.message);
-            return static_cast<jobject>(nullptr);
+            throwCannotReadFileException(env);
+            return nullptr;
         }
+
+        imageWidth = heif_image_get_width(img, heif_channel_interleaved);
+        imageHeight = heif_image_get_height(img, heif_channel_interleaved);
+        initialData.resize(stride * imageHeight);
+        std::copy(data, data + stride * imageHeight, initialData.begin());
+
         heif_image_release(img);
-        img = scaledImg;
     }
-
-    int stride;
-
-    const uint8_t *data = heif_image_get_plane_readonly(img, heif_channel_interleaved, &stride);
-
-    auto imageWidth = heif_image_get_width(img, heif_channel_interleaved);
-    auto imageHeight = heif_image_get_height(img, heif_channel_interleaved);
 
     std::shared_ptr<char> dstARGB(static_cast<char *>(malloc(stride * imageHeight)),
                                   [](char *f) { free(f); });
 
     if (useBitmapHalf16Floats) {
         const float scale = 1.0f / float((1 << bitDepth) - 1);
-        libyuv::HalfFloatPlane(reinterpret_cast<const uint16_t *>(data),
+        libyuv::HalfFloatPlane(reinterpret_cast<const uint16_t *>(initialData.data()),
                                stride,
                                reinterpret_cast<uint16_t *>(dstARGB.get()),
                                stride,
@@ -566,10 +631,11 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                                imageHeight);
 
     } else {
-        std::copy(data, data + stride * imageHeight, dstARGB.get());
+        std::copy(initialData.begin(), initialData.end(), dstARGB.get());
     }
 
-    heif_image_release(img);
+    initialData.clear();
+
     heif_image_handle_release(handle);
 
     if (hasICC) {
