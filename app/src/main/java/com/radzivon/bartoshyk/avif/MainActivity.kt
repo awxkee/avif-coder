@@ -42,9 +42,9 @@ class MainActivity : AppCompatActivity() {
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
-//        val encoded = HeifCoder().encodeAvif(bitmap)
-//        val decodedSample = HeifCoder().decode(encoded)
-        binding.imageView.setImageBitmap(bitmap)
+        val encoded = HeifCoder().encodeAvif(bitmap)
+        val decodedSample = HeifCoder().decode(encoded)
+        binding.imageView.setImageBitmap(decodedSample)
 //        binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(cc16)
 //        val avif12DepthBuffer =

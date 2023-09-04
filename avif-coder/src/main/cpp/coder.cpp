@@ -231,10 +231,57 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                                    });
     options->version = 5;
     options->image_orientation = heif_orientation_normal;
+
     result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
     options.reset();
     if (handle && result.code == heif_error_Ok) {
         heif_context_set_primary_image(ctx.get(), handle);
+//
+//        std::time_t currentTime = std::time(nullptr);
+//        std::tm *timeInfo = std::localtime(&currentTime);
+//
+//        // Format the date and time
+//        char formattedTime[20]; // Buffer for the formatted time
+//        std::strftime(formattedTime, sizeof(formattedTime), "%Y:%m:%d %H:%M:%S", timeInfo);
+//        std::string dateTime(formattedTime);
+//
+//        std::string format(heifCompressionFormat == heif_compression_AV1 ? "AVIF" : "HEIC");
+//
+//        std::string xmpMetadata = "<?xpacket begin='' id='W5M0MpCehiHzreSzNTczkc9d'?>"
+//                                  "<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='XMP Core 5.5.0'>"
+//                                  "<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>"
+//                                  "<rdf:Description rdf:about='' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
+//                                  "<dc:title>Generated image by avif-coder</dc:title>"
+//                                  "<dc:creator>avif-coder</dc:creator>"
+//                                  "<dc:description>A image was created by avif-coder (https://github.com/awxkee/avif-coder)</dc:description>"
+//                                  "<dc:date>" + dateTime + "</dc:date>\n"
+//                                                           "<dc:publisher>https://github.com/awxkee/avif-coder>"
+//                                                           "<dc:format>" + format + "</dc:format>"
+//                                                                                    "</rdf:Description>"
+//                                                                                    "<rdf:Description rdf:about='' xmlns:exif='http://ns.adobe.com/exif/1.0/'>\n"
+//                                                                                    "<exif:ColorSpace>sRGB</exif:ColorSpace>\n"
+//                                                                                    "<exif:ColorProfile>sRGB IEC61966-2.1</exif:ColorProfile>\n"
+//                                                                                    "</rdf:Description>\n"
+//                                                                                    "<rdf:Description rdf:about='' xmlns:xmp='http://ns.adobe.com/xap/1.0/'>\n"
+//                                                                                    "<xmp:CreatorTool>avif-coder (https://github.com/awxkee/avif-coder)</xmp:CreatorTool>\n"
+//                                                                                    "<xmp:ModifyDate>" +
+//                                  dateTime +
+//                                  "</xmp:ModifyDate>\n"
+//                                  "</rdf:Description>\n"
+//                                  "</rdf:RDF>"
+//                                  "</x:xmpmeta>"
+//                                  "<?xpacket end='w'?>";
+//
+//        result = heif_context_add_XMP_metadata(ctx.get(), handle,
+//                                               reinterpret_cast<const void *>(xmpMetadata.data()),
+//                                               static_cast<int>(xmpMetadata.size()));
+//        if (result.code != heif_error_Ok) {
+//            heif_image_handle_release(handle);
+//            heif_image_release(image);
+//            throwCantEncodeImageException(env, result.message);
+//            return static_cast<jbyteArray>(nullptr);
+//        }
+
         heif_image_handle_release(handle);
     }
     heif_image_release(image);
@@ -377,10 +424,6 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
     jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
     auto sizeObject = env->NewObject(sizeClass, methodID, width, height);
     return sizeObject;
-}
-
-uint16_t convert12to16(uint16_t value12) {
-    return (value12 << (16 - 12)); // Left-shift the 12-bit value to fill 16 bits.
 }
 
 extern "C"
@@ -639,34 +682,37 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     heif_image_handle_release(handle);
 
     if (hasICC) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, profile.data(), profile.size(),
+        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, profile.data(),
+                                    profile.size(),
                                     useBitmapHalf16Floats);
         colorSpaceName = "SRGB";
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_PQ") == 0 &&
                osVersion < colorSpaceRequiredVersion) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &bt2020PQ[0],
+        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt2020PQ[0],
                                     sizeof(bt2020PQ),
                                     useBitmapHalf16Floats);
         colorSpaceName = "SRGB";
         colorSpaceRequiredVersion = 29;
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020") == 0 &&
                osVersion < colorSpaceRequiredVersion) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &bt2020[0], sizeof(bt2020),
+        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
+                                    sizeof(bt2020),
                                     useBitmapHalf16Floats);
         colorSpaceName = "SRGB";
     } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3") == 0 &&
                osVersion < colorSpaceRequiredVersion) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &displayP3[0], sizeof(displayP3),
+        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
+                                    sizeof(displayP3),
                                     useBitmapHalf16Floats);
         colorSpaceName = "SRGB";
     } else if (colorSpaceName && strcmp(colorSpaceName, "LINEAR_SRGB") == 0 &&
                osVersion < colorSpaceRequiredVersion) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &linearSRGB[0],
+        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &linearSRGB[0],
                                     sizeof(linearSRGB), useBitmapHalf16Floats);
         colorSpaceName = "SRGB";
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT709") == 0 &&
                osVersion < colorSpaceRequiredVersion) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageHeight, &bt709[0],
+        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt709[0],
                                     sizeof(bt709), useBitmapHalf16Floats);
         colorSpaceName = "SRGB";
     }

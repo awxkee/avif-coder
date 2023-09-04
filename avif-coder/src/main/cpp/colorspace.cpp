@@ -81,7 +81,7 @@ double PQInverseEOTF(double q) {
 //    }
  */
 
-void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int height,
+void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int width, int height,
                                  const unsigned char *colorSpace, size_t colorSpaceSize,
                                  bool image16Bits) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);
@@ -91,7 +91,7 @@ void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int 
     cmsHPROFILE srcProfile = cmsOpenProfileFromMem(colorSpace, colorSpaceSize);
     if (!srcProfile) {
         // JUST RETURN without signalling error, better proceed with invalid photo than crash
-        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Allocation Failed");
+        __android_log_print(ANDROID_LOG_ERROR, "JXLCoder", "ColorProfile Allocation Failed");
         return;
     }
     std::shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
@@ -118,10 +118,8 @@ void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int 
     std::shared_ptr<void> ptrTransform(transform, [](void *transform) {
         cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
     });
-    std::shared_ptr<char> iccARGB(static_cast<char *>(malloc(stride * height)),
-                                  [](char *f) { free(f); });
-    cmsDoTransform(ptrTransform.get(), vector.get(), iccARGB.get(),
-                   stride * height / (image16Bits ? sizeof(uint64_t) : sizeof(uint32_t)));
-    vector.reset();
-    vector = iccARGB;
+    std::vector<char> iccARGB;
+    iccARGB.resize(stride * height);
+    cmsDoTransform(ptrTransform.get(), vector.get(), iccARGB.data(), width * height);
+    std::copy(iccARGB.begin(), iccARGB.end(), vector.get());
 }
