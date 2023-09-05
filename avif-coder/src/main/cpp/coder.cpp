@@ -17,6 +17,9 @@
 #include <limits>
 #include "attenuate_alpha.h"
 #include "halfFloats.h"
+#include "rgba16bitCopy.h"
+#include "rgbaF16bitToNBitU16.h"
+#include "rgbaF16bitNBitU8.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -24,30 +27,6 @@ struct AvifMemEncoder {
 
 int androidOSVersion() {
     return android_get_device_api_level();
-}
-
-void
-copyRGBA16(std::shared_ptr<uint8_t> &source, int srcStride, uint8_t *destination, int dstStride,
-           int width, int height) {
-    auto src = reinterpret_cast<uint8_t *>(source.get());
-    auto dst = reinterpret_cast<uint8_t *>(destination);
-
-    for (int y = 0; y < height; ++y) {
-
-        auto srcPtr = reinterpret_cast<uint16_t *>(src);
-        auto dstPtr = reinterpret_cast<uint16_t *>(dst);
-
-        for (int x = 0; x < width; ++x) {
-            auto srcPtr64 = reinterpret_cast<uint64_t *>(srcPtr);
-            auto dstPtr64 = reinterpret_cast<uint64_t *>(dstPtr);
-            dstPtr64[0] = srcPtr64[0];
-            srcPtr += 4;
-            dstPtr += 4;
-        }
-
-        src += srcStride;
-        dst += dstStride;
-    }
 }
 
 struct heif_error writeHeifData(struct heif_context *ctx,
@@ -189,90 +168,33 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             std::shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
                     [](char *f) { free(f); });
-            auto srcData = reinterpret_cast<uint8_t *>(sourceData.data());
-            uint16_t tmpR;
-            uint16_t tmpG;
-            uint16_t tmpB;
-            uint16_t tmpA;
-            auto data64Ptr = reinterpret_cast<uint8_t *>(dstARGB.get());
-            const float scale = 1.0f / float((1 << bitDepth) - 1);
             int dstStride = (int) info.width * 4 * (int) sizeof(uint16_t);
 
-            for (int y = 0; y < info.height; ++y) {
-                auto srcPtr = reinterpret_cast<uint16_t *>(srcData);
-                auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
-                for (int x = 0; x < info.width; ++x) {
-                    auto alpha = half_to_float(srcPtr[3]);
-                    tmpR = (uint16_t) fmin(fmax((half_to_float(srcPtr[0]) / scale), 0), 1023);
-                    tmpG = (uint16_t) fmin(fmax((half_to_float(srcPtr[1]) / scale), 0), 1023);
-                    tmpB = (uint16_t) fmin(fmax((half_to_float(srcPtr[2]) / scale), 0), 1023);
-                    tmpA = (uint16_t) fmin(fmax((alpha / scale), 0), 1023);
+            RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
+                                (int) info.stride,
+                                reinterpret_cast<uint16_t *>(dstARGB.get()), dstStride,
+                                (int) info.width,
+                                (int) info.height, 10);
+            copyRGBA16(reinterpret_cast<uint16_t *>(dstARGB.get()), dstStride,
+                       reinterpret_cast<uint16_t *>(imgData), stride, (int) info.width,
+                       (int) info.height);
 
-                    dstPtr[0] = tmpR;
-                    dstPtr[1] = tmpG;
-                    dstPtr[2] = tmpB;
-                    dstPtr[3] = tmpA;
-
-                    srcPtr += 4;
-                    dstPtr += 4;
-                }
-
-                srcData += info.stride;
-                data64Ptr += dstStride;
-            }
-            auto dataPtr = reinterpret_cast<void *>(dstARGB.get());
-            auto srcY = (char *) dataPtr;
-            auto dstY = (char *) imgData;
-            const auto sourceStride = info.width * 4 * sizeof(uint16_t);
-            for (int y = 0; y < info.height; ++y) {
-                memcpy(dstY, srcY, sourceStride);
-                srcY += dstStride;
-                dstY += stride;
-            }
             dstARGB.reset();
         } else {
             std::shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint8_t))),
                     [](char *f) { free(f); });
-            auto srcData = reinterpret_cast<uint8_t *>(sourceData.data());
-            char tmpR;
-            char tmpG;
-            char tmpB;
-            char tmpA;
-            const float scale = 1.0f / float((1 << bitDepth) - 1);
             int dstStride = (int) info.width * 4 * (int) sizeof(uint8_t);
-            auto data64Ptr = reinterpret_cast<uint8_t *>(dstARGB.get());
-            for (int y = 0; y < info.height; ++y) {
-                auto srcPtr = reinterpret_cast<uint16_t *>(srcData);
-                auto dstPtr = reinterpret_cast<uint8_t *>(data64Ptr);
-                for (int x = 0; x < info.width; ++x) {
-                    auto alpha = half_to_float(srcPtr[3]);
-                    tmpR = (uint8_t) fmin(fmax((half_to_float(srcPtr[0]) / scale), 0), 255);
-                    tmpG = (uint8_t) fmin(fmax((half_to_float(srcPtr[1]) / scale), 0), 255);
-                    tmpB = (uint8_t) fmin(fmax((half_to_float(srcPtr[2]) / scale), 0), 255);
-                    tmpA = (uint8_t) fmin(fmax((alpha / scale), 0), 255);
 
-                    dstPtr[0] = tmpR;
-                    dstPtr[1] = tmpG;
-                    dstPtr[2] = tmpB;
-                    dstPtr[3] = tmpA;
+            RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
+                               (int) info.stride,
+                               reinterpret_cast<uint8_t *>(dstARGB.get()), dstStride,
+                               (int) info.width,
+                               (int) info.height, 8);
 
-                    srcPtr += 4;
-                    dstPtr += 4;
-                }
-
-                srcData += info.stride;
-                data64Ptr += dstStride;
-            }
-            auto dataPtr = reinterpret_cast<void *>(dstARGB.get());
-            auto srcY = (char *) dataPtr;
-            auto dstY = (char *) imgData;
-            const auto sourceStride = info.width * 4 * sizeof(uint8_t);
-            for (int y = 0; y < info.height; ++y) {
-                memcpy(dstY, srcY, sourceStride);
-                srcY += sourceStride;
-                dstY += stride;
-            }
+            libyuv::ARGBCopy(reinterpret_cast<uint8_t *>(dstARGB.get()), (int) dstStride,
+                             reinterpret_cast<uint8_t *>(imgData), stride, (int) info.width,
+                             (int) info.height);
             dstARGB.reset();
         }
     }
@@ -797,7 +719,8 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     }
 
     if (useBitmapHalf16Floats) {
-        copyRGBA16(dstARGB, stride, reinterpret_cast<uint8_t *>(addr), (int) info.stride,
+        copyRGBA16(reinterpret_cast<uint16_t *>(dstARGB.get()), stride,
+                   reinterpret_cast<uint16_t *>(addr), (int) info.stride,
                    (int) info.width,
                    (int) info.height);
     } else {

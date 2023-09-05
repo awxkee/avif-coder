@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
         binding.imageView.setImageBitmap(bitmap)
-        val encoded = HeifCoder().encodeHeic(bitmap)
+        val encoded = HeifCoder().encodeAvif(bitmap)
         val decodedSample = HeifCoder().decode(encoded)
         binding.imageView.setImageBitmap(decodedSample)
 

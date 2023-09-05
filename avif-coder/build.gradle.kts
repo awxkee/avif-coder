@@ -54,6 +54,7 @@ android {
                     "-fvisibility=hidden",
                 )
                 abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64")
+//                abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64")
             }
         }
 
