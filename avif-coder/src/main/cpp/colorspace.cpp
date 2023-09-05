@@ -81,7 +81,7 @@ double PQInverseEOTF(double q) {
 //    }
  */
 
-void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int width, int height,
+void convertUseDefinedColorSpace(std::shared_ptr<uint8_t> &vector, int stride, int width, int height,
                                  const unsigned char *colorSpace, size_t colorSpaceSize,
                                  bool image16Bits, int *newStride) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);

@@ -5,8 +5,6 @@
 #include "android/bitmap.h"
 #include "libyuv/convert_argb.h"
 #include <vector>
-#include <float.h>
-#include <arm_fp16.h>
 #include "jni_exception.h"
 #include "scaler.h"
 #include <android/log.h>
@@ -26,6 +24,30 @@ struct AvifMemEncoder {
 
 int androidOSVersion() {
     return android_get_device_api_level();
+}
+
+void
+copyRGBA16(std::shared_ptr<uint8_t> &source, int srcStride, uint8_t *destination, int dstStride,
+           int width, int height) {
+    auto src = reinterpret_cast<uint8_t *>(source.get());
+    auto dst = reinterpret_cast<uint8_t *>(destination);
+
+    for (int y = 0; y < height; ++y) {
+
+        auto srcPtr = reinterpret_cast<uint16_t *>(src);
+        auto dstPtr = reinterpret_cast<uint16_t *>(dst);
+
+        for (int x = 0; x < width; ++x) {
+            auto srcPtr64 = reinterpret_cast<uint64_t *>(srcPtr);
+            auto dstPtr64 = reinterpret_cast<uint64_t *>(dstPtr);
+            dstPtr64[0] = srcPtr64[0];
+            srcPtr += 4;
+            dstPtr += 4;
+        }
+
+        src += srcStride;
+        dst += dstStride;
+    }
 }
 
 struct heif_error writeHeifData(struct heif_context *ctx,
@@ -131,8 +153,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
     if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
         libyuv::ARGBCopy(sourceData.data(), (int) info.stride,
-                          imgData,
-                          stride, (int) info.width, (int) info.height);
+                         imgData,
+                         stride, (int) info.width, (int) info.height);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         libyuv::RGB565ToARGB(sourceData.data(), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);
@@ -167,7 +189,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             std::shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
                     [](char *f) { free(f); });
-            auto *srcData = reinterpret_cast<uint8_t *>(sourceData.data());
+            auto srcData = reinterpret_cast<uint8_t *>(sourceData.data());
             uint16_t tmpR;
             uint16_t tmpG;
             uint16_t tmpB;
@@ -177,16 +199,14 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             int dstStride = (int) info.width * 4 * (int) sizeof(uint16_t);
 
             for (int y = 0; y < info.height; ++y) {
-
                 auto srcPtr = reinterpret_cast<uint16_t *>(srcData);
                 auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
-
                 for (int x = 0; x < info.width; ++x) {
                     auto alpha = half_to_float(srcPtr[3]);
-                    tmpR = (uint16_t) (half_to_float(srcPtr[0]) / scale);
-                    tmpG = (uint16_t) (half_to_float(srcPtr[1]) / scale);
-                    tmpB = (uint16_t) (half_to_float(srcPtr[2]) / scale);
-                    tmpA = (uint16_t) (alpha / scale);
+                    tmpR = (uint16_t) fmin(fmax((half_to_float(srcPtr[0]) / scale), 0), 1023);
+                    tmpG = (uint16_t) fmin(fmax((half_to_float(srcPtr[1]) / scale), 0), 1023);
+                    tmpB = (uint16_t) fmin(fmax((half_to_float(srcPtr[2]) / scale), 0), 1023);
+                    tmpA = (uint16_t) fmin(fmax((alpha / scale), 0), 1023);
 
                     dstPtr[0] = tmpR;
                     dstPtr[1] = tmpG;
@@ -214,25 +234,37 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             std::shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint8_t))),
                     [](char *f) { free(f); });
-            auto *srcData = reinterpret_cast<float16_t *>(sourceData.data());
+            auto srcData = reinterpret_cast<uint8_t *>(sourceData.data());
             char tmpR;
             char tmpG;
             char tmpB;
             char tmpA;
-            auto *data64Ptr = reinterpret_cast<uint32_t *>(dstARGB.get());
-            const float maxColors = (float) pow(2.0, 8) - 1;
-            for (int i = 0, k = 0; i < std::min(info.stride * info.height,
-                                                info.width * info.height * 4); i += 4, k += 1) {
-                tmpR = (char) (srcData[i] * maxColors);
-                tmpG = (char) (srcData[i + 1] * maxColors);
-                tmpB = (char) (srcData[i + 2] * maxColors);
-                tmpA = (char) (srcData[i + 3] * maxColors);
-                uint32_t color =
-                        ((uint32_t) tmpA & 0xff) << 24 | ((uint32_t) tmpB & 0xff) << 16 |
-                        ((uint32_t) tmpG & 0xff) << 8 | ((uint32_t) tmpR & 0xff);
-                data64Ptr[k] = color;
+            const float scale = 1.0f / float((1 << bitDepth) - 1);
+            int dstStride = (int) info.width * 4 * (int) sizeof(uint8_t);
+            auto data64Ptr = reinterpret_cast<uint8_t *>(dstARGB.get());
+            for (int y = 0; y < info.height; ++y) {
+                auto srcPtr = reinterpret_cast<uint16_t *>(srcData);
+                auto dstPtr = reinterpret_cast<uint8_t *>(data64Ptr);
+                for (int x = 0; x < info.width; ++x) {
+                    auto alpha = half_to_float(srcPtr[3]);
+                    tmpR = (uint8_t) fmin(fmax((half_to_float(srcPtr[0]) / scale), 0), 255);
+                    tmpG = (uint8_t) fmin(fmax((half_to_float(srcPtr[1]) / scale), 0), 255);
+                    tmpB = (uint8_t) fmin(fmax((half_to_float(srcPtr[2]) / scale), 0), 255);
+                    tmpA = (uint8_t) fmin(fmax((alpha / scale), 0), 255);
+
+                    dstPtr[0] = tmpR;
+                    dstPtr[1] = tmpG;
+                    dstPtr[2] = tmpB;
+                    dstPtr[3] = tmpA;
+
+                    srcPtr += 4;
+                    dstPtr += 4;
+                }
+
+                srcData += info.stride;
+                data64Ptr += dstStride;
             }
-            auto *dataPtr = reinterpret_cast<void *>(dstARGB.get());
+            auto dataPtr = reinterpret_cast<void *>(dstARGB.get());
             auto srcY = (char *) dataPtr;
             auto dstY = (char *) imgData;
             const auto sourceStride = info.width * 4 * sizeof(uint8_t);
@@ -683,8 +715,8 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         heif_image_release(img);
     }
 
-    std::shared_ptr<char> dstARGB(static_cast<char *>(malloc(stride * imageHeight)),
-                                  [](char *f) { free(f); });
+    std::shared_ptr<uint8_t> dstARGB(static_cast<uint8_t *>(malloc(stride * imageHeight)),
+                                     [](uint8_t *f) { free(f); });
 
     if (useBitmapHalf16Floats) {
         const float scale = 1.0f / float((1 << bitDepth) - 1);
@@ -752,13 +784,27 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     jobject bitmapObj = env->CallStaticObjectMethod(bitmapClass, createBitmapMethodID,
                                                     imageWidth, imageHeight, rgba8888Obj);
 
+    AndroidBitmapInfo info;
+    if (AndroidBitmap_getInfo(env, bitmapObj, &info) < 0) {
+        throwPixelsException(env);
+        return static_cast<jbyteArray>(nullptr);
+    }
+
     void *addr;
     if (AndroidBitmap_lockPixels(env, bitmapObj, &addr) != 0) {
         throwPixelsException(env);
         return static_cast<jobject>(nullptr);
     }
 
-    std::copy(dstARGB.get(), dstARGB.get() + stride * imageHeight, (char *) addr);
+    if (useBitmapHalf16Floats) {
+        copyRGBA16(dstARGB, stride, reinterpret_cast<uint8_t *>(addr), (int) info.stride,
+                   (int) info.width,
+                   (int) info.height);
+    } else {
+        libyuv::ARGBCopy(reinterpret_cast<uint8_t *>(dstARGB.get()), stride,
+                         reinterpret_cast<uint8_t *>(addr), (int) info.stride, (int) info.width,
+                         (int) info.height);
+    }
 
     if (AndroidBitmap_unlockPixels(env, bitmapObj) != 0) {
         throwPixelsException(env);
