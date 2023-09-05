@@ -8,7 +8,9 @@ import android.graphics.drawable.BitmapDrawable
 import android.util.Size
 import coil.ImageLoader
 import coil.decode.DecodeResult
+import coil.decode.DecodeUtils
 import coil.decode.Decoder
+import coil.decode.isHeif
 import coil.fetch.SourceResult
 import coil.request.Options
 import coil.size.Scale
@@ -113,7 +115,7 @@ class HeifDecoder(
             result: SourceResult,
             options: Options,
             imageLoader: ImageLoader
-        ) = if (HeifCoder().isHeif(result.source.source().readByteArray())) {
+        ) = if (DecodeUtils.isHeif(result.source.source())) {
             HeifDecoder(result, options, imageLoader)
         } else null
     }
