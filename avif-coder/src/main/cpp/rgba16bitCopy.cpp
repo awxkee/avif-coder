@@ -29,7 +29,7 @@ void copyRGBA16_NEON(uint16_t* source, int srcStride,
             dstPtr += 8;
         }
 
-        for (x = 0; x < width; ++x) {
+        for (; x < width; ++x) {
             auto srcPtr64 = reinterpret_cast<uint64_t *>(srcPtr);
             auto dstPtr64 = reinterpret_cast<uint64_t *>(dstPtr);
             dstPtr64[0] = srcPtr64[0];

@@ -46,7 +46,7 @@ void RGBAF16BitToNU16_NEON(const uint16_t *sourceData, int srcStride, uint16_t *
             dstPtr += 8;
         }
 
-        for (x = 0; x < width; ++x) {
+        for (; x < width; ++x) {
             auto alpha = half_to_float(srcPtr[3]);
             auto tmpR = (uint16_t) std::min(std::max((half_to_float(srcPtr[0]) / scale), 0.0f),
                                             maxColors);

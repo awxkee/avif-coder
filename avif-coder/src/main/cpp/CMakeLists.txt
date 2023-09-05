@@ -18,7 +18,7 @@ add_library( # Sets the name of the library.
         icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c icc/cmsio1.c icc/cmslut.c icc/cmsmd5.c icc/cmsmtrx.c icc/cmsnamed.c
         icc/cmsopt.c icc/cmspack.c icc/cmspcs.c icc/cmsplugin.c icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
         icc/cmswtpnt.c icc/cmsxform.c rgba_to_bgra_neon.cpp rgba_to_bgra.cpp colorspace.cpp halfFloats.cpp
-        rgba16bitCopy.cpp rgbaF16bitToNBitU16.cpp rgbaF16bitNBitU8.cpp)
+        rgba16bitCopy.cpp rgbaF16bitToNBitU16.cpp rgbaF16bitNBitU8.cpp rgb1010102.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)

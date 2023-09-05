@@ -20,6 +20,7 @@
 #include "rgba16bitCopy.h"
 #include "rgbaF16bitToNBitU16.h"
 #include "rgbaF16bitNBitU8.h"
+#include "rgb1010102.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -100,8 +101,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 
     heif_image *image;
     heif_chroma chroma = heif_chroma_interleaved_RGBA;
-    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
-        heifCompressionFormat == heif_compression_AV1) {
+    if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+         heifCompressionFormat == heif_compression_AV1) ||
+        (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
+         heifCompressionFormat == heif_compression_AV1)) {
         chroma = heif_chroma_interleaved_RRGGBBAA_LE;
     }
     result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
@@ -145,23 +148,13 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         if (heifCompressionFormat == heif_compression_HEVC) {
-            auto dstY = (char *) imgData;
-            auto srcY = (char *) sourceData.data();
-            for (int y = 0; y < info.height; ++y) {
-                memcpy(dstY, srcY, info.width * 4 * sizeof(uint32_t));
-                srcY += info.width * sizeof(uint64_t);
-                dstY += stride;
-            }
+            RGBA1010102ToU8(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
+                             reinterpret_cast<uint8_t *>(imgData), stride, (int) info.width,
+                             (int) info.height);
         } else {
-            libyuv::AR30ToARGB(sourceData.data(), (int) info.stride, imgData,
-                               stride, (int) info.width,
-                               (int) info.height);
-            for (int i = 0; i < stride / 4 * info.height; i += 4) {
-                imgData[i] = imgData[i + 1]; // R
-                imgData[i + 1] = imgData[i + 2]; // G
-                imgData[i + 2] = imgData[i + 3]; // B
-                imgData[i + 3] = imgData[i]; // A
-            }
+            RGBA1010102ToU16(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
+                             reinterpret_cast<uint16_t *>(imgData), stride, (int) info.width,
+                             (int) info.height);
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         if (heifCompressionFormat == heif_compression_AV1) {
