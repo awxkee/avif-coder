@@ -83,7 +83,7 @@ double PQInverseEOTF(double q) {
 
 void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int width, int height,
                                  const unsigned char *colorSpace, size_t colorSpaceSize,
-                                 bool image16Bits) {
+                                 bool image16Bits, int *newStride) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);
     std::shared_ptr<void> contextPtr(context, [](void *profile) {
         cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
@@ -119,7 +119,21 @@ void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int 
         cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
     });
     std::vector<char> iccARGB;
-    iccARGB.resize(stride * height);
-    cmsDoTransform(ptrTransform.get(), vector.get(), iccARGB.data(), width * height);
+    int mStride = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
+    int newLength = mStride * height;
+    iccARGB.resize(newLength);
+    cmsDoTransformLineStride(
+            ptrTransform.get(),
+            vector.get(),
+            iccARGB.data(),
+            width,
+            height,
+            stride,
+            mStride,
+            0,
+            0
+    );
     std::copy(iccARGB.begin(), iccARGB.end(), vector.get());
+
+    *newStride = mStride;
 }

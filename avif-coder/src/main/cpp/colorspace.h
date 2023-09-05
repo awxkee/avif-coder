@@ -17,6 +17,6 @@
 
 void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int width, int height,
                                  const unsigned char *colorSpace, size_t colorSpaceSize,
-                                 bool image16Bits);
+                                 bool image16Bits, int * newStride);
 
 #endif //AVIF_COLORSPACE_H

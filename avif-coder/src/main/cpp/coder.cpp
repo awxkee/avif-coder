@@ -684,37 +684,25 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     if (hasICC) {
         convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, profile.data(),
                                     profile.size(),
-                                    useBitmapHalf16Floats);
-        colorSpaceName = "SRGB";
-    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_PQ") == 0 &&
-               osVersion < colorSpaceRequiredVersion) {
+                                    useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_PQ") == 0) {
         convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt2020PQ[0],
                                     sizeof(bt2020PQ),
-                                    useBitmapHalf16Floats);
-        colorSpaceName = "SRGB";
-        colorSpaceRequiredVersion = 29;
-    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020") == 0 &&
-               osVersion < colorSpaceRequiredVersion) {
+                                    useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020") == 0) {
         convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                                     sizeof(bt2020),
-                                    useBitmapHalf16Floats);
-        colorSpaceName = "SRGB";
-    } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3") == 0 &&
-               osVersion < colorSpaceRequiredVersion) {
+                                    useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3") == 0) {
         convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
                                     sizeof(displayP3),
-                                    useBitmapHalf16Floats);
-        colorSpaceName = "SRGB";
-    } else if (colorSpaceName && strcmp(colorSpaceName, "LINEAR_SRGB") == 0 &&
-               osVersion < colorSpaceRequiredVersion) {
+                                    useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "LINEAR_SRGB") == 0) {
         convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &linearSRGB[0],
-                                    sizeof(linearSRGB), useBitmapHalf16Floats);
-        colorSpaceName = "SRGB";
-    } else if (colorSpaceName && strcmp(colorSpaceName, "BT709") == 0 &&
-               osVersion < colorSpaceRequiredVersion) {
+                                    sizeof(linearSRGB), useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT709") == 0) {
         convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt709[0],
-                                    sizeof(bt709), useBitmapHalf16Floats);
-        colorSpaceName = "SRGB";
+                                    sizeof(bt709), useBitmapHalf16Floats, &stride);
     }
 
     if (!alphaPremultiplied) {
@@ -752,27 +740,6 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     if (AndroidBitmap_unlockPixels(env, bitmapObj) != 0) {
         throwPixelsException(env);
         return static_cast<jobject>(nullptr);
-    }
-
-    if ((dataSpace != -1 || colorSpaceName != nullptr) && osVersion >= 29) {
-        if (osVersion >= colorSpaceRequiredVersion) {
-            jclass cls = env->FindClass("android/graphics/ColorSpace");
-            jmethodID staticMethodGetColorSpace = env->GetStaticMethodID(cls, "get",
-                                                                         "(Landroid/graphics/ColorSpace$Named;)Landroid/graphics/ColorSpace;");
-            jclass colorSpaceNameCls = env->FindClass("android/graphics/ColorSpace$Named");
-            jfieldID colorSpaceNameFieldID = env->GetStaticFieldID(colorSpaceNameCls,
-                                                                   colorSpaceName,
-                                                                   "Landroid/graphics/ColorSpace$Named;");
-            jobject colorSpaceNameObj = env->GetStaticObjectField(colorSpaceNameCls,
-                                                                  colorSpaceNameFieldID);
-            jobject colorSpace = env->CallStaticObjectMethod(cls, staticMethodGetColorSpace,
-                                                             colorSpaceNameObj);
-            jmethodID setColorSpaceMethod = env->GetMethodID(bitmapClass, "setColorSpace",
-                                                             "(Landroid/graphics/ColorSpace;)V");
-            if (setColorSpaceMethod) {
-                env->CallVoidMethod(bitmapObj, setColorSpaceMethod, colorSpace);
-            }
-        }
     }
 
     return bitmapObj;
