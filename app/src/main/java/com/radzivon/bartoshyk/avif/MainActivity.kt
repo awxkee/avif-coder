@@ -11,6 +11,9 @@ import android.util.Log
 import android.util.Size
 import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
+import coil.ImageLoader
+import coil.load
+import com.github.awxkee.avifcoil.HeifDecoder
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
@@ -32,8 +35,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Example of a call to a native method
-
-        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
+//
+        val buffer = this.assets.open("hato-wide-gamut.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
         val bitmap = HeifCoder().decodeSampled(buffer, size.width / 3, size.height / 3)
@@ -45,6 +48,7 @@ class MainActivity : AppCompatActivity() {
         val encoded = HeifCoder().encodeAvif(bitmap)
         val decodedSample = HeifCoder().decode(encoded)
         binding.imageView.setImageBitmap(decodedSample)
+
 //        binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(cc16)
 //        val avif12DepthBuffer =

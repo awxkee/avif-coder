@@ -18,6 +18,7 @@
 #include <math.h>
 #include <limits>
 #include "attenuate_alpha.h"
+#include "halfFloats.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -83,11 +84,16 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         return static_cast<jbyteArray>(nullptr);
     }
 
+
     void *addr;
     if (AndroidBitmap_lockPixels(env, bitmap, &addr) != 0) {
         throwPixelsException(env);
         return static_cast<jbyteArray>(nullptr);
     }
+
+    std::vector<uint8_t> sourceData(info.height * info.stride);
+    std::copy(reinterpret_cast<uint8_t *>(addr),
+              reinterpret_cast<uint8_t *>(addr) + info.height * info.stride, sourceData.data());
 
     heif_image *image;
     heif_chroma chroma = heif_chroma_interleaved_RGBA;
@@ -124,10 +130,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     int stride;
     uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
     if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        libyuv::ARGBCopy(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+        libyuv::ARGBCopy(sourceData.data(), (int) info.stride, imgData,
                          stride, (int) info.width, (int) info.height);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
-        libyuv::RGB565ToARGB(reinterpret_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+        libyuv::RGB565ToARGB(sourceData.data(), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);
         for (int i = 0; i < stride / 4 * info.height; i += 4) {
             imgData[i] = imgData[i + 1]; // R
@@ -138,14 +144,14 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         if (heifCompressionFormat == heif_compression_HEVC) {
             auto dstY = (char *) imgData;
-            auto srcY = (char *) addr;
+            auto srcY = (char *) sourceData.data();
             for (int y = 0; y < info.height; ++y) {
                 memcpy(dstY, srcY, info.width * 4 * sizeof(uint32_t));
                 srcY += info.width * sizeof(uint64_t);
                 dstY += stride;
             }
         } else {
-            libyuv::AR30ToARGB(static_cast<const uint8_t *>(addr), (int) info.stride, imgData,
+            libyuv::AR30ToARGB(sourceData.data(), (int) info.stride, imgData,
                                stride, (int) info.width,
                                (int) info.height);
             for (int i = 0; i < stride / 4 * info.height; i += 4) {
@@ -160,31 +166,45 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             std::shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
                     [](char *f) { free(f); });
-            auto *srcData = static_cast<float16_t *>(addr);
+            auto *srcData = reinterpret_cast<uint8_t *>(sourceData.data());
             uint16_t tmpR;
             uint16_t tmpG;
             uint16_t tmpB;
             uint16_t tmpA;
-            auto *data64Ptr = reinterpret_cast<uint64_t *>(dstARGB.get());
-            const float maxColors = (float) pow(2.0, bitDepth) - 1;
-            for (int i = 0, k = 0; i < std::min(info.stride * info.height,
-                                                info.width * info.height * 4); i += 4, k += 1) {
-                tmpR = (uint16_t) (srcData[i] * maxColors);
-                tmpG = (uint16_t) (srcData[i + 1] * maxColors);
-                tmpB = (uint16_t) (srcData[i + 2] * maxColors);
-                tmpA = (uint16_t) (srcData[i + 3] * maxColors);
-                uint64_t color =
-                        ((uint64_t) tmpA & 0xffff) << 48 | ((uint64_t) tmpB & 0xffff) << 32 |
-                        ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
-                data64Ptr[k] = color;
+            auto data64Ptr = reinterpret_cast<uint8_t *>(dstARGB.get());
+            const float scale = 1.0f / float((1 << bitDepth) - 1);
+            int dstStride = (int) info.width * 4 * (int) sizeof(uint16_t);
+
+            for (int y = 0; y < info.height; ++y) {
+
+                auto srcPtr = reinterpret_cast<uint16_t *>(srcData);
+                auto dstPtr = reinterpret_cast<uint64_t *>(data64Ptr);
+
+                for (int x = 0; x < info.width; ++x) {
+                    auto alpha = half_to_float(srcPtr[3]);
+                    tmpR = (uint16_t) (half_to_float(srcPtr[0]) / scale / (alpha != 0 ? alpha : 1));
+                    tmpG = (uint16_t) (half_to_float(srcPtr[1]) / scale / (alpha != 0 ? alpha : 1));
+                    tmpB = (uint16_t) (half_to_float(srcPtr[2]) / scale / (alpha != 0 ? alpha : 1));
+                    tmpA = (uint16_t) (alpha / scale);
+                    uint64_t color =
+                            ((uint64_t) tmpA & 0xffff) << 48 | ((uint64_t) tmpB & 0xffff) << 32 |
+                            ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
+                    dstPtr[0] = color;
+
+                    srcPtr += 4;
+                    dstPtr += 1;
+                }
+
+                srcData += info.stride;
+                data64Ptr += dstStride;
             }
-            auto *dataPtr = reinterpret_cast<void *>(dstARGB.get());
+            auto dataPtr = reinterpret_cast<void *>(dstARGB.get());
             auto srcY = (char *) dataPtr;
             auto dstY = (char *) imgData;
             const auto sourceStride = info.width * 4 * sizeof(uint16_t);
             for (int y = 0; y < info.height; ++y) {
                 memcpy(dstY, srcY, sourceStride);
-                srcY += sourceStride;
+                srcY += dstStride;
                 dstY += stride;
             }
             dstARGB.reset();
@@ -192,7 +212,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             std::shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint8_t))),
                     [](char *f) { free(f); });
-            auto *srcData = static_cast<float16_t *>(addr);
+            auto *srcData = reinterpret_cast<float16_t *>(sourceData.data());
             char tmpR;
             char tmpG;
             char tmpB;

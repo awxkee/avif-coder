@@ -15,22 +15,23 @@ import coil.size.Scale
 import coil.size.pxOrElse
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import kotlinx.coroutines.runInterruptible
+import okio.ByteString
 
 class HeifDecoder(
     private val source: SourceResult,
     private val options: Options,
-    private val imageLoader: ImageLoader
+    private val imageLoader: ImageLoader,
+    private val sourceData: ByteArray,
 ) : Decoder {
 
     override suspend fun decode(): DecodeResult? = runInterruptible {
-        val byteArray = source.source.source().readByteArray()
-        val originalSize = HeifCoder().getSize(byteArray) ?: return@runInterruptible null
+        val originalSize = HeifCoder().getSize(sourceData) ?: return@runInterruptible null
         val dstWidth = options.size.width.pxOrElse { 0 }
         val dstHeight = options.size.height.pxOrElse { 0 }
         if (options.scale == Scale.FIT) {
             val scaledSize = aspectScale(originalSize, Size(dstWidth, dstHeight))
             val originalImage =
-                HeifCoder().decodeSampled(byteArray, scaledSize.width, scaledSize.height)
+                HeifCoder().decodeSampled(sourceData, scaledSize.width, scaledSize.height)
             return@runInterruptible DecodeResult(
                 BitmapDrawable(
                     options.context.resources,
@@ -51,7 +52,7 @@ class HeifDecoder(
             )) else originalSize
         val aspectSize = aspectScale(originalSize, targetSizeNotAspect)
         val originalImage =
-            HeifCoder().decodeSampled(byteArray, aspectSize.width, aspectSize.height)
+            HeifCoder().decodeSampled(sourceData, aspectSize.width, aspectSize.height)
         val resizedBitmap = resizeAspectFill(originalImage, Size(dstWidth, dstHeight))
         originalImage.recycle()
         return@runInterruptible DecodeResult(
@@ -113,9 +114,12 @@ class HeifDecoder(
             result: SourceResult,
             options: Options,
             imageLoader: ImageLoader
-        ) = if (HeifCoder().isHeif(result.source.source().readByteArray())) {
-            HeifDecoder(result, options, imageLoader)
-        } else null
+        ): Decoder? {
+            val originalBytes = result.source.source().readByteArray()
+            if (HeifCoder().isSupportedImage(originalBytes)) {
+                return HeifDecoder(result, options, imageLoader, originalBytes)
+            } else return null
+        }
     }
 
 }
