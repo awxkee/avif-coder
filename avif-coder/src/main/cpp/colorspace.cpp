@@ -126,7 +126,7 @@ void convertUseDefinedColorSpace(std::shared_ptr<char> &vector, int stride, int 
             ptrTransform.get(),
             vector.get(),
             iccARGB.data(),
-            width * 4,
+            width,
             height,
             stride,
             mStride,
