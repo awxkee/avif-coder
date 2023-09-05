@@ -15,16 +15,16 @@ import coil.size.Scale
 import coil.size.pxOrElse
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import kotlinx.coroutines.runInterruptible
-import okio.ByteString
+import okio.ByteString.Companion.encodeUtf8
 
 class HeifDecoder(
     private val source: SourceResult,
     private val options: Options,
     private val imageLoader: ImageLoader,
-    private val sourceData: ByteArray,
 ) : Decoder {
 
     override suspend fun decode(): DecodeResult? = runInterruptible {
+        val sourceData = source.source.source().readByteArray()
         val originalSize = HeifCoder().getSize(sourceData) ?: return@runInterruptible null
         val dstWidth = options.size.width.pxOrElse { 0 }
         val dstHeight = options.size.height.pxOrElse { 0 }
@@ -115,10 +115,22 @@ class HeifDecoder(
             options: Options,
             imageLoader: ImageLoader
         ): Decoder? {
-            val originalBytes = result.source.source().readByteArray()
-            if (HeifCoder().isSupportedImage(originalBytes)) {
-                return HeifDecoder(result, options, imageLoader, originalBytes)
-            } else return null
+            return if (AVAILABLE_BRANDS.any {
+                    result.source.source().rangeEquals(4, it)
+                }) HeifDecoder(result, options, imageLoader) else null
+        }
+
+        companion object {
+            private val MIF = "ftypmif1".encodeUtf8()
+            private val MSF = "ftypmsf1".encodeUtf8()
+            private val HEIC = "ftypheic".encodeUtf8()
+            private val HEIX = "ftypheix".encodeUtf8()
+            private val HEVC = "ftyphevc".encodeUtf8()
+            private val HEVX = "ftyphevx".encodeUtf8()
+            private val AVIF = "ftypavif".encodeUtf8()
+            private val AVIS = "ftypavis".encodeUtf8()
+
+            private val AVAILABLE_BRANDS = listOf(MIF, MSF, HEIC, HEIX, HEVC, HEVX, AVIF, AVIS)
         }
     }
 

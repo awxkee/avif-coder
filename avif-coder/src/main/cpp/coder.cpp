@@ -95,6 +95,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     std::copy(reinterpret_cast<uint8_t *>(addr),
               reinterpret_cast<uint8_t *>(addr) + info.height * info.stride, sourceData.data());
 
+    AndroidBitmap_unlockPixels(env, bitmap);
+
     heif_image *image;
     heif_chroma chroma = heif_chroma_interleaved_RGBA;
     if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
@@ -104,7 +106,6 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
                                chroma, &image);
     if (result.code != heif_error_Ok) {
-        AndroidBitmap_unlockPixels(env, bitmap);
         throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
@@ -123,15 +124,15 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
                                   (int) info.height, bitDepth);
     if (result.code != heif_error_Ok) {
-        AndroidBitmap_unlockPixels(env, bitmap);
         throwCantEncodeImageException(env, result.message);
         return static_cast<jbyteArray>(nullptr);
     }
     int stride;
     uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
     if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        libyuv::ARGBCopy(sourceData.data(), (int) info.stride, imgData,
-                         stride, (int) info.width, (int) info.height);
+        libyuv::ARGBCopy(sourceData.data(), (int) info.stride,
+                          imgData,
+                          stride, (int) info.width, (int) info.height);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         libyuv::RGB565ToARGB(sourceData.data(), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);
@@ -178,21 +179,22 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             for (int y = 0; y < info.height; ++y) {
 
                 auto srcPtr = reinterpret_cast<uint16_t *>(srcData);
-                auto dstPtr = reinterpret_cast<uint64_t *>(data64Ptr);
+                auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
 
                 for (int x = 0; x < info.width; ++x) {
                     auto alpha = half_to_float(srcPtr[3]);
-                    tmpR = (uint16_t) (half_to_float(srcPtr[0]) / scale / (alpha != 0 ? alpha : 1));
-                    tmpG = (uint16_t) (half_to_float(srcPtr[1]) / scale / (alpha != 0 ? alpha : 1));
-                    tmpB = (uint16_t) (half_to_float(srcPtr[2]) / scale / (alpha != 0 ? alpha : 1));
+                    tmpR = (uint16_t) (half_to_float(srcPtr[0]) / scale);
+                    tmpG = (uint16_t) (half_to_float(srcPtr[1]) / scale);
+                    tmpB = (uint16_t) (half_to_float(srcPtr[2]) / scale);
                     tmpA = (uint16_t) (alpha / scale);
-                    uint64_t color =
-                            ((uint64_t) tmpA & 0xffff) << 48 | ((uint64_t) tmpB & 0xffff) << 32 |
-                            ((uint64_t) tmpG & 0xffff) << 16 | ((uint64_t) tmpR & 0xffff);
-                    dstPtr[0] = color;
+
+                    dstPtr[0] = tmpR;
+                    dstPtr[1] = tmpG;
+                    dstPtr[2] = tmpB;
+                    dstPtr[3] = tmpA;
 
                     srcPtr += 4;
-                    dstPtr += 1;
+                    dstPtr += 4;
                 }
 
                 srcData += info.stride;
@@ -242,7 +244,6 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
             dstARGB.reset();
         }
     }
-    AndroidBitmap_unlockPixels(env, bitmap);
 
     heif_image_handle *handle;
     std::shared_ptr<heif_encoding_options> options(heif_encoding_options_alloc(),
@@ -251,6 +252,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                                    });
     options->version = 5;
     options->image_orientation = heif_orientation_normal;
+    options->output_nclx_profile = nullptr;
+    options->save_two_colr_boxes_when_ICC_and_nclx_available = false;
 
     result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
     options.reset();
