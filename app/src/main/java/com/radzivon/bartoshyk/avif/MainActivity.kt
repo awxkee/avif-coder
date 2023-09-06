@@ -36,7 +36,7 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("hato-wide-gamut.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
             binding.imageView.setImageBitmap(bitmap)
-            val encoded = HeifCoder().encodeHeic(bitmap)
+            val encoded = HeifCoder().encodeAvif(bitmap)
             val decodedSample = HeifCoder().decode(encoded)
             binding.imageView.setImageBitmap(decodedSample)
         }

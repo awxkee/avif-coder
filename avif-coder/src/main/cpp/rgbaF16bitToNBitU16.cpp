@@ -23,7 +23,7 @@ void RGBAF16BitToNU16_NEON(const uint16_t *sourceData, int srcStride, uint16_t *
         auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
         auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
         int x;
-        for (x = 0; x < width; x += 2) {
+        for (x = 0; x + 2 < width; x += 2) {
             float16x8_t neonSrc = vld1q_f16(reinterpret_cast<const __fp16 *>(srcPtr));
 
             float32x4_t neonFloat32_1 = vminq_f32(

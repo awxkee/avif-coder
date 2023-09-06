@@ -22,7 +22,7 @@ void copyRGBA16_NEON(uint16_t* source, int srcStride,
         auto dstPtr = reinterpret_cast<uint16_t *>(dst);
         int x;
 
-        for (x = 0; x < width; x += 2) {
+        for (x = 0; x + 2 < width; x += 2) {
             uint16x8_t neonSrc = vld1q_u16(srcPtr);
             vst1q_u16(dstPtr, neonSrc);
             srcPtr += 8;
