@@ -4,8 +4,6 @@ package com.radzivon.bartoshyk.avif.coder
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.ColorSpace
 import android.os.Build
 import android.util.Size
 import androidx.annotation.Keep
@@ -29,12 +27,20 @@ class HeifCoder {
         return getSizeImpl(bytes)
     }
 
-    fun decode(byteArray: ByteArray): Bitmap {
-        return decodeImpl(byteArray, 0, 0)
+    fun decode(
+        byteArray: ByteArray,
+        preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT
+    ): Bitmap {
+        return decodeImpl(byteArray, 0, 0, preferredColorConfig.value)
     }
 
-    fun decodeSampled(byteArray: ByteArray, scaledWidth: Int, scaledHeight: Int): Bitmap {
-        return decodeImpl(byteArray, scaledWidth, scaledHeight)
+    fun decodeSampled(
+        byteArray: ByteArray,
+        scaledWidth: Int,
+        scaledHeight: Int,
+        preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
+    ): Bitmap {
+        return decodeImpl(byteArray, scaledWidth, scaledHeight, preferredColorConfig.value)
     }
 
     fun encodeAvif(bitmap: Bitmap, quality: Int = 80): ByteArray {
@@ -59,7 +65,8 @@ class HeifCoder {
     private external fun decodeImpl(
         byteArray: ByteArray,
         scaledWidth: Int,
-        scaledHeight: Int
+        scaledHeight: Int,
+        clrConfig: Int,
     ): Bitmap
 
     private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int): ByteArray

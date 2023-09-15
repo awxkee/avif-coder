@@ -9,17 +9,18 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
 
-add_library(coder SHARED
-        coder.cpp jni_exception.cpp scaler.cpp
+add_library(coder SHARED coder.cpp JniException.cpp scaler.cpp
         icc/cmsalpha.c icc/cmscam02.c
         icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
         icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c
         icc/cmsio1.c icc/cmslut.c icc/cmsmd5.c icc/cmsmtrx.c icc/cmsnamed.c
         icc/cmsopt.c icc/cmspack.c icc/cmspcs.c icc/cmsplugin.c
         icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
-        icc/cmswtpnt.c icc/cmsxform.c colorspace.cpp HalfFloats.cpp
-        RgbaF16bitToNBitU16.cpp RgbaF16bitNBitU8.cpp Rgb1010102.cpp PerceptualQuantinizer.cpp
-        ThreadPool.hpp CopyUnalignedRGBA.cpp HLG.cpp)
+        icc/cmswtpnt.c icc/cmsxform.c colorspace/colorspace.cpp imagebits/HalfFloats.cpp
+        imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
+        colorspace/PerceptualQuantinizer.cpp ThreadPool.hpp
+        imagebits/CopyUnalignedRGBA.cpp colorspace/HLG.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
+        imagebits/Rgb565.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -61,7 +62,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
 endif ()
 add_definitions(-DCMS_NO_REGISTER_KEYWORD)
 
-target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv)
+target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv ${CMAKE_SOURCE_DIR}/colorspace)
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library

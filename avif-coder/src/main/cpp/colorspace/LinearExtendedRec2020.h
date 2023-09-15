@@ -2,8 +2,8 @@
 // Created by Radzivon Bartoshyk on 03/09/2023.
 //
 
-#ifndef AVIF_LINEAR_EXTENDED_BT2020_H
-#define AVIF_LINEAR_EXTENDED_BT2020_H
+#ifndef AVIF_LINEAREXTENDEDREC2020_H
+#define AVIF_LINEAREXTENDEDREC2020_H
 
 const unsigned char linearExtendedBT2020[] = {0x00, 0x00, 0x02, 0x2c, 0x61, 0x70, 0x70, 0x6c, 0x04,
                                               0x00, 0x00,
@@ -146,4 +146,4 @@ const unsigned char linearExtendedBT2020[] = {0x00, 0x00, 0x02, 0x2c, 0x61, 0x70
                                               0x00, 0x00, 0xc0, 0x6e
 };
 
-#endif //AVIF_LINEAR_EXTENDED_BT2020_H
+#endif //AVIF_LINEAREXTENDEDREC2020_H

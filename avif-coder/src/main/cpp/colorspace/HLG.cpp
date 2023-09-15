@@ -4,7 +4,7 @@
 
 #include "HLG.h"
 #include "ThreadPool.hpp"
-#include "HalfFloats.h"
+#include "imagebits/HalfFloats.h"
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "HLG.cpp"

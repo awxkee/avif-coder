@@ -3,7 +3,7 @@
 //
 
 #include "PerceptualQuantinizer.h"
-#include "HalfFloats.h"
+#include "imagebits/HalfFloats.h"
 #include <vector>
 #include "ThreadPool.hpp"
 

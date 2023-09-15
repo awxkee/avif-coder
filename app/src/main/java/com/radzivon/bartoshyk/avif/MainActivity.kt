@@ -15,6 +15,7 @@ import coil.ImageLoader
 import coil.load
 import com.github.awxkee.avifcoil.HeifDecoder
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
+import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,12 +38,17 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val time = measureTimeMillis {
-                val bitmap = HeifCoder().decodeSampled(buffer, size.width / 2, size.height / 2)
+                val bitmap = HeifCoder().decodeSampled(
+                    buffer,
+                    size.width / 2,
+                    size.height / 2,
+                    PreferredColorConfig.RGB_565
+                )
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -2,8 +2,8 @@
 // Created by Radzivon Bartoshyk on 03/09/2023.
 //
 
-#ifndef AVIF_BT709_COLORSPACE_H
-#define AVIF_BT709_COLORSPACE_H
+#ifndef AVIF_REC709COLORSPACE_H
+#define AVIF_REC709COLORSPACE_H
 
 const unsigned char bt709[] = {0x00, 0x00, 0x02, 0x2c, 0x61, 0x70, 0x70, 0x6c, 0x04, 0x00, 0x00,
                                0x00,
@@ -100,4 +100,4 @@ const unsigned char bt709[] = {0x00, 0x00, 0x02, 0x2c, 0x61, 0x70, 0x70, 0x6c, 0
                                0x00, 0x00, 0xc0, 0x6e
 };
 
-#endif //AVIF_BT709_COLORSPACE_H
+#endif //AVIF_REC709COLORSPACE_H

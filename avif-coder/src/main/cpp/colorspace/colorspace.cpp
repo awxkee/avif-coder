@@ -2,7 +2,7 @@
 // Created by Radzivon Bartoshyk on 02/09/2023.
 //
 
-#include "colorspace.h"
+#include "colorspace/colorspace.h"
 #include <cmath>
 #include "lcms2.h"
 #include <vector>
@@ -64,92 +64,6 @@ static const cmsCIExyYTRIPLE ProPhoto_Primaries = {
         {0.036598, 0.000105, 1.0000}, /* blue  */
 };
 
-cmsCIEXYZTRIPLE Rec709_Primaries_Prequantized;
-
-// https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
-// Hybrid Log-Gamma
-static double hlgFct(double x) {
-    static const double Beta = 0.04;
-    static const double RA = 5.591816309728916; // 1.0 / A where A = 0.17883277
-    static const double B = 0.28466892; // 1.0 - 4.0 * A
-    static const double C = 0.5599107295; // 0,5 –aln(4a)
-
-    double e = std::max(x * (1.0 - Beta) + Beta, 0.0);
-
-    if (e == 0.0) return 0.0;
-
-    const double sign = e;
-    e = fabs(e);
-
-    double res = 0.0;
-
-    if (e <= 0.5) {
-        res = e * e / 3.0;
-    } else {
-        res = (exp((e - C) * RA) + B) / 12.0;
-    }
-
-    return copysign(res, sign);
-}
-
-// https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
-// Perceptual Quantization / SMPTE standard ST.2084
-
-//double pqFct(double x) {
-//        static const double M1 = 2610.0 / 16384.0;
-//    static const double M2 = (2523.0 / 4096.0) * 128.0;
-//    static const double C1 = 3424.0 / 4096.0;
-//    static const double C2 = (2413.0 / 4096.0) * 32.0;
-//    static const double C3 = (2392.0 / 4096.0) * 32.0;
-//    static const double MAX_PQ = 10000;
-//    if (x <= 0.0) return 0.0;
-//    return std::pow((std::max(x, 0.0)), 1.0 / M2) * ((C1 + M1 * std::log(1.0 + C2 * x)) / (1.0 + C3 * x));
-//}
-double pqFct(double x) {
-    x = std::max(x, 0.0);
-    static const double M1 = 2610.0 / 16384.0;
-    static const double M2 = (2523.0 / 4096.0) * 128.0;
-    static const double C1 = 3424.0 / 4096.0;
-    static const double C2 = (2413.0 / 4096.0) * 32.0;
-    static const double C3 = (2392.0 / 4096.0) * 32.0;
-
-    if (x == 0.0) return 0.0;
-    const double sign = x;
-    x = fabs(x);
-
-    const double xpo = pow(x, 1.0 / M2);
-    const double num = std::max(xpo - C1, 0.0);
-    const double den = C2 - C3 * xpo;
-    const double res = pow(num / den, 1.0 / M1);
-
-    return copysign(res, sign);
-}
-
-static constexpr double kA = 0.17883277;
-static constexpr double kRA = 1.0 / kA;
-static constexpr double kB = 1 - 4 * kA;
-static constexpr double kC = 0.5599107295;
-static constexpr double kDiv12 = 1.0 / 12;
-
-static constexpr double kM1 = 2610.0 / 16384;
-static constexpr double kM2 = (2523.0 / 4096) * 128;
-static constexpr double kC1 = 3424.0 / 4096;
-static constexpr double kC2 = (2413.0 / 4096) * 32;
-static constexpr double kC3 = (2392.0 / 4096) * 32;
-
-double DisplayFromEncoded(double e) {
-    if (e == 0.0) return 0.0;
-    const double original_sign = e;
-    e = std::abs(e);
-
-    const double xp = std::pow(e, 1.0 / kM2);
-    const double num = std::max(xp - kC1, 0.0);
-    const double den = kC2 - kC3 * xp;
-    const double d = std::pow(num / den, 1.0 / kM1);
-    return copysignf(d, original_sign);
-}
-
-
 static cmsToneCurve *colorSpacesCreateTransfer(int32_t size, double (*fct)(double)) {
     float *values = (float *) malloc(size * sizeof(float));
 
@@ -208,15 +122,6 @@ static cmsHPROFILE createLcmsProfile(const char *desc, const char *dmdd,
     return profile;
 }
 
-cmsHPROFILE colorspacesCreatePqRec2020RgbProfile() {
-    cmsToneCurve *transferFunction = colorSpacesCreateTransfer(4096, pqFct);
-
-    cmsHPROFILE profile = createLcmsProfile("PQ Rec2020 RGB", "PQ Rec2020 RGB",
-                                            &D65xyY, &Rec2020_Primaries, transferFunction, TRUE);
-
-    return profile;
-}
-
 // Function to create a gamma-corrected tone curve
 cmsToneCurve *createGammaToneCurve(double gamma) {
     // Define the number of entries in the table (e.g., 1024)
@@ -260,7 +165,7 @@ cmsHPROFILE colorspacesCreateSrgbProfile(bool v2) {
     return profile;
 }
 
-static cmsHPROFILE dt_colorspaces_create_xyz_profile() {
+static cmsHPROFILE colorspacesCreateXyzProfile() {
     cmsHPROFILE hXYZ = cmsCreateXYZProfile();
     cmsSetPCS(hXYZ, cmsSigXYZData);
     cmsSetHeaderRenderingIntent(hXYZ, INTENT_PERCEPTUAL);
@@ -285,6 +190,34 @@ static cmsHPROFILE dt_colorspaces_create_xyz_profile() {
     return hXYZ;
 }
 
+static ColorSpace colorspacesCreateDisplayP3RgbProfile() {
+    cmsFloat64Number srgb_parameters[5] =
+            {2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
+    cmsToneCurve *transferFunction = cmsBuildParametricToneCurve(nullptr, 4, srgb_parameters);
+
+    cmsHPROFILE profile = createLcmsProfile("Display P3 RGB", "Display P3 RGB",
+                                            &D65xyY, &P3_Primaries,
+                                            transferFunction, TRUE);
+
+    cmsFreeToneCurve(transferFunction);
+
+    return {profile};
+}
+
+
+static ColorSpace colorspacesCreateAdobergbProfile() {
+    // AdobeRGB's "2.2" gamma is technically defined as 2 + 51/256
+    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 2.19921875);
+
+    cmsHPROFILE profile = createLcmsProfile("Adobe RGB (compatible)", "Adobe RGB",
+                                            &D65xyY, &Adobe_Primaries,
+                                            transferFunction, TRUE);
+
+    cmsFreeToneCurve(transferFunction);
+
+    return {profile};
+}
+
 cmsHPROFILE colorspacesCreateLinearRec709RgbProfile() {
     cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
 
@@ -301,28 +234,6 @@ cmsHPROFILE colorspacesCreateLinearRec2020RgbProfile() {
 
     cmsHPROFILE profile = createLcmsProfile("Linear Rec2020 RGB", "Linear Rec2020 RGB",
                                             &D65xyY, &Rec2020_Primaries, transferFunction, TRUE);
-
-    cmsFreeToneCurve(transferFunction);
-
-    return profile;
-}
-
-cmsHPROFILE colorspacesCreatePqP3RgbProfile() {
-    cmsToneCurve *transferFunction = colorSpacesCreateTransfer(4096, pqFct);
-
-    cmsHPROFILE profile = createLcmsProfile("PQ P3 RGB", "PQ P3 RGB",
-                                            &D65xyY, &P3_Primaries, transferFunction, TRUE);
-
-    cmsFreeToneCurve(transferFunction);
-
-    return profile;
-}
-
-cmsHPROFILE colorspacesCreateHlgP3RgbProfile() {
-    cmsToneCurve *transferFunction = colorSpacesCreateTransfer(4096, hlgFct);
-
-    cmsHPROFILE profile = createLcmsProfile("HLG P3 RGB", "HLG P3 RGB",
-                                            &D65xyY, &P3_Primaries, transferFunction, TRUE);
 
     cmsFreeToneCurve(transferFunction);
 

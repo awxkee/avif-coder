@@ -2,8 +2,8 @@
 // Created by Radzivon Bartoshyk on 03/09/2023.
 //
 
-#ifndef AVIF_BT2020_COLORSPACE_H
-#define AVIF_BT2020_COLORSPACE_H
+#ifndef AVIF_REC2020COLORSPACE_H
+#define AVIF_REC2020COLORSPACE_H
 
 // BT 2020 ColorSpace
 const unsigned char bt2020[] = {0x00, 0x00, 0x02, 0x2c, 0x61, 0x70, 0x70, 0x6c, 0x04, 0x00, 0x00,
@@ -101,4 +101,4 @@ const unsigned char bt2020[] = {0x00, 0x00, 0x02, 0x2c, 0x61, 0x70, 0x70, 0x6c, 
                                 0x00, 0x00, 0xc0, 0x6e
 };
 
-#endif //AVIF_BT2020_COLORSPACE_H
+#endif //AVIF_REC2020COLORSPACE_H

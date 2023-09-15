@@ -2,7 +2,7 @@
 // Created by Radzivon Bartoshyk on 01/01/2023.
 //
 
-#include "jni_exception.h"
+#include "JniException.h"
 
 jint throwCannotReadFileException(JNIEnv *env) {
     jclass exClass;
@@ -56,4 +56,14 @@ jint throwPixelsException(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/GetPixelsException");
     return env->ThrowNew(exClass, "");
+}
+
+jint throwException(JNIEnv *env, std::string &msg) {
+    jclass exClass;
+    exClass = env->FindClass("java/lang/Exception");
+    return env->ThrowNew(exClass, msg.c_str());
+}
+
+int androidOSVersion() {
+    return android_get_device_api_level();
 }
