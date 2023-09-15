@@ -386,7 +386,11 @@ namespace coder {
         using hwy::HWY_NAMESPACE::Mul;
         using hwy::HWY_NAMESPACE::Max;
         using hwy::HWY_NAMESPACE::Min;
+        using hwy::HWY_NAMESPACE::And;
+        using hwy::HWY_NAMESPACE::Add;
         using hwy::HWY_NAMESPACE::BitCast;
+        using hwy::HWY_NAMESPACE::ShiftRight;
+        using hwy::HWY_NAMESPACE::ShiftLeft;
         using hwy::HWY_NAMESPACE::ExtractLane;
         using hwy::HWY_NAMESPACE::DemoteTo;
         using hwy::HWY_NAMESPACE::ConvertTo;
@@ -453,7 +457,7 @@ namespace coder {
                 VU lower = Or(ShiftLeft<10>(GV), BV);
                 VU final = Or(upper, lower);
                 Store(final, du, dst32);
-                data += pixels*4;
+                data += pixels * 4;
                 dst32 += pixels;
             }
 
@@ -471,6 +475,96 @@ namespace coder {
 
                 data += 4;
                 dst32 += 1;
+            }
+        }
+
+        void
+        Rgba8ToRGBA1010102HWYRow(const uint8_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
+                                 int width,
+                                 const int *permuteMap) {
+            const FixedTag<uint8_t, 4> du8x4;
+            const Rebind<int32_t, FixedTag<uint8_t, 4>> di32;
+            const FixedTag<uint32_t, 4> du;
+            using VU8 = Vec<decltype(du8x4)>;
+            using VU = Vec<decltype(du)>;
+
+            int x = 0;
+            auto dst32 = reinterpret_cast<uint32_t *>(dst);
+            int pixels = 4;
+            for (x = 0; x + pixels < width; x += pixels) {
+                VU8 upixels1;
+                VU8 upixels2;
+                VU8 upixels3;
+                VU8 upixels4;
+                LoadInterleaved4(du8x4, reinterpret_cast<const uint8_t *>(data), upixels1, upixels2,
+                                 upixels3, upixels4);
+
+                VU pixelsu1 = Mul(BitCast(du, PromoteTo(di32, upixels1)), Set(du, 4));
+                VU pixelsu2 = Mul(BitCast(du, PromoteTo(di32, upixels2)), Set(du, 4));
+                VU pixelsu3 = Mul(BitCast(du, PromoteTo(di32, upixels3)), Set(du, 4));
+                VU pixelsu4 = ShiftRight<8>(
+                        Add(Mul(BitCast(du, PromoteTo(di32, upixels4)), Set(du, 3)), Set(du, 127)));
+
+                VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
+                VU AV = pixelsStore[permuteMap[0]];
+                VU RV = pixelsStore[permuteMap[1]];
+                VU GV = pixelsStore[permuteMap[2]];
+                VU BV = pixelsStore[permuteMap[3]];
+                VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
+                VU lower = Or(ShiftLeft<10>(GV), BV);
+                VU final = Or(upper, lower);
+                Store(final, du, dst32);
+                data += pixels * 4;
+                dst32 += pixels;
+            }
+
+            for (; x < width; ++x) {
+                auto A16 = (uint32_t) data[permuteMap[0]];
+                auto R16 = (uint32_t) data[permuteMap[1]];
+                auto G16 = (uint32_t) data[permuteMap[2]];
+                auto B16 = (uint32_t) data[permuteMap[3]];
+
+                dst32[0] = (A16 << 30) | (R16 << 20) | (G16 << 10) | B16;
+                data += 4;
+                dst32 += 1;
+            }
+        }
+
+        void
+        Rgba8ToRGBA1010102HWY(const uint8_t *source,
+                              int srcStride,
+                              uint8_t *destination,
+                              int dstStride,
+                              int width,
+                              int height) {
+            int permuteMap[4] = {3, 2, 1, 0};
+            int minimumTilingAreaSize = 850 * 850;
+            auto src = reinterpret_cast<const uint8_t *>(source);
+            int currentAreaSize = width * height;
+            if (minimumTilingAreaSize > currentAreaSize) {
+                for (int y = 0; y < height; ++y) {
+                    Rgba8ToRGBA1010102HWYRow(
+                            reinterpret_cast<const uint8_t *>(src + srcStride * y),
+                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
+                            width, &permuteMap[0]);
+                }
+            } else {
+                ThreadPool pool;
+                std::vector<std::future<void>> results;
+
+                for (int y = 0; y < height; ++y) {
+                    auto r = pool.enqueue(Rgba8ToRGBA1010102HWYRow,
+                                          reinterpret_cast<const uint8_t *>(src +
+                                                                            srcStride * y),
+                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
+                                          width, &permuteMap[0]);
+                    results.push_back(std::move(r));
+                }
+
+                for (auto &result: results) {
+                    result.wait();
+                }
+
             }
         }
 
@@ -522,12 +616,25 @@ HWY_AFTER_NAMESPACE();
 
 namespace coder {
     HWY_EXPORT(F16ToRGBA1010102HWY);
+    HWY_EXPORT(Rgba8ToRGBA1010102HWY);
     HWY_DLLEXPORT void
     F16ToRGBA1010102(const uint16_t *source, int srcStride, uint8_t *destination, int dstStride,
                      int width,
                      int height) {
         HWY_DYNAMIC_DISPATCH(F16ToRGBA1010102HWY)(source, srcStride, destination, dstStride, width,
                                                   height);
+    }
+
+    HWY_DLLEXPORT void
+    Rgba8ToRGBA1010102(const uint8_t *source,
+                       int srcStride,
+                       uint8_t *destination,
+                       int dstStride,
+                       int width,
+                       int height) {
+        HWY_DYNAMIC_DISPATCH(Rgba8ToRGBA1010102HWY)(source, srcStride, destination, dstStride,
+                                                    width,
+                                                    height);
     }
 }
 

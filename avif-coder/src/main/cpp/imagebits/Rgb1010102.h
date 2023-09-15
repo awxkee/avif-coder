@@ -18,6 +18,14 @@ namespace coder {
     F16ToRGBA1010102(const uint16_t *source, int srcStride, uint8_t *destination, int dstStride,
                      int width,
                      int height);
+
+    void
+    Rgba8ToRGBA1010102(const uint8_t *source,
+                       int srcStride,
+                       uint8_t *destination,
+                       int dstStride,
+                       int width,
+                       int height);
 }
 
 #endif //AVIF_RGB1010102_H
