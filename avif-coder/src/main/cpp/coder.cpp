@@ -201,8 +201,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                                    });
     options->version = 5;
     options->image_orientation = heif_orientation_normal;
-    options->output_nclx_profile = nullptr;
-    options->save_two_colr_boxes_when_ICC_and_nclx_available = false;
+//    options->output_nclx_profile = nullptr;
+//    options->save_two_colr_boxes_when_ICC_and_nclx_available = false;
 
     result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
     options.reset();
@@ -487,8 +487,6 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     heif_color_profile_nclx *colorProfileNclx = nullptr;
     auto type = heif_image_get_color_profile_type(img);
 
-    int dataSpace = -1;
-    uint8_t colorSpaceRequiredVersion = 29;
     const char *colorSpaceName = nullptr;
 
     auto nclxColorProfile = heif_image_handle_get_nclx_color_profile(handle, &colorProfileNclx);
@@ -499,9 +497,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
             auto colorPrimaries = colorProfileNclx->color_primaries;
             if (colorPrimaries == heif_color_primaries_ITU_R_BT_2020_2_and_2100_0 &&
                 transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
-                dataSpace = (int) ADataSpace::ADATASPACE_BT2020_ITU_PQ;
                 colorSpaceName = "BT2020_PQ";
-                colorSpaceRequiredVersion = 34;
             } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_709_5 &&
                        transfer == heif_transfer_characteristic_linear) {
                 colorSpaceName = "LINEAR_SRGB";
@@ -523,10 +519,10 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                 colorSpaceName = "BT2020";
             } else if (colorPrimaries == heif_color_primaries_SMPTE_EG_432_1 &&
                        transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
-                hasICC = true;
-                profile.resize(sizeof(displayP3_HLG));
-                std::copy(&displayP3_HLG[0],
-                          &displayP3_HLG[0] + sizeof(displayP3_HLG), profile.data());
+                colorSpaceName = "DISPLAY_P3_HLG";
+            } else if (colorPrimaries == heif_color_primaries_SMPTE_EG_432_1 &&
+                       transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
+                colorSpaceName = "DISPLAY_P3_PQ";
             } else if (colorPrimaries == heif_color_primaries_SMPTE_EG_432_1 &&
                        transfer == heif_transfer_characteristic_IEC_61966_2_1) {
                 colorSpaceName = "DISPLAY_P3";
@@ -671,13 +667,13 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         if (useBitmapHalf16Floats) {
             PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
                                                         stride, imageWidth, imageHeight, true, true,
-                                                        16);
+                                                        16, Rec2020);
             perceptualQuantinizer.transfer();
         } else {
             PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
                                                         stride, imageWidth, imageHeight, false,
                                                         false,
-                                                        8);
+                                                        8, Rec2020);
             perceptualQuantinizer.transfer();
         }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
@@ -686,9 +682,32 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_HLG") == 0) {
         coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
                           useBitmapHalf16Floats, stride, imageWidth, imageHeight,
-                          useBitmapHalf16Floats ? 16 : 8);
+                          useBitmapHalf16Floats ? 16 : 8, coder::Rec2020);
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
+                      useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3_HLG") == 0) {
+        coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                          useBitmapHalf16Floats, stride, imageWidth, imageHeight,
+                          useBitmapHalf16Floats ? 16 : 8, coder::DCIP3);
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
+                      sizeof(displayP3),
+                      useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3_PQ") == 0) {
+        if (useBitmapHalf16Floats) {
+            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                                                        stride, imageWidth, imageHeight, true, true,
+                                                        16, DCIP3);
+            perceptualQuantinizer.transfer();
+        } else {
+            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                                                        stride, imageWidth, imageHeight, false,
+                                                        false,
+                                                        8, DCIP3);
+            perceptualQuantinizer.transfer();
+        }
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
+                      sizeof(displayP3),
                       useBitmapHalf16Floats, &stride);
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020") == 0) {
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],

@@ -136,7 +136,6 @@ namespace coder {
         }
 
         float Evaluate(float v) {
-            // Spec: http://www.arib.or.jp/english/html/overview/doc/2-STD-B67v1_0.pdf
             v = std::max(0.0f, v);
             constexpr float a = 0.17883277f;
             constexpr float b = 0.28466892f;
@@ -161,6 +160,15 @@ namespace coder {
             return IfThenElse(cmp, branch1, branch2);
         }
 
+        template<class D, typename T = Vec<D>>
+        inline T dciP3GammaCorrection(const D d, T color) {
+            return PowHLG(color, Set(d, 1 / 2.6f));
+        }
+
+        inline float dciP3HLGGammaCorrection(float linear) {
+            return powf(linear, 1 / 2.6f);
+        }
+
         float bt2020HLGGammaCorrection(float linear) {
             static const float betaRec2020 = 0.018053968510807f;
             static const float alphaRec2020 = 1.09929682680944f;
@@ -172,28 +180,45 @@ namespace coder {
             return linear;
         }
 
-        void TransferROWHLGU8(uint8_t *data, float maxColors) {
+        void TransferROWHLGU8(uint8_t *data, float maxColors, HLGGammaCorrection gammaCorrection) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;
             auto b = (float) data[2] / (float) maxColors;
-            data[0] = (uint8_t) std::clamp(
-                    (float) bt2020HLGGammaCorrection(Evaluate(r)) * maxColors, 0.0f, maxColors);
-            data[1] = (uint8_t) std::clamp(
-                    (float) bt2020HLGGammaCorrection(Evaluate(g)) * maxColors, 0.0f, maxColors);
-            data[2] = (uint8_t) std::clamp(
-                    (float) bt2020HLGGammaCorrection(Evaluate(b)) * maxColors, 0.0f, maxColors);
+            if (gammaCorrection == Rec2020) {
+                data[0] = (uint8_t) std::clamp(
+                        (float) bt2020HLGGammaCorrection(Evaluate(r)) * maxColors, 0.0f, maxColors);
+                data[1] = (uint8_t) std::clamp(
+                        (float) bt2020HLGGammaCorrection(Evaluate(g)) * maxColors, 0.0f, maxColors);
+                data[2] = (uint8_t) std::clamp(
+                        (float) bt2020HLGGammaCorrection(Evaluate(b)) * maxColors, 0.0f, maxColors);
+            } else if (gammaCorrection == DCIP3) {
+                data[0] = (uint8_t) std::clamp(
+                        (float) dciP3HLGGammaCorrection(Evaluate(r)) * maxColors, 0.0f, maxColors);
+                data[1] = (uint8_t) std::clamp(
+                        (float) dciP3HLGGammaCorrection(Evaluate(g)) * maxColors, 0.0f, maxColors);
+                data[2] = (uint8_t) std::clamp(
+                        (float) dciP3HLGGammaCorrection(Evaluate(b)) * maxColors, 0.0f, maxColors);
+            }
         }
 
-        void TransferROWHLGU16(uint16_t *data, float maxColors) {
+        void
+        TransferROWHLGU16(uint16_t *data, float maxColors, HLGGammaCorrection gammaCorrection) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;
             auto b = (float) data[2] / (float) maxColors;
-            data[0] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(r)));
-            data[1] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(g)));
-            data[2] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(b)));
+            if (gammaCorrection == Rec2020) {
+                data[0] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(r)));
+                data[1] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(g)));
+                data[2] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(b)));
+            } else if (gammaCorrection == DCIP3) {
+                data[0] = (uint16_t) float_to_half((float) dciP3HLGGammaCorrection(Evaluate(r)));
+                data[1] = (uint16_t) float_to_half((float) dciP3HLGGammaCorrection(Evaluate(g)));
+                data[2] = (uint16_t) float_to_half((float) dciP3HLGGammaCorrection(Evaluate(b)));
+            }
         }
 
-        void ProcessHLGF16Row(uint16_t *HWY_RESTRICT data, int width, float maxColors) {
+        void ProcessHLGF16Row(uint16_t *HWY_RESTRICT data, int width, float maxColors,
+                              HLGGammaCorrection gammaCorrection) {
             const FixedTag<float32_t, 4> df32;
             FixedTag<uint16_t, 4> d;
 
@@ -222,9 +247,19 @@ namespace coder {
                 VF32 g32 = BitCast(rebind32, PromoteTo(signed32, GURow));
                 VF32 b32 = BitCast(rebind32, PromoteTo(signed32, BURow));
 
-                VF32 pqR = bt2020HLGGammaCorrection(df32, HLGEotf(r32));
-                VF32 pqG = bt2020HLGGammaCorrection(df32, HLGEotf(g32));
-                VF32 pqB = bt2020HLGGammaCorrection(df32, HLGEotf(b32));
+                if (gammaCorrection == Rec2020) {
+                    r32 = bt2020HLGGammaCorrection(df32, HLGEotf(r32));
+                    g32 = bt2020HLGGammaCorrection(df32, HLGEotf(g32));
+                    b32 = bt2020HLGGammaCorrection(df32, HLGEotf(b32));
+                } else if (gammaCorrection == DCIP3) {
+                    r32 = dciP3GammaCorrection(df32, HLGEotf(r32));
+                    g32 = dciP3GammaCorrection(df32, HLGEotf(g32));
+                    b32 = dciP3GammaCorrection(df32, HLGEotf(b32));
+                }
+
+                VF32 pqR = r32;
+                VF32 pqG = g32;
+                VF32 pqB = b32;
 
                 VU16 rNew = BitCast(du16, DemoteTo(rebind16, pqR));
                 VU16 gNew = BitCast(du16, DemoteTo(rebind16, pqG));
@@ -236,14 +271,15 @@ namespace coder {
             }
 
             for (; x < width; ++x) {
-                TransferROWHLGU16(reinterpret_cast<uint16_t *>(ptr16), maxColors);
+                TransferROWHLGU16(reinterpret_cast<uint16_t *>(ptr16), maxColors, gammaCorrection);
                 ptr16 += 4;
             }
         }
 
-        void ProcessHLGu8Row(uint8_t *HWY_RESTRICT data, int width, float maxColors) {
+        void ProcessHLGu8Row(uint8_t *HWY_RESTRICT data, int width, float maxColors,
+                             HLGGammaCorrection gammaCorrection) {
             const FixedTag<float32_t, 4> df32;
-            hwy::HWY_NAMESPACE::FixedTag<uint8_t, 4> d;
+            FixedTag<uint8_t, 4> d;
 
             const Rebind<uint32_t, decltype(d)> signed32;
             const Rebind<int32_t, decltype(df32)> floatToSigned;
@@ -271,14 +307,24 @@ namespace coder {
                 VF32 g32 = Div(ConvertTo(rebind32, PromoteTo(signed32, GURow)), vColors);
                 VF32 b32 = Div(ConvertTo(rebind32, PromoteTo(signed32, BURow)), vColors);
 
+                if (gammaCorrection == Rec2020) {
+                    r32 = bt2020HLGGammaCorrection(df32, HLGEotf(r32));
+                    g32 = bt2020HLGGammaCorrection(df32, HLGEotf(g32));
+                    b32 = bt2020HLGGammaCorrection(df32, HLGEotf(b32));
+                } else if (gammaCorrection == DCIP3) {
+                    r32 = dciP3GammaCorrection(df32, HLGEotf(r32));
+                    g32 = dciP3GammaCorrection(df32, HLGEotf(g32));
+                    b32 = dciP3GammaCorrection(df32, HLGEotf(b32));
+                }
+
                 VF32 pqR = Max(
-                        Min(Mul(bt2020HLGGammaCorrection(df32, HLGEotf(r32)), vColors), vColors),
+                        Min(Mul(r32, vColors), vColors),
                         Zero(df32));
                 VF32 pqG = Max(
-                        Min(Mul(bt2020HLGGammaCorrection(df32, HLGEotf(g32)), vColors), vColors),
+                        Min(Mul(g32, vColors), vColors),
                         Zero(df32));
                 VF32 pqB = Max(
-                        Min(Mul(bt2020HLGGammaCorrection(df32, HLGEotf(b32)), vColors), vColors),
+                        Min(Mul(b32, vColors), vColors),
                         Zero(df32));
 
                 VU16 rNew = DemoteTo(rebindOrigin, ConvertTo(floatToSigned, pqR));
@@ -291,13 +337,14 @@ namespace coder {
             }
 
             for (; x < width; ++x) {
-                TransferROWHLGU8(reinterpret_cast<uint8_t *>(ptr16), maxColors);
+                TransferROWHLGU8(reinterpret_cast<uint8_t *>(ptr16), maxColors, gammaCorrection);
                 ptr16 += 4;
             }
         }
 
         void
-        ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth) {
+        ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth,
+                   HLGGammaCorrection correction) {
             float maxColors = powf(2, (float) depth) - 1;
             ThreadPool pool;
             std::vector<std::future<void>> results;
@@ -306,13 +353,13 @@ namespace coder {
                     auto ptr16 = reinterpret_cast<uint16_t *>(data + y * stride);
                     auto r = pool.enqueue(ProcessHLGF16Row, reinterpret_cast<uint16_t *>(ptr16),
                                           width,
-                                          (float) maxColors);
+                                          (float) maxColors, correction);
                     results.push_back(std::move(r));
                 } else {
                     auto ptr16 = reinterpret_cast<uint8_t *>(data + y * stride);
                     auto r = pool.enqueue(ProcessHLGu8Row, reinterpret_cast<uint8_t *>(ptr16),
                                           width,
-                                          (float) maxColors);
+                                          (float) maxColors, correction);
                     results.push_back(std::move(r));
                 }
             }
@@ -331,8 +378,10 @@ HWY_AFTER_NAMESPACE();
 namespace coder {
     HWY_EXPORT(ProcessHLG);
     HWY_DLLEXPORT void
-    ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth) {
-        HWY_DYNAMIC_DISPATCH(ProcessHLG)(data, halfFloats, stride, width, height, depth);
+    ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth,
+               HLGGammaCorrection gammaCorrection) {
+        HWY_DYNAMIC_DISPATCH(ProcessHLG)(data, halfFloats, stride, width, height, depth,
+                                         gammaCorrection);
     }
 }
 #endif

@@ -7,9 +7,14 @@
 
 #include <cstdint>
 
+enum PQGammaCorrection {
+    Rec2020, DCIP3
+};
+
 class PerceptualQuantinizer {
 public:
-    PerceptualQuantinizer(uint8_t *rgbaData, int stride, int width, int height, bool U16, bool halfFloats, int bitDepth) {
+    PerceptualQuantinizer(uint8_t *rgbaData, int stride, int width, int height, bool U16,
+                          bool halfFloats, int bitDepth, PQGammaCorrection gammaCorrection) {
         this->bitDepth = bitDepth;
         this->halfFloats = halfFloats;
         this->rgbaData = rgbaData;
@@ -17,9 +22,11 @@ public:
         this->width = width;
         this->height = height;
         this->U16 = U16;
+        this->gammaCorrection = gammaCorrection;
     }
 
     void transfer();
+
 private:
     bool halfFloats;
     int stride;
@@ -27,13 +34,9 @@ private:
     int width;
     int height;
     uint8_t *rgbaData;
+    PQGammaCorrection gammaCorrection;
     bool U16;
-#if HAVE_NEON
-    void transferNEONF16();
-    void transferNEONU8();
-#endif
 protected:
-    bool mayUseFPU = true;
 };
 
 

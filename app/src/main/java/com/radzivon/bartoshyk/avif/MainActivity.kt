@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

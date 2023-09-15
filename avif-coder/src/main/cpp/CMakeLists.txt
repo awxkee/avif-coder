@@ -9,14 +9,14 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
 
-add_library( # Sets the name of the library.
-        coder
-        # Sets the library as a shared library.
-        SHARED
-        # Provides a relative path to your source file(s).
-        coder.cpp jni_exception.cpp scaler.cpp icc/cmsalpha.c icc/cmscam02.c icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
-        icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c icc/cmsio1.c icc/cmslut.c icc/cmsmd5.c icc/cmsmtrx.c icc/cmsnamed.c
-        icc/cmsopt.c icc/cmspack.c icc/cmspcs.c icc/cmsplugin.c icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
+add_library(coder SHARED
+        coder.cpp jni_exception.cpp scaler.cpp
+        icc/cmsalpha.c icc/cmscam02.c
+        icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
+        icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c
+        icc/cmsio1.c icc/cmslut.c icc/cmsmd5.c icc/cmsmtrx.c icc/cmsnamed.c
+        icc/cmsopt.c icc/cmspack.c icc/cmspcs.c icc/cmsplugin.c
+        icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
         icc/cmswtpnt.c icc/cmsxform.c colorspace.cpp HalfFloats.cpp
         RgbaF16bitToNBitU16.cpp RgbaF16bitNBitU8.cpp Rgb1010102.cpp PerceptualQuantinizer.cpp
         ThreadPool.hpp CopyUnalignedRGBA.cpp HLG.cpp)
@@ -50,10 +50,6 @@ if (ANDROID_ABI STREQUAL arm64-v8a)
     add_definitions("-DHAVE_NEON=1")
 endif ()
 
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -ffast-math")
-endif ()
-
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DHWY_COMPILE_ONLY_STATIC)
 endif ()
@@ -61,7 +57,7 @@ endif ()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -ffp-mode=fast")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -ffp-mode=fast")
 endif ()
 add_definitions(-DCMS_NO_REGISTER_KEYWORD)
 

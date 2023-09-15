@@ -8,7 +8,13 @@
 #include <cstdint>
 
 namespace coder {
-    void ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth);
+
+    enum HLGGammaCorrection {
+        Rec2020, DCIP3
+    };
+
+    void ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth,
+                    HLGGammaCorrection correction);
 }
 
 #endif //AVIF_HLG_H

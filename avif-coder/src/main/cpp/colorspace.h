@@ -11,7 +11,6 @@
 #include "displayP3_colorspace.h"
 #include "linear_srgb_colorspace.h"
 #include "bt709_colorspace.h"
-#include "displayP3_HLG.h"
 #include "lcms2.h"
 
 void
