@@ -4,7 +4,8 @@ Library provides simple interface to decode or encode ( create ) AVIF and HEIF i
 Very fast and convinient to use AVIF in android apps with api version 24+
 26+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d
 
-Correctly handles ICC, and color profiles. Fully supports HDR images, 10, 12 bit
+Correctly handles ICC, and color profiles.
+Fully supports HDR images, 10, 12 bit. Preprocess image in tile to increase speed.
 The most features AVIF, HEIF library in android
 
 # Usage example
