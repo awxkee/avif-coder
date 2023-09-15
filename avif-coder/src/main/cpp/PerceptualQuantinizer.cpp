@@ -86,7 +86,6 @@ namespace coder {
             return std::min(2.3f * pow(v, 2.8f), v / 5.0f + 0.8f);
         }
 
-
         float ToLinearPQ(float v) {
             v = fmax(0.0f, v);
             float m1 = (2610.0f / 4096.0f) / 4.0f;
@@ -113,7 +112,6 @@ namespace coder {
             data[2] = float_to_half((float) bt2020GammaCorrection(smpte.b * scale));
         }
 
-
         void TransferROWU8(uint8_t *data, float maxColors) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;
@@ -136,7 +134,7 @@ namespace coder {
         }
 
         template<class D, typename T = Vec<D>>
-        T bt2020GammaCorrection(const D d, T color) {
+        inline T bt2020GammaCorrection(const D d, T color) {
             T bt2020 = Set(d, betaRec2020);
             T alpha2020 = Set(d, alphaRec2020);
             const auto cmp = color < bt2020;

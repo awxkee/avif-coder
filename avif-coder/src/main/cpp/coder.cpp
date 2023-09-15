@@ -21,6 +21,7 @@
 #include "Rgb1010102.h"
 #include "PerceptualQuantinizer.h"
 #include "CopyUnalignedRGBA.h"
+#include "HLG.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -679,6 +680,13 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                                                         8);
             perceptualQuantinizer.transfer();
         }
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
+                      sizeof(bt2020),
+                      useBitmapHalf16Floats, &stride);
+    } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_HLG") == 0) {
+        coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                          useBitmapHalf16Floats, stride, imageWidth, imageHeight,
+                          useBitmapHalf16Floats ? 16 : 8);
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
                       useBitmapHalf16Floats, &stride);
