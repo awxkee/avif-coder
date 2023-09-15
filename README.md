@@ -62,7 +62,7 @@ libdav1d:
 - cmake
 - nasm
 
-libyuv, de265, x265, aom:
+libyuv, de265, x265, aom, sharpyuv(webp):
 
 - ndk
 - ninja

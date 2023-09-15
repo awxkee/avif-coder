@@ -23,6 +23,7 @@ import okio.sink
 import okio.source
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.system.measureTimeMillis
 
 class MainActivity : AppCompatActivity() {
 
@@ -36,21 +37,23 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val bitmap = HeifCoder().decodeSampled(buffer, size.width / 3, size.height / 3)
-                .copy(Bitmap.Config.RGBA_1010102, true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val time = measureTimeMillis {
+                val bitmap = HeifCoder().decodeSampled(buffer, size.width / 2, size.height / 2)
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 //            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
 //        }
-            binding.imageView.setImageBitmap(bitmap)
-            val encoded = HeifCoder().encodeAvif(bitmap)
-            val decodedSample = HeifCoder().decode(encoded)
-            binding.imageView.setImageBitmap(decodedSample)
+                binding.imageView.setImageBitmap(bitmap)
+            }
+            Log.i("MainActivity AVIF ", "Done in ${time}")
+//            val encoded = HeifCoder().encodeAvif(bitmap)
+//            val decodedSample = HeifCoder().decode(encoded)
+//            binding.imageView.setImageBitmap(bitmap)
         }
 
 //        binding.imageView.load("https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif",
