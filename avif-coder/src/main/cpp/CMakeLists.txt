@@ -20,7 +20,7 @@ add_library(coder SHARED coder.cpp JniException.cpp scaler.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
         colorspace/PerceptualQuantinizer.cpp ThreadPool.hpp
         imagebits/CopyUnalignedRGBA.cpp colorspace/HLG.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
-        imagebits/Rgb565.cpp)
+        imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -61,6 +61,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -ffp-mode=fast")
 endif ()
 add_definitions(-DCMS_NO_REGISTER_KEYWORD)
+
+set(CMAKE_ANDROID_API_MIN 24)
 
 target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv ${CMAKE_SOURCE_DIR}/colorspace)
 # Searches for a specified prebuilt library and stores the path as a

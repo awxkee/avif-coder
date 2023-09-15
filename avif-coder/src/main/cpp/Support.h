@@ -5,6 +5,8 @@
 #ifndef AVIF_SUPPORT_H
 #define AVIF_SUPPORT_H
 
+#include <jni.h>
+
 enum PreferredColorConfig {
     Default = 0,
     Rgba_8888 = 1,
@@ -12,5 +14,7 @@ enum PreferredColorConfig {
     Rgb_565 = 3,
     Rgba_1010102 = 4
 };
+
+bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorConfig *config);
 
 #endif //AVIF_SUPPORT_H
