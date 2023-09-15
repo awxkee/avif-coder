@@ -11,16 +11,16 @@
 #include <android/data_space.h>
 #include <sys/system_properties.h>
 #include "icc/lcms2.h"
-#include "rgba_to_bgra.h"
 #include "colorspace.h"
 #include <math.h>
 #include <limits>
 #include "attenuate_alpha.h"
-#include "halfFloats.h"
-#include "rgba16bitCopy.h"
-#include "rgbaF16bitToNBitU16.h"
-#include "rgbaF16bitNBitU8.h"
-#include "rgb1010102.h"
+#include "HalfFloats.h"
+#include "RgbaF16bitToNBitU16.h"
+#include "RgbaF16bitNBitU8.h"
+#include "Rgb1010102.h"
+#include "PerceptualQuantinizer.h"
+#include "CopyUnalignedRGBA.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -149,8 +149,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         if (heifCompressionFormat == heif_compression_HEVC) {
             RGBA1010102ToU8(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
-                             reinterpret_cast<uint8_t *>(imgData), stride, (int) info.width,
-                             (int) info.height);
+                            reinterpret_cast<uint8_t *>(imgData), stride, (int) info.width,
+                            (int) info.height);
         } else {
             RGBA1010102ToU16(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
                              reinterpret_cast<uint16_t *>(imgData), stride, (int) info.width,
@@ -168,9 +168,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                 reinterpret_cast<uint16_t *>(dstARGB.get()), dstStride,
                                 (int) info.width,
                                 (int) info.height, 10);
-            copyRGBA16(reinterpret_cast<uint16_t *>(dstARGB.get()), dstStride,
-                       reinterpret_cast<uint16_t *>(imgData), stride, (int) info.width,
-                       (int) info.height);
+            coder::CopyUnalignedRGBA(reinterpret_cast<uint8_t *>(dstARGB.get()), dstStride,
+                                     reinterpret_cast<uint8_t *>(imgData), stride,
+                                     (int) info.width,
+                                     (int) info.height, sizeof(uint16_t));
 
             dstARGB.reset();
         } else {
@@ -503,6 +504,9 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
             } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_709_5 &&
                        transfer == heif_transfer_characteristic_linear) {
                 colorSpaceName = "LINEAR_SRGB";
+            } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_2020_2_and_2100_0 &&
+                       transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
+                colorSpaceName = "BT2020_HLG";
             } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_709_5 &&
                        transfer == heif_transfer_characteristic_ITU_R_BT_709_5) {
                 colorSpaceName = "BT709";
@@ -609,7 +613,10 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
             imageWidth = heif_image_get_width(scaledImg, heif_channel_interleaved);
             imageHeight = heif_image_get_height(scaledImg, heif_channel_interleaved);
             initialData.resize(stride * imageHeight);
-            std::copy(data, data + stride * imageHeight, initialData.begin());
+            coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), stride,
+                                     reinterpret_cast<uint8_t *>(initialData.data()), stride,
+                                     imageWidth,
+                                     imageHeight, useBitmapHalf16Floats ? 2 : 1);
             heif_image_release(scaledImg);
         }
 
@@ -625,7 +632,11 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         imageWidth = heif_image_get_width(img, heif_channel_interleaved);
         imageHeight = heif_image_get_height(img, heif_channel_interleaved);
         initialData.resize(stride * imageHeight);
-        std::copy(data, data + stride * imageHeight, initialData.begin());
+
+        coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), stride,
+                                 reinterpret_cast<uint8_t *>(initialData.data()), stride,
+                                 imageWidth,
+                                 imageHeight, useBitmapHalf16Floats ? 2 : 1);
 
         heif_image_release(img);
     }
@@ -652,27 +663,39 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     heif_image_handle_release(handle);
 
     if (hasICC) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, profile.data(),
-                                    profile.size(),
-                                    useBitmapHalf16Floats, &stride);
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, profile.data(),
+                      profile.size(),
+                      useBitmapHalf16Floats, &stride);
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020_PQ") == 0) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt2020PQ[0],
-                                    sizeof(bt2020PQ),
-                                    useBitmapHalf16Floats, &stride);
+        if (useBitmapHalf16Floats) {
+            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                                                        stride, imageWidth, imageHeight, true, true,
+                                                        16);
+            perceptualQuantinizer.transfer();
+        } else {
+            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                                                        stride, imageWidth, imageHeight, false,
+                                                        false,
+                                                        8);
+            perceptualQuantinizer.transfer();
+        }
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
+                      sizeof(bt2020),
+                      useBitmapHalf16Floats, &stride);
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT2020") == 0) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
-                                    sizeof(bt2020),
-                                    useBitmapHalf16Floats, &stride);
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
+                      sizeof(bt2020),
+                      useBitmapHalf16Floats, &stride);
     } else if (colorSpaceName && strcmp(colorSpaceName, "DISPLAY_P3") == 0) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
-                                    sizeof(displayP3),
-                                    useBitmapHalf16Floats, &stride);
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
+                      sizeof(displayP3),
+                      useBitmapHalf16Floats, &stride);
     } else if (colorSpaceName && strcmp(colorSpaceName, "LINEAR_SRGB") == 0) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &linearSRGB[0],
-                                    sizeof(linearSRGB), useBitmapHalf16Floats, &stride);
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &linearSRGB[0],
+                      sizeof(linearSRGB), useBitmapHalf16Floats, &stride);
     } else if (colorSpaceName && strcmp(colorSpaceName, "BT709") == 0) {
-        convertUseDefinedColorSpace(dstARGB, stride, imageWidth, imageHeight, &bt709[0],
-                                    sizeof(bt709), useBitmapHalf16Floats, &stride);
+        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt709[0],
+                      sizeof(bt709), useBitmapHalf16Floats, &stride);
     }
 
     if (!alphaPremultiplied) {
@@ -711,16 +734,9 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
         return static_cast<jobject>(nullptr);
     }
 
-    if (useBitmapHalf16Floats) {
-        copyRGBA16(reinterpret_cast<uint16_t *>(dstARGB.get()), stride,
-                   reinterpret_cast<uint16_t *>(addr), (int) info.stride,
-                   (int) info.width,
-                   (int) info.height);
-    } else {
-        libyuv::ARGBCopy(reinterpret_cast<uint8_t *>(dstARGB.get()), stride,
-                         reinterpret_cast<uint8_t *>(addr), (int) info.stride, (int) info.width,
-                         (int) info.height);
-    }
+    coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(dstARGB.get()), stride,
+                             reinterpret_cast<uint8_t *>(addr), (int) info.stride, (int) info.width,
+                             (int) info.height, useBitmapHalf16Floats ? 2 : 1);
 
     if (AndroidBitmap_unlockPixels(env, bitmapObj) != 0) {
         throwPixelsException(env);

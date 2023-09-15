@@ -2,21 +2,22 @@
 // Created by Radzivon Bartoshyk on 05/09/2023.
 //
 
-#include "rgbaF16bitNBitU8.h"
-#include "halfFloats.h"
+#include "RgbaF16bitNBitU8.h"
+#include "HalfFloats.h"
+#include <algorithm>
 
 #if HAVE_NEON
 
 #include <arm_neon.h>
 
-void RGBAF16BitToNU8_NEON(const uint16_t *sourceData, int srcStride,
-                          uint8_t *dst, int dstStride,
-                          int width, int height, int bitDepth) {
+void RGBAF16BitToNU8NEON(const uint16_t *sourceData, int srcStride,
+                         uint8_t *dst, int dstStride,
+                         int width, int height, int bitDepth) {
     auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
     auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
     const float scale = 1.0f / float((1 << bitDepth) - 1);
     auto vectorScale = vdupq_n_f32(scale);
-    float maxColors = (float)pow(2.0, (double) bitDepth) - 1;
+    float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
     auto maxValue = vdupq_n_f32((float) maxColors);
     auto minValue = vdupq_n_f32(0);
 
@@ -50,10 +51,10 @@ void RGBAF16BitToNU8_NEON(const uint16_t *sourceData, int srcStride,
 
         for (; x < width; ++x) {
             auto alpha = half_to_float(srcPtr[3]);
-            auto tmpR = (uint16_t) std::min(std::max((half_to_float(srcPtr[0]) / scale), 0.0f), maxColors);
-            auto tmpG = (uint16_t) fmin(std::max((half_to_float(srcPtr[1]) / scale), 0.0f), maxColors);
-            auto tmpB = (uint16_t) fmin(std::max((half_to_float(srcPtr[2]) / scale), 0.0f), maxColors);
-            auto tmpA = (uint16_t) fmin(std::max((alpha / scale), 0.0f), maxColors);
+            auto tmpR = (uint16_t) std::clamp(half_to_float(srcPtr[0]) / scale, 0.0f, maxColors);
+            auto tmpG = (uint16_t) std::clamp(half_to_float(srcPtr[1]) / scale, 0.0f, maxColors);
+            auto tmpB = (uint16_t) std::clamp(half_to_float(srcPtr[2]) / scale, 0.0f, maxColors);
+            auto tmpA = (uint16_t) std::clamp(alpha / scale, 0.0f, maxColors);
 
             dstPtr[0] = tmpR;
             dstPtr[1] = tmpG;
@@ -71,23 +72,23 @@ void RGBAF16BitToNU8_NEON(const uint16_t *sourceData, int srcStride,
 
 #endif
 
-void RGBAF16BitToNU8_C(const uint16_t *sourceData, int srcStride,
-                       uint8_t *dst, int dstStride, int width,
-                       int height, int bitDepth) {
+void RGBAF16BitToNU8C(const uint16_t *sourceData, int srcStride,
+                      uint8_t *dst, int dstStride, int width,
+                      int height, int bitDepth) {
     auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
     auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
     const float scale = 1.0f / float((1 << bitDepth) - 1);
-    float maxColors = (float)pow(2.0, (double) bitDepth) - 1;
+    float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
 
     for (int y = 0; y < height; ++y) {
         auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
         auto dstPtr = reinterpret_cast<uint8_t *>(data64Ptr);
         for (int x = 0; x < width; ++x) {
             auto alpha = half_to_float(srcPtr[3]);
-            auto tmpR = (uint8_t) std::min(std::max((half_to_float(srcPtr[0]) / scale), 0.0f), maxColors);
-            auto tmpG = (uint8_t) std::min(std::max((half_to_float(srcPtr[1]) / scale), 0.0f), maxColors);
-            auto tmpB = (uint8_t) std::min(std::max((half_to_float(srcPtr[2]) / scale), 0.0f), maxColors);
-            auto tmpA = (uint8_t) std::min(std::max((alpha / scale), 0.0f), maxColors);
+            auto tmpR = (uint8_t) std::clamp(half_to_float(srcPtr[0]) / scale, 0.0f, maxColors);
+            auto tmpG = (uint8_t) std::clamp(half_to_float(srcPtr[1]) / scale, 0.0f, maxColors);
+            auto tmpB = (uint8_t) std::clamp(half_to_float(srcPtr[2]) / scale, 0.0f, maxColors);
+            auto tmpA = (uint8_t) std::clamp(alpha / scale, 0.0f, maxColors);
 
             dstPtr[0] = tmpR;
             dstPtr[1] = tmpG;
@@ -107,8 +108,8 @@ void RGBAF16BitToNBitU8(const uint16_t *sourceData, int srcStride,
                         uint8_t *dst, int dstStride, int width,
                         int height, int bitDepth) {
 #if HAVE_NEON
-    RGBAF16BitToNU8_NEON(sourceData, srcStride, dst, dstStride, width, height, bitDepth);
+    RGBAF16BitToNU8NEON(sourceData, srcStride, dst, dstStride, width, height, bitDepth);
 #else
-    RGBAF16BitToNU8_C(sourceData, srcStride, dst, dstStride, width, height, bitDepth);
+    RGBAF16BitToNU8C(sourceData, srcStride, dst, dstStride, width, height, bitDepth);
 #endif
 }

@@ -43,17 +43,20 @@ android {
         externalNativeBuild {
             cmake {
                 ndkVersion = "25.2.9519653"
-                cppFlags(
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-fvisibility=hidden"
+                cppFlags.addAll(
+                    listOf(
+                        "-ffunction-sections",
+                        "-fdata-sections",
+                        "-fvisibility=hidden",
+                        "-std=c++17"
+                    )
                 )
                 cFlags(
                     "-ffunction-sections",
                     "-fdata-sections",
                     "-fvisibility=hidden",
                 )
-                abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64")
+                abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86")
             }
         }
 

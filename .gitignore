@@ -45,3 +45,11 @@ lide265
 libheif
 x265
 aom
+/aom/
+/dav1d/
+/libde265/
+/libheif/
+/libyuv/
+/x265/
+libwebp
+/libwebp

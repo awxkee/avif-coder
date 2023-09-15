@@ -42,12 +42,15 @@ for abi in ${ABI_LIST}; do
     -DLIBDE265_INCLUDE_DIR=../../libde265 \
     -DDAV1D_INCLUDE_DIR=../../dav1d/include \
     -DDAV1D_LIBRARY=../../dav1d/build-${abi}/src/libdav1d.a \
+    -DLIBSHARPYUV_INCLUDE_DIR=../../libwebp \
+    -DLIBSHARPYUV_LIBRARY=../../libwebp/build-${abi}/libsharpyuv.a \
     -DENABLE_MULTITHREADING_SUPPORT=TRUE \
     -DENABLE_PARALLEL_TILE_DECODING=TRUE \
     -DANDROID_ABI=${abi}
   ninja
   cd ..
 done
+
 
 for abi in ${ABI_LIST}; do
   mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"

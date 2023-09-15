@@ -64,7 +64,7 @@ class HeifDecoder(
     }
 
     private fun resizeAspectFill(sourceBitmap: Bitmap, dstSize: Size): Bitmap {
-        val background = Bitmap.createBitmap(dstSize.width, dstSize.height, Bitmap.Config.ARGB_8888)
+        val background = Bitmap.createBitmap(dstSize.width, dstSize.height, sourceBitmap.config)
         val originalWidth: Float = background.width.toFloat()
         val originalHeight: Float = background.height.toFloat()
         val canvas = Canvas(background)
