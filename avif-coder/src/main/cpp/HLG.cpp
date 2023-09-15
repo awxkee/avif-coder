@@ -36,6 +36,7 @@ namespace coder {
         using hwy::HWY_NAMESPACE::ShiftLeft;
         using hwy::HWY_NAMESPACE::ShiftRight;
         using hwy::float32_t;
+        using hwy::float16_t;
 
         FixedTag<float32_t, 4> fixedFloatTag;
 
@@ -197,8 +198,6 @@ namespace coder {
             FixedTag<uint16_t, 4> d;
 
             const Rebind<uint32_t, decltype(d)> signed32;
-            const Rebind<int32_t, decltype(df32)> floatToSigned;
-            const Rebind<uint8_t, FixedTag<float32_t, 4>> rebindOrigin;
 
             const Rebind<float32_t, decltype(signed32)> rebind32;
             const FixedTag<uint16_t, 4> du16;
@@ -208,8 +207,6 @@ namespace coder {
             using VF32 = Vec<decltype(df32)>;
 
             auto ptr16 = reinterpret_cast<uint16_t *>(data);
-
-            VF32 vColors = Set(df32, (float) maxColors);
 
             int pixels = 4;
 
@@ -234,7 +231,7 @@ namespace coder {
                 VU16 bNew = BitCast(du16, DemoteTo(rebind16, pqB));
 
                 StoreInterleaved4(rNew, gNew, bNew, AURow, d,
-                                  reinterpret_cast<uint8_t *>(ptr16));
+                                  reinterpret_cast<uint16_t *>(ptr16));
                 ptr16 += 4 * 4;
             }
 
@@ -335,14 +332,7 @@ namespace coder {
     HWY_EXPORT(ProcessHLG);
     HWY_DLLEXPORT void
     ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth) {
-        if (halfFloats) {
-//            auto ptr16 = reinterpret_cast<uint16_t *>(data + y * stride);
-//            if (halfFloats) {
-//                HWY_DYNAMIC_DISPATCH(ProcessHLGu8Row)(reinterpret_cast<uint16_t *>(ptr16), width);
-//            }
-        } else {
-            HWY_DYNAMIC_DISPATCH(ProcessHLG)(data, halfFloats, stride, width, height, depth);
-        }
+        HWY_DYNAMIC_DISPATCH(ProcessHLG)(data, halfFloats, stride, width, height, depth);
     }
 }
 #endif
