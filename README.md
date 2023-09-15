@@ -19,7 +19,7 @@ val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports H
 // Check if image is valid AVIF(AV1) image
 val isAvif = HeifCoder().isAvif(byteArray)
 // Check if image is valid HEIF(HEVC) image
-val isHeif = HeifCoder().isAvif(byteArray)
+val isHeif = HeifCoder().isHeif(byteArray)
 // Check if image is AVIF or HEIF, just supported one
 val isImageSupported = HeifCoder().isSupportedImage(byteArray)
 // Get image size ( this call never throw)
@@ -37,7 +37,7 @@ repositories {
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.2.0' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.3.0' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
