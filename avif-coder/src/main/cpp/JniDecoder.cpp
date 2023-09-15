@@ -455,6 +455,21 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
             }
             break;
         case Rgba_1010102:
+            if (useBitmapHalf16Floats) {
+                int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
+                std::shared_ptr<uint8_t> rgba1010102Data(
+                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
+                        [](uint8_t *f) { free(f); });
+                coder::F16ToRGBA1010102(reinterpret_cast<const uint16_t *>(dstARGB.get()), stride,
+                                        reinterpret_cast<uint8_t *>(rgba1010102Data.get()),
+                                        dstStride,
+                                        imageWidth, imageHeight);
+                stride = dstStride;
+                useBitmapHalf16Floats = false;
+                imageConfig = "RGBA_1010102";
+                dstARGB = rgba1010102Data;
+                break;
+            }
             break;
         default:
             break;
