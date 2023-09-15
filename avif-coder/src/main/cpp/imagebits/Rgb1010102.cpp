@@ -519,10 +519,10 @@ namespace coder {
             }
 
             for (; x < width; ++x) {
-                auto A16 = (uint32_t) data[permuteMap[0]];
-                auto R16 = (uint32_t) data[permuteMap[1]];
-                auto G16 = (uint32_t) data[permuteMap[2]];
-                auto B16 = (uint32_t) data[permuteMap[3]];
+                auto A16 = ((uint32_t) data[permuteMap[0]] * 3 + 127) >> 8;
+                auto R16 = (uint32_t) data[permuteMap[1]] * 4;
+                auto G16 = (uint32_t) data[permuteMap[2]] * 4;
+                auto B16 = (uint32_t) data[permuteMap[3]] * 4;
 
                 dst32[0] = (A16 << 30) | (R16 << 20) | (G16 << 10) | B16;
                 data += 4;
