@@ -4,9 +4,11 @@ package com.radzivon.bartoshyk.avif.coder
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.hardware.HardwareBuffer
 import android.os.Build
 import android.util.Size
 import androidx.annotation.Keep
+import java.nio.ByteBuffer
 
 @Keep
 class HeifCoder {
@@ -40,7 +42,26 @@ class HeifCoder {
         scaledHeight: Int,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
     ): Bitmap {
-        return decodeImpl(byteArray, scaledWidth, scaledHeight, preferredColorConfig.value)
+        return decodeImpl(
+            byteArray,
+            scaledWidth,
+            scaledHeight,
+            preferredColorConfig.value
+        )
+    }
+
+    fun decodeSampled(
+        byteBuffer: ByteBuffer,
+        scaledWidth: Int,
+        scaledHeight: Int,
+        preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
+    ): Bitmap {
+        return decodeByteBufferImpl(
+            byteBuffer,
+            scaledWidth,
+            scaledHeight,
+            preferredColorConfig.value
+        )
     }
 
     fun encodeAvif(bitmap: Bitmap, quality: Int = 80): ByteArray {
@@ -57,13 +78,19 @@ class HeifCoder {
         return encodeHeicImpl(bitmap, quality)
     }
 
-
     private external fun getSizeImpl(byteArray: ByteArray): Size?
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
     private external fun decodeImpl(
         byteArray: ByteArray,
+        scaledWidth: Int,
+        scaledHeight: Int,
+        clrConfig: Int,
+    ): Bitmap
+
+    private external fun decodeByteBufferImpl(
+        byteArray: ByteBuffer,
         scaledWidth: Int,
         scaledHeight: Int,
         clrConfig: Int,

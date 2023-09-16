@@ -8,7 +8,7 @@
 #include "ThreadPool.hpp"
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "HLG.cpp"
+#define HWY_TARGET_INCLUDE "imagebits/RgbaF16bitNBitU8.cpp"
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
 

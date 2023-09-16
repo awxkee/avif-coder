@@ -4,10 +4,11 @@ Library provides simple interface to decode or encode ( create ) AVIF and HEIF i
 Very fast and convinient to use AVIF in android apps with api version 24+
 26+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d
 
-Correctly handles ICC, and color profiles.
+Correctly handles ICC, and color profiles and HDR images.
 Fully supports HDR images, 10, 12 bit. Preprocess image in tile to increase speed.
-Extremly fast in decoding large HDR images or just large images
-The most features AVIF, HEIF library in android
+Extremly fast in decoding large HDR images or just large images.
+The most features AVIF, HEIF library in android.
+Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
 
 # Usage example
 
@@ -15,7 +16,7 @@ The most features AVIF, HEIF library in android
 // May decode AVIF(AV1) and HEIC (HEVC) images, all HDR images currently will be converted in 8bit
 val bitmap: Bitmap = HeifCoder().decode(buffer) // Decode avif from ByteArray
 val bytes: ByteArray = HeifCoder().encodeAvif(decodedBitmap) // Encode Bitmap to AVIF
-val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports HDR in RGBA_F16
+val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports HDR in RGBA_F16, RGBA_1010102, HARDWARE
 // Check if image is valid AVIF(AV1) image
 val isAvif = HeifCoder().isAvif(byteArray)
 // Check if image is valid HEIF(HEVC) image

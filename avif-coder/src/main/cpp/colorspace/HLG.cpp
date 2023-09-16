@@ -169,7 +169,7 @@ namespace coder {
             return powf(linear, 1 / 2.6f);
         }
 
-        float bt2020HLGGammaCorrection(float linear) {
+        inline float bt2020HLGGammaCorrection(float linear) {
             static const float betaRec2020 = 0.018053968510807f;
             static const float alphaRec2020 = 1.09929682680944f;
             if (0 <= betaRec2020 && linear < betaRec2020) {
@@ -180,7 +180,7 @@ namespace coder {
             return linear;
         }
 
-        void TransferROWHLGU8(uint8_t *data, float maxColors, HLGGammaCorrection gammaCorrection) {
+        inline void TransferROWHLGU8(uint8_t *data, float maxColors, HLGGammaCorrection gammaCorrection) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;
             auto b = (float) data[2] / (float) maxColors;
@@ -201,7 +201,7 @@ namespace coder {
             }
         }
 
-        void
+        inline void
         TransferROWHLGU16(uint16_t *data, float maxColors, HLGGammaCorrection gammaCorrection) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;

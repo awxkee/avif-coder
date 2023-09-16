@@ -10,8 +10,9 @@
 #include "Support.h"
 
 void
-ReformatColorConfig(std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
+ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
-                    int imageWidth, int imageHeight, int *stride, bool *useFloats);
+                    int imageWidth, int imageHeight, int *stride, bool *useFloats,
+                    jobject *hwBuffer);
 
 #endif //AVIF_REFORMATBITMAP_H

@@ -38,16 +38,22 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("hato_custom_icc.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val time = measureTimeMillis {
+//                val bitmap = HeifCoder().decodeSampled(
+//                    buffer,
+//                    size.width / 2,
+//                    size.height / 2,
+//                    PreferredColorConfig.HARDWARE
+//                )
                 val bitmap = HeifCoder().decodeSampled(
                     buffer,
                     size.width / 2,
                     size.height / 2,
-                    PreferredColorConfig.RGBA_1010102
+                    PreferredColorConfig.HARDWARE
                 )
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true

@@ -9,10 +9,253 @@
 #include "HalfFloats.h"
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "Rgb1010102.cpp"
+#define HWY_TARGET_INCLUDE "imagebits/Rgb1010102.cpp"
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
+
+HWY_BEFORE_NAMESPACE();
+
+namespace coder {
+    namespace HWY_NAMESPACE {
+
+        using hwy::HWY_NAMESPACE::FixedTag;
+        using hwy::HWY_NAMESPACE::Rebind;
+        using hwy::HWY_NAMESPACE::Vec;
+        using hwy::HWY_NAMESPACE::Set;
+        using hwy::HWY_NAMESPACE::Zero;
+        using hwy::HWY_NAMESPACE::Load;
+        using hwy::HWY_NAMESPACE::Mul;
+        using hwy::HWY_NAMESPACE::Max;
+        using hwy::HWY_NAMESPACE::Min;
+        using hwy::HWY_NAMESPACE::And;
+        using hwy::HWY_NAMESPACE::Add;
+        using hwy::HWY_NAMESPACE::BitCast;
+        using hwy::HWY_NAMESPACE::ShiftRight;
+        using hwy::HWY_NAMESPACE::ShiftLeft;
+        using hwy::HWY_NAMESPACE::ExtractLane;
+        using hwy::HWY_NAMESPACE::DemoteTo;
+        using hwy::HWY_NAMESPACE::ConvertTo;
+        using hwy::HWY_NAMESPACE::PromoteTo;
+        using hwy::HWY_NAMESPACE::LoadInterleaved4;
+        using hwy::HWY_NAMESPACE::Or;
+        using hwy::HWY_NAMESPACE::ShiftLeft;
+        using hwy::HWY_NAMESPACE::Store;
+        using hwy::float16_t;
+
+        void
+        F16ToRGBA1010102HWYRow(const uint16_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
+                               int width,
+                               const int *permuteMap) {
+            float range10 = powf(2, 10) - 1;
+            const FixedTag<float, 4> df;
+            const FixedTag<float16_t, 4> df16;
+            const FixedTag<uint16_t, 4> du16;
+            const Rebind<int32_t, FixedTag<float, 4>> di32;
+            const FixedTag<uint32_t, 4> du;
+            using V = Vec<decltype(df)>;
+            using V16 = Vec<decltype(df16)>;
+            using VU16 = Vec<decltype(du16)>;
+            using VU = Vec<decltype(du)>;
+            const auto vRange10 = Set(df, range10);
+            const auto zeros = Zero(df);
+            const auto alphaMax = Set(df, 3.0);
+
+            const Rebind<float16_t, FixedTag<uint16_t, 4>> rbfu16;
+            const Rebind<float, FixedTag<float16_t, 4>> rbf32;
+
+            int x = 0;
+            auto dst32 = reinterpret_cast<uint32_t *>(dst);
+            int pixels = 4;
+            for (x = 0; x + pixels < width; x += pixels) {
+                VU16 upixels1;
+                VU16 upixels2;
+                VU16 upixels3;
+                VU16 upixels4;
+                LoadInterleaved4(du16, reinterpret_cast<const uint16_t *>(data), upixels1, upixels2,
+                                 upixels3, upixels4);
+                V pixels1 = Min(
+                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels1)), vRange10), zeros),
+                        vRange10);
+                V pixels2 = Min(
+                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels2)), vRange10), zeros),
+                        vRange10);
+                V pixels3 = Min(
+                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels3)), vRange10), zeros),
+                        vRange10);
+                V pixels4 = Min(
+                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels4)), alphaMax), zeros),
+                        alphaMax);
+                VU pixelsu1 = BitCast(du, ConvertTo(di32, pixels1));
+                VU pixelsu2 = BitCast(du, ConvertTo(di32, pixels2));
+                VU pixelsu3 = BitCast(du, ConvertTo(di32, pixels3));
+                VU pixelsu4 = BitCast(du, ConvertTo(di32, pixels4));
+
+                VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
+                VU AV = pixelsStore[permuteMap[0]];
+                VU RV = pixelsStore[permuteMap[1]];
+                VU GV = pixelsStore[permuteMap[2]];
+                VU BV = pixelsStore[permuteMap[3]];
+                VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
+                VU lower = Or(ShiftLeft<10>(GV), BV);
+                VU final = Or(upper, lower);
+                Store(final, du, dst32);
+                data += pixels * 4;
+                dst32 += pixels;
+            }
+
+            for (; x < width; ++x) {
+                auto A16 = (float) half_to_float(data[permuteMap[0]]);
+                auto R16 = (float) half_to_float(data[permuteMap[1]]);
+                auto G16 = (float) half_to_float(data[permuteMap[2]]);
+                auto B16 = (float) half_to_float(data[permuteMap[3]]);
+                auto R10 = (uint32_t) (std::clamp(R16 * range10, 0.0f, (float) range10));
+                auto G10 = (uint32_t) (std::clamp(G16 * range10, 0.0f, (float) range10));
+                auto B10 = (uint32_t) (std::clamp(B16 * range10, 0.0f, (float) range10));
+                auto A10 = (uint32_t) std::clamp(roundf(A16 * 3.f), 0.0f, 3.0f);
+
+                dst32[0] = (A10 << 30) | (R10 << 20) | (G10 << 10) | B10;
+
+                data += 4;
+                dst32 += 1;
+            }
+        }
+
+        void
+        Rgba8ToRGBA1010102HWYRow(const uint8_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
+                                 int width,
+                                 const int *permuteMap) {
+            const FixedTag<uint8_t, 4> du8x4;
+            const Rebind<int32_t, FixedTag<uint8_t, 4>> di32;
+            const FixedTag<uint32_t, 4> du;
+            using VU8 = Vec<decltype(du8x4)>;
+            using VU = Vec<decltype(du)>;
+
+            int x = 0;
+            auto dst32 = reinterpret_cast<uint32_t *>(dst);
+            int pixels = 4;
+            for (x = 0; x + pixels < width; x += pixels) {
+                VU8 upixels1;
+                VU8 upixels2;
+                VU8 upixels3;
+                VU8 upixels4;
+                LoadInterleaved4(du8x4, reinterpret_cast<const uint8_t *>(data), upixels1, upixels2,
+                                 upixels3, upixels4);
+
+                VU pixelsu1 = Mul(BitCast(du, PromoteTo(di32, upixels1)), Set(du, 4));
+                VU pixelsu2 = Mul(BitCast(du, PromoteTo(di32, upixels2)), Set(du, 4));
+                VU pixelsu3 = Mul(BitCast(du, PromoteTo(di32, upixels3)), Set(du, 4));
+                VU pixelsu4 = ShiftRight<8>(
+                        Add(Mul(BitCast(du, PromoteTo(di32, upixels4)), Set(du, 3)), Set(du, 127)));
+
+                VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
+                VU AV = pixelsStore[permuteMap[0]];
+                VU RV = pixelsStore[permuteMap[1]];
+                VU GV = pixelsStore[permuteMap[2]];
+                VU BV = pixelsStore[permuteMap[3]];
+                VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
+                VU lower = Or(ShiftLeft<10>(GV), BV);
+                VU final = Or(upper, lower);
+                Store(final, du, dst32);
+                data += pixels * 4;
+                dst32 += pixels;
+            }
+
+            for (; x < width; ++x) {
+                auto A16 = ((uint32_t) data[permuteMap[0]] * 3 + 127) >> 8;
+                auto R16 = (uint32_t) data[permuteMap[1]] * 4;
+                auto G16 = (uint32_t) data[permuteMap[2]] * 4;
+                auto B16 = (uint32_t) data[permuteMap[3]] * 4;
+
+                dst32[0] = (A16 << 30) | (R16 << 20) | (G16 << 10) | B16;
+                data += 4;
+                dst32 += 1;
+            }
+        }
+
+        void
+        Rgba8ToRGBA1010102HWY(const uint8_t *source,
+                              int srcStride,
+                              uint8_t *destination,
+                              int dstStride,
+                              int width,
+                              int height) {
+            int permuteMap[4] = {3, 2, 1, 0};
+            int minimumTilingAreaSize = 850 * 850;
+            auto src = reinterpret_cast<const uint8_t *>(source);
+            int currentAreaSize = width * height;
+            if (minimumTilingAreaSize > currentAreaSize) {
+                for (int y = 0; y < height; ++y) {
+                    Rgba8ToRGBA1010102HWYRow(
+                            reinterpret_cast<const uint8_t *>(src + srcStride * y),
+                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
+                            width, &permuteMap[0]);
+                }
+            } else {
+                ThreadPool pool;
+                std::vector<std::future<void>> results;
+
+                for (int y = 0; y < height; ++y) {
+                    auto r = pool.enqueue(Rgba8ToRGBA1010102HWYRow,
+                                          reinterpret_cast<const uint8_t *>(src +
+                                                                            srcStride * y),
+                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
+                                          width, &permuteMap[0]);
+                    results.push_back(std::move(r));
+                }
+
+                for (auto &result: results) {
+                    result.wait();
+                }
+
+            }
+        }
+
+        void
+        F16ToRGBA1010102HWY(const uint16_t *source,
+                            int srcStride,
+                            uint8_t *destination,
+                            int dstStride,
+                            int width,
+                            int height) {
+            int permuteMap[4] = {3, 2, 1, 0};
+            int minimumTilingAreaSize = 850 * 850;
+            auto src = reinterpret_cast<const uint8_t *>(source);
+            int currentAreaSize = width * height;
+            if (minimumTilingAreaSize > currentAreaSize) {
+                for (int y = 0; y < height; ++y) {
+                    F16ToRGBA1010102HWYRow(
+                            reinterpret_cast<const uint16_t *>(src + srcStride * y),
+                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
+                            width, &permuteMap[0]);
+                }
+            } else {
+                ThreadPool pool;
+                std::vector<std::future<void>> results;
+
+                for (int y = 0; y < height; ++y) {
+                    auto r = pool.enqueue(F16ToRGBA1010102HWYRow,
+                                          reinterpret_cast<const uint16_t *>(src +
+                                                                             srcStride * y),
+                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
+                                          width, &permuteMap[0]);
+                    results.push_back(std::move(r));
+                }
+
+                for (auto &result: results) {
+                    result.wait();
+                }
+
+            }
+        }
+
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+    }
+}
+
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
 
 #if HAVE_NEON
 
@@ -370,249 +613,6 @@ void RGBA1010102ToU16(const uint8_t *src, int srcStride, uint16_t *dst, int dstS
     convertRGBA1010102ToU16_C(src, srcStride, dst, dstStride, width, height);
 #endif
 }
-
-
-HWY_BEFORE_NAMESPACE();
-
-namespace coder {
-    namespace HWY_NAMESPACE {
-
-        using hwy::HWY_NAMESPACE::FixedTag;
-        using hwy::HWY_NAMESPACE::Rebind;
-        using hwy::HWY_NAMESPACE::Vec;
-        using hwy::HWY_NAMESPACE::Set;
-        using hwy::HWY_NAMESPACE::Zero;
-        using hwy::HWY_NAMESPACE::Load;
-        using hwy::HWY_NAMESPACE::Mul;
-        using hwy::HWY_NAMESPACE::Max;
-        using hwy::HWY_NAMESPACE::Min;
-        using hwy::HWY_NAMESPACE::And;
-        using hwy::HWY_NAMESPACE::Add;
-        using hwy::HWY_NAMESPACE::BitCast;
-        using hwy::HWY_NAMESPACE::ShiftRight;
-        using hwy::HWY_NAMESPACE::ShiftLeft;
-        using hwy::HWY_NAMESPACE::ExtractLane;
-        using hwy::HWY_NAMESPACE::DemoteTo;
-        using hwy::HWY_NAMESPACE::ConvertTo;
-        using hwy::HWY_NAMESPACE::PromoteTo;
-        using hwy::HWY_NAMESPACE::LoadInterleaved4;
-        using hwy::HWY_NAMESPACE::Or;
-        using hwy::HWY_NAMESPACE::ShiftLeft;
-        using hwy::HWY_NAMESPACE::Store;
-
-        void
-        F16ToRGBA1010102HWYRow(const uint16_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
-                               int width,
-                               const int *permuteMap) {
-            float range10 = powf(2, 10) - 1;
-            const FixedTag<float, 4> df;
-            const FixedTag<float16_t, 4> df16;
-            const FixedTag<uint16_t, 4> du16;
-            const Rebind<int32_t, FixedTag<float, 4>> di32;
-            const FixedTag<uint32_t, 4> du;
-            using V = Vec<decltype(df)>;
-            using V16 = Vec<decltype(df16)>;
-            using VU16 = Vec<decltype(du16)>;
-            using VU = Vec<decltype(du)>;
-            const auto vRange10 = Set(df, range10);
-            const auto zeros = Zero(df);
-            const auto alphaMax = Set(df, 3.0);
-
-            const Rebind<float16_t, FixedTag<uint16_t, 4>> rbfu16;
-            const Rebind<float, FixedTag<float16_t, 4>> rbf32;
-
-            int x = 0;
-            auto dst32 = reinterpret_cast<uint32_t *>(dst);
-            int pixels = 4;
-            for (x = 0; x + pixels < width; x += pixels) {
-                VU16 upixels1;
-                VU16 upixels2;
-                VU16 upixels3;
-                VU16 upixels4;
-                LoadInterleaved4(du16, reinterpret_cast<const uint16_t *>(data), upixels1, upixels2,
-                                 upixels3, upixels4);
-                V pixels1 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels1)), vRange10), zeros),
-                        vRange10);
-                V pixels2 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels2)), vRange10), zeros),
-                        vRange10);
-                V pixels3 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels3)), vRange10), zeros),
-                        vRange10);
-                V pixels4 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels4)), alphaMax), zeros),
-                        alphaMax);
-                VU pixelsu1 = BitCast(du, ConvertTo(di32, pixels1));
-                VU pixelsu2 = BitCast(du, ConvertTo(di32, pixels2));
-                VU pixelsu3 = BitCast(du, ConvertTo(di32, pixels3));
-                VU pixelsu4 = BitCast(du, ConvertTo(di32, pixels4));
-
-                VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
-                VU AV = pixelsStore[permuteMap[0]];
-                VU RV = pixelsStore[permuteMap[1]];
-                VU GV = pixelsStore[permuteMap[2]];
-                VU BV = pixelsStore[permuteMap[3]];
-                VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
-                VU lower = Or(ShiftLeft<10>(GV), BV);
-                VU final = Or(upper, lower);
-                Store(final, du, dst32);
-                data += pixels * 4;
-                dst32 += pixels;
-            }
-
-            for (; x < width; ++x) {
-                auto A16 = (float) half_to_float(data[permuteMap[0]]);
-                auto R16 = (float) half_to_float(data[permuteMap[1]]);
-                auto G16 = (float) half_to_float(data[permuteMap[2]]);
-                auto B16 = (float) half_to_float(data[permuteMap[3]]);
-                auto R10 = (uint32_t) (std::clamp(R16 * range10, 0.0f, (float) range10));
-                auto G10 = (uint32_t) (std::clamp(G16 * range10, 0.0f, (float) range10));
-                auto B10 = (uint32_t) (std::clamp(B16 * range10, 0.0f, (float) range10));
-                auto A10 = (uint32_t) std::clamp(roundf(A16 * 3.f), 0.0f, 3.0f);
-
-                dst32[0] = (A10 << 30) | (R10 << 20) | (G10 << 10) | B10;
-
-                data += 4;
-                dst32 += 1;
-            }
-        }
-
-        void
-        Rgba8ToRGBA1010102HWYRow(const uint8_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
-                                 int width,
-                                 const int *permuteMap) {
-            const FixedTag<uint8_t, 4> du8x4;
-            const Rebind<int32_t, FixedTag<uint8_t, 4>> di32;
-            const FixedTag<uint32_t, 4> du;
-            using VU8 = Vec<decltype(du8x4)>;
-            using VU = Vec<decltype(du)>;
-
-            int x = 0;
-            auto dst32 = reinterpret_cast<uint32_t *>(dst);
-            int pixels = 4;
-            for (x = 0; x + pixels < width; x += pixels) {
-                VU8 upixels1;
-                VU8 upixels2;
-                VU8 upixels3;
-                VU8 upixels4;
-                LoadInterleaved4(du8x4, reinterpret_cast<const uint8_t *>(data), upixels1, upixels2,
-                                 upixels3, upixels4);
-
-                VU pixelsu1 = Mul(BitCast(du, PromoteTo(di32, upixels1)), Set(du, 4));
-                VU pixelsu2 = Mul(BitCast(du, PromoteTo(di32, upixels2)), Set(du, 4));
-                VU pixelsu3 = Mul(BitCast(du, PromoteTo(di32, upixels3)), Set(du, 4));
-                VU pixelsu4 = ShiftRight<8>(
-                        Add(Mul(BitCast(du, PromoteTo(di32, upixels4)), Set(du, 3)), Set(du, 127)));
-
-                VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
-                VU AV = pixelsStore[permuteMap[0]];
-                VU RV = pixelsStore[permuteMap[1]];
-                VU GV = pixelsStore[permuteMap[2]];
-                VU BV = pixelsStore[permuteMap[3]];
-                VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
-                VU lower = Or(ShiftLeft<10>(GV), BV);
-                VU final = Or(upper, lower);
-                Store(final, du, dst32);
-                data += pixels * 4;
-                dst32 += pixels;
-            }
-
-            for (; x < width; ++x) {
-                auto A16 = ((uint32_t) data[permuteMap[0]] * 3 + 127) >> 8;
-                auto R16 = (uint32_t) data[permuteMap[1]] * 4;
-                auto G16 = (uint32_t) data[permuteMap[2]] * 4;
-                auto B16 = (uint32_t) data[permuteMap[3]] * 4;
-
-                dst32[0] = (A16 << 30) | (R16 << 20) | (G16 << 10) | B16;
-                data += 4;
-                dst32 += 1;
-            }
-        }
-
-        void
-        Rgba8ToRGBA1010102HWY(const uint8_t *source,
-                              int srcStride,
-                              uint8_t *destination,
-                              int dstStride,
-                              int width,
-                              int height) {
-            int permuteMap[4] = {3, 2, 1, 0};
-            int minimumTilingAreaSize = 850 * 850;
-            auto src = reinterpret_cast<const uint8_t *>(source);
-            int currentAreaSize = width * height;
-            if (minimumTilingAreaSize > currentAreaSize) {
-                for (int y = 0; y < height; ++y) {
-                    Rgba8ToRGBA1010102HWYRow(
-                            reinterpret_cast<const uint8_t *>(src + srcStride * y),
-                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                            width, &permuteMap[0]);
-                }
-            } else {
-                ThreadPool pool;
-                std::vector<std::future<void>> results;
-
-                for (int y = 0; y < height; ++y) {
-                    auto r = pool.enqueue(Rgba8ToRGBA1010102HWYRow,
-                                          reinterpret_cast<const uint8_t *>(src +
-                                                                            srcStride * y),
-                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                                          width, &permuteMap[0]);
-                    results.push_back(std::move(r));
-                }
-
-                for (auto &result: results) {
-                    result.wait();
-                }
-
-            }
-        }
-
-        void
-        F16ToRGBA1010102HWY(const uint16_t *source,
-                            int srcStride,
-                            uint8_t *destination,
-                            int dstStride,
-                            int width,
-                            int height) {
-            int permuteMap[4] = {3, 2, 1, 0};
-            int minimumTilingAreaSize = 850 * 850;
-            auto src = reinterpret_cast<const uint8_t *>(source);
-            int currentAreaSize = width * height;
-            if (minimumTilingAreaSize > currentAreaSize) {
-                for (int y = 0; y < height; ++y) {
-                    F16ToRGBA1010102HWYRow(
-                            reinterpret_cast<const uint16_t *>(src + srcStride * y),
-                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                            width, &permuteMap[0]);
-                }
-            } else {
-                ThreadPool pool;
-                std::vector<std::future<void>> results;
-
-                for (int y = 0; y < height; ++y) {
-                    auto r = pool.enqueue(F16ToRGBA1010102HWYRow,
-                                          reinterpret_cast<const uint16_t *>(src +
-                                                                             srcStride * y),
-                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                                          width, &permuteMap[0]);
-                    results.push_back(std::move(r));
-                }
-
-                for (auto &result: results) {
-                    result.wait();
-                }
-
-            }
-        }
-
-// NOLINTNEXTLINE(google-readability-namespace-comments)
-    }
-}
-
-HWY_AFTER_NAMESPACE();
-
-#if HWY_ONCE
 
 namespace coder {
     HWY_EXPORT(F16ToRGBA1010102HWY);

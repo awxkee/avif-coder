@@ -8,15 +8,7 @@
 #include <jni.h>
 #include <string>
 
-jint throwCannotReadFileException(JNIEnv *env);
-
 jint throwBitDepthException(JNIEnv *env);
-
-jint throwCoderCreationException(JNIEnv *env);
-
-jint throwCantDecodeImageException(JNIEnv *env);
-
-jint throwInvalidScale(JNIEnv *env, const char *msg);
 
 jint throwCantEncodeImageException(JNIEnv *env, const char *msg);
 

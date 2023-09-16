@@ -20,7 +20,8 @@ add_library(coder SHARED coder.cpp JniException.cpp scaler.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
         colorspace/PerceptualQuantinizer.cpp ThreadPool.hpp
         imagebits/CopyUnalignedRGBA.cpp colorspace/HLG.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
-        imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp)
+        imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
+        HardwareBuffersCompat.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)

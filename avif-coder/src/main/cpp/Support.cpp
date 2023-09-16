@@ -33,6 +33,14 @@ bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorCo
         return false;
     }
 
+    if (preferredColorConfig == Hardware && osVersion < 29) {
+        std::string errorString =
+                "Color Config HARDWARE supported only 29+ OS version but current is: " +
+                std::to_string(osVersion);
+        throwException(env, errorString);
+        return false;
+    }
+
     *config = preferredColorConfig;
     return true;
 }

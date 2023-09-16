@@ -10,6 +10,6 @@
 
 jobject
 createBitmap(JNIEnv *env, std::shared_ptr<uint8_t> &data, std::string &colorConfig, int stride,
-             int imageWidth, int imageHeight, bool use16Floats);
+             int imageWidth, int imageHeight, bool use16Floats, jobject hwBuffer);
 
 #endif //AVIF_JNIBITMAP_H

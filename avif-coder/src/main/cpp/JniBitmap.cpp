@@ -11,7 +11,16 @@
 
 jobject
 createBitmap(JNIEnv *env, std::shared_ptr<uint8_t> &data, std::string &colorConfig, int stride,
-             int imageWidth, int imageHeight, bool use16Floats) {
+             int imageWidth, int imageHeight, bool use16Floats, jobject hwBuffer) {
+    if (colorConfig == "HARDWARE") {
+        jclass bitmapClass = env->FindClass("android/graphics/Bitmap");
+        jmethodID createBitmapMethodID = env->GetStaticMethodID(bitmapClass, "wrapHardwareBuffer",
+                                                                "(Landroid/hardware/HardwareBuffer;Landroid/graphics/ColorSpace;)Landroid/graphics/Bitmap;");
+        jobject emptyObject = nullptr;
+        jobject bitmapObj = env->CallStaticObjectMethod(bitmapClass, createBitmapMethodID,
+                                                        hwBuffer, emptyObject);
+        return bitmapObj;
+    }
     jclass bitmapConfig = env->FindClass("android/graphics/Bitmap$Config");
     jfieldID rgba8888FieldID = env->GetStaticFieldID(bitmapConfig, colorConfig.c_str(),
                                                      "Landroid/graphics/Bitmap$Config;");

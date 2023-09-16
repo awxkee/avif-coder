@@ -38,7 +38,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                       [](heif_context *c) { heif_context_free(c); });
     if (!ctx) {
-        throwCoderCreationException(env);
+        std::string exception = "Can't create HEIF/AVIF decoder due to unknown reason";
+        throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
 
@@ -46,14 +47,16 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                                              srcBuffer.size(),
                                                              nullptr);
     if (result.code != heif_error_Ok) {
-        throwCannotReadFileException(env);
+        std::string exception = "Can't read heif file exception";
+        throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
 
     heif_image_handle *handle;
     result = heif_context_get_primary_image_handle(ctx.get(), &handle);
     if (result.code != heif_error_Ok) {
-        throwCannotReadFileException(env);
+        std::string exception = "Acquiring an image from file has failed";
+        throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
 
@@ -85,7 +88,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     if (result.code != heif_error_Ok) {
         heif_image_handle_release(handle);
-        throwCantDecodeImageException(env);
+        std::string exception = "Decoding an image has failed";
+        throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
 
@@ -133,7 +137,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             if (!data) {
                 heif_image_release(img);
                 heif_image_handle_release(handle);
-                throwCannotReadFileException(env);
+                std::string exception = "Interleaving planed has failed";
+                throwException(env, exception);
                 return nullptr;
             }
             imageWidth = heif_image_get_width(img, heif_channel_interleaved);
@@ -141,7 +146,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             if (result.code != heif_error_Ok) {
                 heif_image_release(img);
                 heif_image_handle_release(handle);
-                throwInvalidScale(env, result.message);
+                std::string cp(result.message);
+                std::string exception = "HEIF wasn't able to scale image due to " + cp;
+                throwException(env, exception);
                 return static_cast<jobject>(nullptr);
             }
 
@@ -159,7 +166,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             if (result.code != heif_error_Ok) {
                 heif_image_release(img);
                 heif_image_handle_release(handle);
-                throwInvalidScale(env, result.message);
+                std::string cp(result.message);
+                std::string exception = "HEIF wasn't able to scale image due to " + cp;
+                throwException(env, exception);
                 return static_cast<jobject>(nullptr);
             }
 
@@ -169,7 +178,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             if (!data) {
                 heif_image_release(scaledImg);
                 heif_image_handle_release(handle);
-                throwCannotReadFileException(env);
+                std::string exception = "Interleaving planed has failed";
+                throwException(env, exception);
                 return nullptr;
             }
             imageWidth = heif_image_get_width(scaledImg, heif_channel_interleaved);
@@ -187,7 +197,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         if (!data) {
             heif_image_release(img);
             heif_image_handle_release(handle);
-            throwCannotReadFileException(env);
+            std::string exception = "Interleaving planed has failed";
+            throwException(env, exception);
             return nullptr;
         }
 
@@ -303,11 +314,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     std::string imageConfig = useBitmapHalf16Floats ? "RGBA_F16" : "ARGB_8888";
 
-    ReformatColorConfig(dstARGB, imageConfig, preferredColorConfig, bitDepth, imageWidth,
-                        imageHeight, &stride, &useBitmapHalf16Floats);
+    jobject hwBuffer = nullptr;
+
+    ReformatColorConfig(env, dstARGB, imageConfig, preferredColorConfig, bitDepth, imageWidth,
+                        imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer);
 
     return createBitmap(env, dstARGB, imageConfig, stride, imageWidth, imageHeight,
-                        useBitmapHalf16Floats);
+                        useBitmapHalf16Floats, hwBuffer);
 }
 
 extern "C"
@@ -322,4 +335,23 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
     return decodeImplementationNative(env, thiz, srcBuffer, scaledWidth, scaledHeight,
                                       javaColorspace);
+}
+extern "C"
+JNIEXPORT jobject JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *env, jobject thiz,
+                                                                      jobject byteBuffer,
+                                                                      jint scaledWidth,
+                                                                      jint scaledHeight,
+                                                                      jint clrConfig) {
+    auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
+    int length = (int) env->GetDirectBufferCapacity(byteBuffer);
+    if (!bufferAddress || length <= 0) {
+        std::string errorString = "Only direct byte buffers are supported";
+        throwException(env, errorString);
+        return nullptr;
+    }
+    std::vector<uint8_t> srcBuffer(length);
+    std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
+    return decodeImplementationNative(env, thiz, srcBuffer, scaledWidth, scaledHeight,
+                                      clrConfig);
 }

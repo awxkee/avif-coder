@@ -7,7 +7,7 @@
 #include "HalfFloats.h"
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "Rgba8ToF16.cpp"
+#define HWY_TARGET_INCLUDE "imagebits/Rgb565.cpp"
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"

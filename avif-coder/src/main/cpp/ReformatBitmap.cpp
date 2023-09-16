@@ -7,14 +7,17 @@
 #include "imagebits/Rgba8ToF16.h"
 #include "imagebits/Rgb565.h"
 #include "imagebits/Rgb1010102.h"
+#include "imagebits/CopyUnalignedRGBA.h"
 #include <string>
+#include "Support.h"
 #include <android/bitmap.h>
+#include <HardwareBuffersCompat.h>
 
 void
-ReformatColorConfig(std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
+ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
-                    int imageWidth, int imageHeight, int *stride, bool *useFloats) {
-
+                    int imageWidth, int imageHeight, int *stride, bool *useFloats, jobject* hwBuffer) {
+    *hwBuffer = nullptr;
     switch (preferredColorConfig) {
         case Rgba_8888:
             if (*useFloats) {
@@ -108,6 +111,59 @@ ReformatColorConfig(std::shared_ptr<uint8_t> &imageData, std::string &imageConfi
                 imageData = rgba1010102Data;
                 break;
             }
+            break;
+        case Hardware: {
+            if (!loadAHardwareBuffersAPI()) {
+                return;
+            }
+            AHardwareBuffer_Desc bufferDesc = {};
+            memset(&bufferDesc, 0, sizeof(AHardwareBuffer_Desc));
+            bufferDesc.width = imageWidth;
+            bufferDesc.height = imageHeight;
+            bufferDesc.layers = 1;
+            bufferDesc.format = (*useFloats) ? AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT
+                                             : AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+            bufferDesc.usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+
+            AHardwareBuffer *hardwareBuffer = nullptr;
+
+            int status = AHardwareBuffer_allocate_compat(&bufferDesc, &hardwareBuffer);
+            if (status != 0) {
+                return;
+            }
+            ARect rect = {0, 0, imageWidth, imageHeight};
+            uint8_t *buffer;
+            int fence = 1;
+            status = AHardwareBuffer_lock_compat(hardwareBuffer,
+                                                 AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, fence,
+                                                 &rect, reinterpret_cast<void **>(&buffer));
+            if (status != 0) {
+                AHardwareBuffer_release_compat(hardwareBuffer);
+                return;
+            }
+
+            AHardwareBuffer_describe_compat(hardwareBuffer, &bufferDesc);
+
+            int pixelSize = (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t);
+            coder::CopyUnalignedRGBA(imageData.get(), *stride, buffer,
+                                     (int)bufferDesc.stride * 4 * pixelSize,
+                                     (int)bufferDesc.width,
+                                     (int)bufferDesc.height,
+                                     (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t));
+
+            status = AHardwareBuffer_unlock_compat(hardwareBuffer, &fence);
+            if (status != 0) {
+                AHardwareBuffer_release_compat(hardwareBuffer);
+                return;
+            }
+
+            jobject buf = AHardwareBuffer_toHardwareBuffer_compat(env, hardwareBuffer);
+
+            AHardwareBuffer_release_compat(hardwareBuffer);
+
+            *hwBuffer = buf;
+            imageConfig = "HARDWARE";
+        }
             break;
         default:
             break;
