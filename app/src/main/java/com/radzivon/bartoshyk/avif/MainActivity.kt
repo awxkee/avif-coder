@@ -13,6 +13,8 @@ import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
 import coil.ImageLoader
 import coil.load
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.github.awxkee.avifcoil.HeifDecoder
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
@@ -42,6 +44,7 @@ class MainActivity : AppCompatActivity() {
         val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
+        assert(size != null)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val time = measureTimeMillis {
 //                val bitmap = HeifCoder().decodeSampled(
@@ -72,6 +75,11 @@ class MainActivity : AppCompatActivity() {
 
         //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
         //https://wh.aimuse.online/preset/federico-beccari.avif
+
+//        Glide.with(this)
+//            .load("https://wh.aimuse.online/preset/avif10bit.avif")
+//            .skipMemoryCache(true)
+//            .into(binding.imageView)
 
 //        binding.imageView.load("https://wh.aimuse.online/preset/avif10bit.avif",
 //            imageLoader = ImageLoader.Builder(this)

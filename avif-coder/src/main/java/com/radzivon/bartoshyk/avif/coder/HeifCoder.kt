@@ -25,6 +25,10 @@ class HeifCoder {
         return isSupportedImageImpl(byteArray)
     }
 
+    fun isSupportedImage(byteBuffer: ByteBuffer): Boolean {
+        return isSupportedImageImplBB(byteBuffer)
+    }
+
     fun getSize(bytes: ByteArray): Size? {
         return getSizeImpl(bytes)
     }
@@ -86,6 +90,7 @@ class HeifCoder {
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
+    private external fun isSupportedImageImplBB(byteBuffer: ByteBuffer): Boolean
     private external fun decodeImpl(
         byteArray: ByteArray,
         scaledWidth: Int,

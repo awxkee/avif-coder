@@ -28,6 +28,7 @@
 #include "JniBitmap.h"
 #include "ReformatBitmap.h"
 #include "IccRecognizer.h"
+#include "thread"
 
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    std::vector<uint8_t> &srcBuffer, jint scaledWidth,
@@ -46,6 +47,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
+
+    heif_context_set_max_decoding_threads(ctx.get(), (int)std::thread::hardware_concurrency());
 
     auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
                                                              srcBuffer.size(),

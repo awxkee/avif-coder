@@ -387,30 +387,34 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
         throwBitDepthException(env);
         return static_cast<jobject>(nullptr);
     }
-    heif_image *img;
-    std::shared_ptr<heif_decoding_options> options(heif_decoding_options_alloc(),
-                                                   [](heif_decoding_options *deo) {
-                                                       heif_decoding_options_free(deo);
-                                                   });
-    options->convert_hdr_to_8bit = true;
-    result = heif_decode_image(handle, &img, heif_colorspace_RGB, heif_chroma_interleaved_RGBA,
-                               options.get());
-    options.reset();
-    if (result.code != heif_error_Ok) {
-        heif_image_handle_release(handle);
-        std::string exception = "Decode an image has failed";
-        throwException(env, exception);
-        return static_cast<jobject>(nullptr);
-    }
-
-    auto width = heif_image_get_primary_width(img);
-    auto height = heif_image_get_primary_height(img);
-
-    heif_image_release(img);
+    auto width = heif_image_handle_get_width(handle);
+    auto height = heif_image_handle_get_height(handle);
     heif_image_handle_release(handle);
 
     jclass sizeClass = env->FindClass("android/util/Size");
     jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
     auto sizeObject = env->NewObject(sizeClass, methodID, width, height);
     return sizeObject;
+}
+
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImplBB(JNIEnv *env, jobject thiz,
+                                                                        jobject byteBuffer) {
+    auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
+    int length = (int) env->GetDirectBufferCapacity(byteBuffer);
+    if (!bufferAddress || length <= 0) {
+        std::string errorString = "Only direct byte buffers are supported";
+        throwException(env, errorString);
+        return (jboolean) false;
+    }
+    std::vector<uint8_t> srcBuffer(length);
+    std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
+    auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
+                                         (int)srcBuffer.size());
+    std::string mime(cMime);
+    return mime == "image/heic" || mime == "image/heif" ||
+           mime == "image/heic-sequence" || mime == "image/heif-sequence" ||
+           mime == "image/avif" || mime == "image/avif-sequence";
 }
