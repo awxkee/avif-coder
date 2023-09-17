@@ -12,6 +12,7 @@
 #include "Support.h"
 #include <android/bitmap.h>
 #include <HardwareBuffersCompat.h>
+#include <mutex>
 
 void
 ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
@@ -133,9 +134,9 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
             }
             ARect rect = {0, 0, imageWidth, imageHeight};
             uint8_t *buffer;
-            int fence = 1;
+
             status = AHardwareBuffer_lock_compat(hardwareBuffer,
-                                                 AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, fence,
+                                                 AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1,
                                                  &rect, reinterpret_cast<void **>(&buffer));
             if (status != 0) {
                 AHardwareBuffer_release_compat(hardwareBuffer);
@@ -151,7 +152,7 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
                                      (int)bufferDesc.height,
                                      (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t));
 
-            status = AHardwareBuffer_unlock_compat(hardwareBuffer, &fence);
+            status = AHardwareBuffer_unlock_compat(hardwareBuffer, nullptr);
             if (status != 0) {
                 AHardwareBuffer_release_compat(hardwareBuffer);
                 return;

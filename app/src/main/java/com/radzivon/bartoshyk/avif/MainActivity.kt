@@ -45,48 +45,102 @@ class MainActivity : AppCompatActivity() {
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
         assert(size != null)
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//            val time = measureTimeMillis {
+////                val bitmap = HeifCoder().decodeSampled(
+////                    buffer,
+////                    size.width / 2,
+////                    size.height / 2,
+////                    PreferredColorConfig.HARDWARE
+////                )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val time = measureTimeMillis {
-//                val bitmap = HeifCoder().decodeSampled(
-//                    buffer,
-//                    size.width / 2,
-//                    size.height / 2,
-//                    PreferredColorConfig.HARDWARE
-//                )
-                val bitmap = HeifCoder().decodeSampled(
-                    buffer,
-                    350,
-                    600,
-                    PreferredColorConfig.HARDWARE,
-                    ScaleMode.FIT
-                )
-//        val opts = BitmapFactory.Options()
-//        opts.inMutable = true
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
-//        }
-                binding.imageView.setImageBitmap(bitmap)
-            }
-            Log.i("MainActivity AVIF ", "Done in ${time}")
-//            val encoded = HeifCoder().encodeAvif(bitmap)
-//            val decodedSample = HeifCoder().decode(encoded)
-//            binding.imageView.setImageBitmap(bitmap)
+            val bitmap = HeifCoder().decodeSampled(
+                buffer,
+                350,
+                600,
+                PreferredColorConfig.HARDWARE,
+                ScaleMode.FIT
+            )
+            bitmap.recycle()
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val bitmap = HeifCoder().decodeSampled(
+                buffer,
+                350,
+                600,
+                PreferredColorConfig.HARDWARE,
+                ScaleMode.FIT
+            )
+            bitmap.recycle()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val bitmap = HeifCoder().decodeSampled(
+                buffer,
+                350,
+                600,
+                PreferredColorConfig.HARDWARE,
+                ScaleMode.FIT
+            )
+            bitmap.recycle()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val bitmap = HeifCoder().decodeSampled(
+                buffer,
+                350,
+                600,
+                PreferredColorConfig.HARDWARE,
+                ScaleMode.FIT
+            )
+            bitmap.recycle()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val bitmap = HeifCoder().decodeSampled(
+                buffer,
+                350,
+                600,
+                PreferredColorConfig.HARDWARE,
+                ScaleMode.FIT
+            )
+            bitmap.recycle()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val bitmap = HeifCoder().decodeSampled(
+                buffer,
+                350,
+                600,
+                PreferredColorConfig.HARDWARE,
+                ScaleMode.FIT
+            )
+            bitmap.recycle()
+        }
+////        val opts = BitmapFactory.Options()
+////        opts.inMutable = true
+////        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+////            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
+////        }
+//                binding.imageView.setImageBitmap(bitmap)
+//            }
+//            Log.i("MainActivity AVIF ", "Done in ${time}")
+////            val encoded = HeifCoder().encodeAvif(bitmap)
+////            val decodedSample = HeifCoder().decode(encoded)
+////            binding.imageView.setImageBitmap(bitmap)
+//        }
 
         //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
         //https://wh.aimuse.online/preset/federico-beccari.avif
+        // https://wh.aimuse.online/preset/avif10bit.avif
 
 //        Glide.with(this)
-//            .load("https://wh.aimuse.online/preset/avif10bit.avif")
+//            .load("https://wh.aimuse.online/preset/federico-beccari.avif")
 //            .skipMemoryCache(true)
 //            .into(binding.imageView)
 
-//        binding.imageView.load("https://wh.aimuse.online/preset/avif10bit.avif",
-//            imageLoader = ImageLoader.Builder(this)
-//                .components {
-//                    add(HeifDecoder.Factory())
-//                }
-//                .build())
+        binding.imageView.load("https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif",
+            imageLoader = ImageLoader.Builder(this)
+                .components {
+                    add(HeifDecoder.Factory())
+                }
+                .build())
 
 //        binding.imageView.setImageBitmap(bitmap)
 //        binding.imageView.setImageBitmap(cc16)
