@@ -10,7 +10,7 @@
 #include "libyuv/convert_argb.h"
 #include <vector>
 #include "JniException.h"
-#include "scaler.h"
+#include "SizeScaler.h"
 #include <android/log.h>
 #include <android/data_space.h>
 #include <sys/system_properties.h>
@@ -60,7 +60,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     heif_encoder *mEncoder;
     auto result = heif_context_get_encoder_for_format(ctx.get(), heifCompressionFormat, &mEncoder);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env, result.message);
+        std::string choke(result.message);
+        std::string str = "Can't create encoder with exception: " + choke;
+        throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
     }
     std::shared_ptr<heif_encoder> encoder(mEncoder,
@@ -112,7 +114,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
                                chroma, &image);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env, result.message);
+        std::string choke(result.message);
+        std::string str = "Can't create encoded image with exception: " + choke;
+        throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
     }
 
@@ -130,7 +134,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
                                   (int) info.height, bitDepth);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env, result.message);
+        std::string choke(result.message);
+        std::string str = "Can't create add plane to encoded image with exception: " + choke;
+        throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
     }
     int stride;
@@ -259,7 +265,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     }
     heif_image_release(image);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env, result.message);
+        std::string choke(result.message);
+        std::string str = "Encoding an image failed with exception: " + choke;
+        throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
     }
 
@@ -272,7 +280,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     AvifMemEncoder memEncoder;
     result = heif_context_write(ctx.get(), &writer, &memEncoder);
     if (result.code != heif_error_Ok) {
-        throwCantEncodeImageException(env, result.message);
+        std::string choke(result.message);
+        std::string str = "Writing encoded image has failed with exception: " + choke;
+        throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
     }
 

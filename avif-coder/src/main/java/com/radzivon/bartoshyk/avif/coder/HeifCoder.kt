@@ -33,7 +33,7 @@ class HeifCoder {
         byteArray: ByteArray,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT
     ): Bitmap {
-        return decodeImpl(byteArray, 0, 0, preferredColorConfig.value)
+        return decodeImpl(byteArray, 0, 0, preferredColorConfig.value, ScaleMode.FIT.value)
     }
 
     fun decodeSampled(
@@ -41,12 +41,14 @@ class HeifCoder {
         scaledWidth: Int,
         scaledHeight: Int,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
+        scaleMode: ScaleMode = ScaleMode.FIT,
     ): Bitmap {
         return decodeImpl(
             byteArray,
             scaledWidth,
             scaledHeight,
-            preferredColorConfig.value
+            preferredColorConfig.value,
+            scaleMode.value,
         )
     }
 
@@ -55,12 +57,14 @@ class HeifCoder {
         scaledWidth: Int,
         scaledHeight: Int,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
+        scaleMode: ScaleMode = ScaleMode.FIT,
     ): Bitmap {
         return decodeByteBufferImpl(
             byteBuffer,
             scaledWidth,
             scaledHeight,
-            preferredColorConfig.value
+            preferredColorConfig.value,
+            scaleMode.value,
         )
     }
 
@@ -87,6 +91,7 @@ class HeifCoder {
         scaledWidth: Int,
         scaledHeight: Int,
         clrConfig: Int,
+        scaleMode: Int,
     ): Bitmap
 
     private external fun decodeByteBufferImpl(
@@ -94,6 +99,7 @@ class HeifCoder {
         scaledWidth: Int,
         scaledHeight: Int,
         clrConfig: Int,
+        scaleMode: Int,
     ): Bitmap
 
     private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int): ByteArray

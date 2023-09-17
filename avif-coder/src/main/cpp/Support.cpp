@@ -5,8 +5,10 @@
 #include <jni.h>
 #include "JniException.h"
 #include "Support.h"
+#include "SizeScaler.h"
 
-bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorConfig *config) {
+bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorConfig *config,
+                              jint javaScaleMode, ScaleMode *scaleMode) {
     auto preferredColorConfig = static_cast<PreferredColorConfig>(javaColorspace);
     if (!preferredColorConfig) {
         std::string errorString =
@@ -41,6 +43,15 @@ bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorCo
         return false;
     }
 
+    auto mScaleMode = static_cast<ScaleMode>(javaScaleMode);
+    if (!mScaleMode) {
+        std::string errorString =
+                "Invalid Scale Mode was passed";
+        throwException(env, errorString);
+        return false;
+    }
+
+    *scaleMode = mScaleMode;
     *config = preferredColorConfig;
     return true;
 }

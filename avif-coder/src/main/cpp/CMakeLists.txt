@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
 
-add_library(coder SHARED coder.cpp JniException.cpp scaler.cpp
+add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         icc/cmsalpha.c icc/cmscam02.c
         icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
         icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c
@@ -61,7 +61,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -ffp-mode=fast")
 endif ()
-add_definitions(-DCMS_NO_REGISTER_KEYWORD)
+add_definitions(-DCMS_NO_REGISTER_KEYWORD -DSTB_IMAGE_RESIZE_IMPLEMENTATION)
 
 set(CMAKE_ANDROID_API_MIN 24)
 

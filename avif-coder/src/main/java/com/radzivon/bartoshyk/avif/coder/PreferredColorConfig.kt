@@ -12,16 +12,16 @@ enum class PreferredColorConfig(internal val value: Int) {
      * @property RGBA_1010102 supported only on os 33+
      * @property HARDWARE supported only on OS 29+ and have default android HARDWARE bitmap limitations
      */
-    DEFAULT(0),
-    RGBA_8888(1),
+    DEFAULT(1),
+    RGBA_8888(2),
 
     @RequiresApi(Build.VERSION_CODES.O)
-    RGBA_F16(2),
-    RGB_565(3),
+    RGBA_F16(3),
+    RGB_565(4),
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    RGBA_1010102(4),
+    RGBA_1010102(5),
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    HARDWARE(5),
+    HARDWARE(6),
 }

@@ -9,7 +9,7 @@
 #include "libyuv/convert_argb.h"
 #include <vector>
 #include "JniException.h"
-#include "scaler.h"
+#include "SizeScaler.h"
 #include <android/log.h>
 #include <android/data_space.h>
 #include <sys/system_properties.h>
@@ -31,9 +31,13 @@
 
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    std::vector<uint8_t> &srcBuffer, jint scaledWidth,
-                                   jint scaledHeight, jint javaColorspace) {
+                                   jint scaledHeight, jint javaColorSpace, jint javaScaleMode) {
     PreferredColorConfig preferredColorConfig;
-    checkDecodePreconditions(env, javaColorspace, &preferredColorConfig);
+    ScaleMode scaleMode;
+    if (!checkDecodePreconditions(env, javaColorSpace, &preferredColorConfig, javaScaleMode,
+                                  &scaleMode)) {
+        return static_cast<jobject>(nullptr);
+    }
 
     std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                       [](heif_context *c) { heif_context_free(c); });
@@ -131,87 +135,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     int stride;
     std::vector<uint8_t> initialData;
 
-    if (scaledHeight > 0 && scaledWidth > 0) {
-        if (bitDepth == 8) {
-            auto data = heif_image_get_plane_readonly(img, heif_channel_interleaved, &stride);
-            if (!data) {
-                heif_image_release(img);
-                heif_image_handle_release(handle);
-                std::string exception = "Interleaving planed has failed";
-                throwException(env, exception);
-                return nullptr;
-            }
-            imageWidth = heif_image_get_width(img, heif_channel_interleaved);
-            imageHeight = heif_image_get_height(img, heif_channel_interleaved);
-            if (result.code != heif_error_Ok) {
-                heif_image_release(img);
-                heif_image_handle_release(handle);
-                std::string cp(result.message);
-                std::string exception = "HEIF wasn't able to scale image due to " + cp;
-                throwException(env, exception);
-                return static_cast<jobject>(nullptr);
-            }
-
-            // For unknown reason some images doesn't scale properly by libheif in 8-bit
-            initialData.resize(scaledWidth * 4 * scaledHeight);
-            libyuv::ARGBScale(data, stride, imageWidth, imageHeight, initialData.data(),
-                              scaledWidth * 4, scaledWidth, scaledHeight, libyuv::kFilterBox);
-            stride = scaledWidth * 4;
-            imageHeight = scaledHeight;
-            imageWidth = scaledWidth;
-            heif_image_release(img);
-        } else {
-            heif_image *scaledImg;
-            result = heif_image_scale_image(img, &scaledImg, scaledWidth, scaledHeight, nullptr);
-            if (result.code != heif_error_Ok) {
-                heif_image_release(img);
-                heif_image_handle_release(handle);
-                std::string cp(result.message);
-                std::string exception = "HEIF wasn't able to scale image due to " + cp;
-                throwException(env, exception);
-                return static_cast<jobject>(nullptr);
-            }
-
-            heif_image_release(img);
-
-            auto data = heif_image_get_plane_readonly(scaledImg, heif_channel_interleaved, &stride);
-            if (!data) {
-                heif_image_release(scaledImg);
-                heif_image_handle_release(handle);
-                std::string exception = "Interleaving planed has failed";
-                throwException(env, exception);
-                return nullptr;
-            }
-            imageWidth = heif_image_get_width(scaledImg, heif_channel_interleaved);
-            imageHeight = heif_image_get_height(scaledImg, heif_channel_interleaved);
-            initialData.resize(stride * imageHeight);
-            coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), stride,
-                                     reinterpret_cast<uint8_t *>(initialData.data()), stride,
-                                     imageWidth,
-                                     imageHeight, useBitmapHalf16Floats ? 2 : 1);
-            heif_image_release(scaledImg);
-        }
-
-    } else {
-        auto data = heif_image_get_plane_readonly(img, heif_channel_interleaved, &stride);
-        if (!data) {
-            heif_image_release(img);
-            heif_image_handle_release(handle);
-            std::string exception = "Interleaving planed has failed";
-            throwException(env, exception);
-            return nullptr;
-        }
-
-        imageWidth = heif_image_get_width(img, heif_channel_interleaved);
-        imageHeight = heif_image_get_height(img, heif_channel_interleaved);
-        initialData.resize(stride * imageHeight);
-
-        coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), stride,
-                                 reinterpret_cast<uint8_t *>(initialData.data()), stride,
-                                 imageWidth,
-                                 imageHeight, useBitmapHalf16Floats ? 2 : 1);
-
-        heif_image_release(img);
+    imageWidth = heif_image_get_width(img, heif_channel_interleaved);
+    imageHeight = heif_image_get_height(img, heif_channel_interleaved);
+    auto scaleResult = RescaleImage(initialData, env, handle, img, &stride, useBitmapHalf16Floats,
+                                    &imageWidth, &imageHeight, scaledWidth, scaledHeight,
+                                    scaleMode);
+    if (!scaleResult) {
+        return static_cast<jobject >(nullptr);
     }
 
     std::shared_ptr<uint8_t> dstARGB(static_cast<uint8_t *>(malloc(stride * imageHeight)),
@@ -328,13 +258,13 @@ JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject thiz,
                                                             jbyteArray byte_array, jint scaledWidth,
                                                             jint scaledHeight,
-                                                            jint javaColorspace) {
+                                                            jint javaColorspace, jint scaleMode) {
     auto totalLength = env->GetArrayLength(byte_array);
     std::vector<uint8_t> srcBuffer(totalLength);
     env->GetByteArrayRegion(byte_array, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
     return decodeImplementationNative(env, thiz, srcBuffer, scaledWidth, scaledHeight,
-                                      javaColorspace);
+                                      javaColorspace, scaleMode);
 }
 extern "C"
 JNIEXPORT jobject JNICALL
@@ -342,7 +272,8 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
                                                                       jobject byteBuffer,
                                                                       jint scaledWidth,
                                                                       jint scaledHeight,
-                                                                      jint clrConfig) {
+                                                                      jint clrConfig,
+                                                                      jint scaleMode) {
     auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
     int length = (int) env->GetDirectBufferCapacity(byteBuffer);
     if (!bufferAddress || length <= 0) {
@@ -353,5 +284,5 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
     std::vector<uint8_t> srcBuffer(length);
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
     return decodeImplementationNative(env, thiz, srcBuffer, scaledWidth, scaledHeight,
-                                      clrConfig);
+                                      clrConfig, scaleMode);
 }

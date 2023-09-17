@@ -16,12 +16,6 @@ jint throwHardwareBitmapException(JNIEnv *env) {
     return env->ThrowNew(exClass, "");
 }
 
-jint throwCantEncodeImageException(JNIEnv *env, const char * msg) {
-    jclass exClass;
-    exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/CantEncodeImageException");
-    return env->ThrowNew(exClass, msg);
-}
-
 jint throwInvalidPixelsFormat(JNIEnv *env) {
     jclass exClass;
     exClass = env->FindClass("com/radzivon/bartoshyk/avif/coder/UnsupportedImageFormatException");

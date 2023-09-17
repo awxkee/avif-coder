@@ -10,8 +10,6 @@
 
 jint throwBitDepthException(JNIEnv *env);
 
-jint throwCantEncodeImageException(JNIEnv *env, const char *msg);
-
 jint throwInvalidPixelsFormat(JNIEnv *env);
 
 jint throwPixelsException(JNIEnv *env);

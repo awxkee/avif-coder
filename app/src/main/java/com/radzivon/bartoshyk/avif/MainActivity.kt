@@ -16,6 +16,7 @@ import coil.load
 import com.github.awxkee.avifcoil.HeifDecoder
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
+import com.radzivon.bartoshyk.avif.coder.ScaleMode
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,7 +39,7 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("hato_custom_icc.avif").source().buffer().readByteArray()
+        val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
         val size = HeifCoder().getSize(buffer)!!
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -51,9 +52,10 @@ class MainActivity : AppCompatActivity() {
 //                )
                 val bitmap = HeifCoder().decodeSampled(
                     buffer,
-                    size.width / 2,
-                    size.height / 2,
-                    PreferredColorConfig.HARDWARE
+                    350,
+                    600,
+                    PreferredColorConfig.HARDWARE,
+                    ScaleMode.FIT
                 )
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
@@ -68,7 +70,10 @@ class MainActivity : AppCompatActivity() {
 //            binding.imageView.setImageBitmap(bitmap)
         }
 
-//        binding.imageView.load("https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif",
+        //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
+        //https://wh.aimuse.online/preset/federico-beccari.avif
+
+//        binding.imageView.load("https://wh.aimuse.online/preset/avif10bit.avif",
 //            imageLoader = ImageLoader.Builder(this)
 //                .components {
 //                    add(HeifDecoder.Factory())
