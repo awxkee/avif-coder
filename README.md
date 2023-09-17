@@ -38,7 +38,7 @@ repositories {
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.3.0' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.4.0' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
