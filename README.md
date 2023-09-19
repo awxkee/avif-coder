@@ -41,7 +41,7 @@ repositories {
 implementation 'com.github.awxkee:avif-coder:1.4.2' // or any version above picker from release tags
 
 // Glide JPEG XL plugin if you need one
-implementation 'com.github.awxkee:avif-coder-glide:1.4.4' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-glide:1.4.2' // or any version above picker from release tags
 
 // Coil JPEG XL plugin if you need one
 implementation 'com.github.awxkee:avif-coder-coil:1.4.2' // or any version above picker from release tags
