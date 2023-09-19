@@ -13,7 +13,7 @@ Supported decoding in all necessary pixel formats in Android and avoids android 
 # Usage example
 
 ```kotlin
-// May decode AVIF(AV1) and HEIC (HEVC) images, all HDR images currently will be converted in 8bit
+// May decode AVIF(AV1) and HEIC (HEVC) images, HDR images supported
 val bitmap: Bitmap = HeifCoder().decode(buffer) // Decode avif from ByteArray
 val bytes: ByteArray = HeifCoder().encodeAvif(decodedBitmap) // Encode Bitmap to AVIF
 val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports HDR in RGBA_F16, RGBA_1010102, HARDWARE
