@@ -5,6 +5,7 @@
 #include "Rgb565.h"
 #include "ThreadPool.hpp"
 #include "HalfFloats.h"
+#include <algorithm>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "imagebits/Rgb565.cpp"
@@ -39,7 +40,7 @@ namespace coder::HWY_NAMESPACE {
     using hwy::float16_t;
 
     void
-    Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width) {
+    Rgba8To565HWYRow(const uint8_t *source, uint16_t *destination, int width) {
         const FixedTag<uint16_t, 8> du16;
         const FixedTag<uint8_t, 8> du8x8;
         using VU16 = Vec<decltype(du16)>;
@@ -62,7 +63,7 @@ namespace coder::HWY_NAMESPACE {
 
             auto rdu16Vec = ShiftLeft<11>(ShiftRight<3>(PromoteTo(rdu16, ru8Row)));
             auto gdu16Vec = ShiftLeft<5>(ShiftRight<2>(PromoteTo(rdu16, gu8Row)));
-            auto bdu16Vec = ShiftRight<5>(PromoteTo(rdu16, bu8Row));
+            auto bdu16Vec = ShiftRight<3>(PromoteTo(rdu16, bu8Row));
 
             auto result = Or(Or(rdu16Vec, gdu16Vec), bdu16Vec);
             Store(result, du16, dst);
@@ -95,7 +96,7 @@ namespace coder::HWY_NAMESPACE {
         auto mDst = reinterpret_cast<uint8_t *>(dst);
 
         for (int y = 0; y < height; ++y) {
-            auto r = pool.enqueue(Rgba8ToF16HWYRow,
+            auto r = pool.enqueue(Rgba8To565HWYRow,
                                   reinterpret_cast<const uint8_t *>(mSrc),
                                   reinterpret_cast<uint16_t *>(mDst), width);
             results.push_back(std::move(r));
@@ -168,7 +169,7 @@ namespace coder::HWY_NAMESPACE {
 
             auto rdu16Vec = ShiftLeft<11>(ShiftRight<3>(PromoteTo(rdu16, r16Row)));
             auto gdu16Vec = ShiftLeft<5>(ShiftRight<2>(PromoteTo(rdu16, g16Row)));
-            auto bdu16Vec = ShiftRight<5>(PromoteTo(rdu16, b16Row));
+            auto bdu16Vec = ShiftRight<3>(PromoteTo(rdu16, b16Row));
 
             auto result = Or(Or(rdu16Vec, gdu16Vec), bdu16Vec);
             Store(result, du16, dst);
@@ -178,9 +179,9 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            uint16_t red565 = (src[0] >> 3) << 11;
-            uint16_t green565 = (src[1] >> 2) << 5;
-            uint16_t blue565 = src[2] >> 3;
+            uint16_t red565 = ((uint16_t )roundf(half_to_float(src[0]) * maxColors) >> 3) << 11;
+            uint16_t green565 = ((uint16_t )roundf(half_to_float(src[1]) * maxColors) >> 2) << 5;
+            uint16_t blue565 = (uint16_t )roundf(half_to_float(src[2]) * maxColors) >> 3;
 
             auto result = static_cast<uint16_t>(red565 | green565 | blue565);
             dst[0] = result;

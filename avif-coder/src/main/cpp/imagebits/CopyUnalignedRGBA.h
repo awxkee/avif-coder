@@ -13,6 +13,11 @@ namespace coder {
                       int dstStride, int width,
                       int height,
                       int pixelSize);
+
+    void
+    CopyUnalignedRGB565(const uint8_t *__restrict__ src, int srcStride, uint8_t *__restrict__ dst,
+                        int dstStride, int width,
+                        int height);
 }
 
 #endif //AVIF_COPYUNALIGNEDRGBA_H

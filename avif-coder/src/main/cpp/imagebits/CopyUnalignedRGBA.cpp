@@ -13,8 +13,7 @@
 
 HWY_BEFORE_NAMESPACE();
 
-namespace coder {
-    namespace HWY_NAMESPACE {
+namespace coder::HWY_NAMESPACE {
 
         using hwy::HWY_NAMESPACE::ScalableTag;
         using hwy::HWY_NAMESPACE::Store;
@@ -96,14 +95,47 @@ namespace coder {
             }
         }
 
+        void CopyUnalignedRGB565Row(const uint16_t *HWY_RESTRICT src, uint16_t *HWY_RESTRICT dst,
+                                    int width) {
+            int x = 0;
+            const ScalableTag<uint16_t> du;
+            using VU = Vec<decltype(du)>;
+            int pixels = du.MaxLanes();
+            for (x = 0; x + pixels < width; x += pixels) {
+                VU pixel = Load(du, src);
+                Store(pixel, du, dst);
+
+                src += pixels;
+                dst += pixels;
+            }
+
+            for (; x < width; ++x) {
+                auto p1 = src[0];
+                dst[0] = p1;
+                src += 1;
+                dst += 1;
+            }
+        }
+
+        void
+        CopyUnalignedRGB565(const uint8_t *HWY_RESTRICT src, int srcStride, uint8_t *HWY_RESTRICT dst,
+                            int dstStride, int width,
+                            int height) {
+            for (int y = 0; y < height; y++) {
+                CopyUnalignedRGB565Row(reinterpret_cast<const uint16_t *>(src + (y * srcStride)),
+                                       reinterpret_cast<uint16_t *>(dst + (y * dstStride)),
+                                       width);
+            }
+        }
+
     }
-}
 
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace coder {
     HWY_EXPORT(CopyUnalignedRGBA);
+    HWY_EXPORT(CopyUnalignedRGB565);
 
     HWY_DLLEXPORT void
     CopyUnalignedRGBA(const uint8_t *HWY_RESTRICT src, int srcStride, uint8_t *HWY_RESTRICT dst,
@@ -112,6 +144,13 @@ namespace coder {
                       int pixelSize) {
         HWY_DYNAMIC_DISPATCH(CopyUnalignedRGBA)(src, srcStride, dst, dstStride, width, height,
                                                 pixelSize);
+    }
+
+    HWY_DLLEXPORT void
+    CopyUnalignedRGB565(const uint8_t *HWY_RESTRICT src, int srcStride, uint8_t *HWY_RESTRICT dst,
+                        int dstStride, int width,
+                        int height) {
+        HWY_DYNAMIC_DISPATCH(CopyUnalignedRGB565)(src, srcStride, dst, dstStride, width, height);
     }
 }
 #endif

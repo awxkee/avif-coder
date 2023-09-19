@@ -48,7 +48,6 @@ list(APPEND EXTRA_LIBS cpufeatures)
 
 include(CheckCXXCompilerFlag)
 if (ANDROID_ABI STREQUAL arm64-v8a)
-    set_target_properties(coder PROPERTIES COMPILE_FLAGS -mfpu=neon)
     add_definitions("-DHAVE_NEON=1")
 endif ()
 
