@@ -26,30 +26,39 @@
  *
  */
 
-package com.radzivon.bartoshyk.avif.coder
+#include "VulkanRunner.h"
+#include "JniException.h"
 
-import android.os.Build
-import androidx.annotation.RequiresApi
+#include <dlfcn.h>
+#include <mutex>
 
-enum class PreferredColorConfig(internal val value: Int) {
-    /**
-     * Default then library will determine the best color space by itself
-     * @property RGBA_8888 will clip out HDR content if some
-     * @property RGBA_F16 available only from 26+ OS version
-     * @property RGB_565 will clip out HDR and 8bit content
-     * @property RGBA_1010102 supported only on os 33+
-     * @property HARDWARE supported only on OS 29+ and have default android HARDWARE bitmap limitations
-     */
-    DEFAULT(1),
-    RGBA_8888(2),
+std::mutex vulkanMutex;
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    RGBA_F16(3),
-    RGB_565(4),
+VulkanComputeRunnerFunc VulkanRunner;
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    RGBA_1010102(5),
+bool vulkanRunnerLoaded = false;
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    HARDWARE(6),
+bool loadVulkanRunner() {
+    if (androidOSVersion() < 29) {
+        return false;
+    }
+    std::lock_guard guard(vulkanMutex);
+
+    if (vulkanRunnerLoaded) {
+        return VulkanRunner != nullptr;
+    }
+
+    vulkanRunnerLoaded = true;
+
+    void *hhl = dlopen("libvulkanprocessor.so", RTLD_NOW);
+    if (!hhl) {
+        return false;
+    }
+
+    VulkanRunner = (VulkanComputeRunnerFunc) dlsym(hhl,
+                                                   "ComputeKernel");
+    if (VulkanRunner == nullptr) {
+        return false;
+    }
+    return true;
 }

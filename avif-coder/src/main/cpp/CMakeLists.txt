@@ -5,8 +5,6 @@
 
 cmake_minimum_required(VERSION 3.22.1)
 
-# Declares and names the project.
-
 project("coder")
 
 add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
@@ -21,7 +19,7 @@ add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         colorspace/PerceptualQuantinizer.cpp ThreadPool.hpp
         imagebits/CopyUnalignedRGBA.cpp colorspace/HLG.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
-        HardwareBuffersCompat.cpp)
+        HardwareBuffersCompat.cpp VulkanRunner.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -65,19 +63,14 @@ add_definitions(-DCMS_NO_REGISTER_KEYWORD -DSTB_IMAGE_RESIZE_IMPLEMENTATION)
 set(CMAKE_ANDROID_API_MIN 24)
 
 target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv ${CMAKE_SOURCE_DIR}/colorspace)
-# Searches for a specified prebuilt library and stores the path as a
-# variable. Because CMake includes system libraries in the search path by
-# default, you only need to specify the name of the public NDK library
-# you want to add. CMake verifies that the library exists before
-# completing its build.
 
 find_library( # Sets the name of the path variable.
         log-lib
         log)
 
-# Specifies libraries CMake should link to your target library. You
-# can link multiple libraries, such as libraries you define in this
-# build script, prebuilt third-party libraries, or system libraries.
+find_library(
+        android-lib
+        android)
 
 include_directories(icc)
 
@@ -86,4 +79,5 @@ target_link_libraries( # Specifies the target library.
 
         # Links the target library to the log library
         # included in the NDK.
-        ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics libde265 libdav1d libhwy libsharpyuv)
+        ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics
+        libde265 libdav1d libhwy libsharpyuv ${android-lib})

@@ -1,3 +1,28 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2023 Radzivon Bartoshyk
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
 package com.radzivon.bartoshyk.avif
 
 import android.graphics.Bitmap
@@ -41,17 +66,19 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
+        val coder = HeifCoder(this)
+        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
 //        assert(HeifCoder().isAvif(buffer))
-        val size = HeifCoder().getSize(buffer)!!
+        val size = coder.getSize(buffer)!!
         assert(size != null)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val time = measureTimeMillis {
-                val bitmap = HeifCoder().decodeSampled(
+                val bitmap = coder.decodeSampled(
                     buffer,
                     size.width / 2,
                     size.height / 2,
-                    PreferredColorConfig.RGB_565
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
                 )
 //        val opts = BitmapFactory.Options()
 //        opts.inMutable = true
@@ -138,6 +165,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun testEncoder(assetName: String) {
+        val coder = HeifCoder(this)
         val buffer = this.assets.open(assetName).source().buffer().readByteArray()
         val opts = BitmapFactory.Options()
         opts.inMutable = true
@@ -151,7 +179,7 @@ class MainActivity : AppCompatActivity() {
         bitmap = rr
 //        val newBitmap = bitmap.aspectFit(bitmap.width, bitmap.height)
 //        bitmap.recycle()
-        val bytes = HeifCoder().encodeAvif(bitmap)
+        val bytes = coder.encodeAvif(bitmap)
         bitmap.recycle()
         val ff = File(this.filesDir, "${File(assetName).nameWithoutExtension}.avif")
         ff.delete()
@@ -202,7 +230,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun writeHevc(bitmap: Bitmap) {
-        val bytes = HeifCoder().encodeHeic(bitmap)
+        val bytes = HeifCoder(this).encodeHeic(bitmap)
         val ff = File(this.filesDir, "result.heic")
         ff.delete()
         val output = FileOutputStream(ff)

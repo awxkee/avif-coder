@@ -1,5 +1,34 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2023 Radzivon Bartoshyk
+ * avif-coder [https://github.com/awxkee/avif-coder]
+ *
+ * Created by Radzivon Bartoshyk on 01/01/2023
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
 package com.github.awxkee.avifcoil
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
@@ -21,10 +50,13 @@ import kotlinx.coroutines.runInterruptible
 import okio.ByteString.Companion.encodeUtf8
 
 class HeifDecoder(
+    private val context: Context?,
     private val source: SourceResult,
     private val options: Options,
     private val imageLoader: ImageLoader,
 ) : Decoder {
+
+    private val coder = HeifCoder(context)
 
     override suspend fun decode(): DecodeResult? = runInterruptible {
         // ColorSpace is preferred to be ignored due to lib is trying to handle all color profile by itself
@@ -46,7 +78,7 @@ class HeifDecoder(
 
         if (options.size == coil.size.Size.ORIGINAL) {
             val originalImage =
-                HeifCoder().decode(
+                coder.decode(
                     sourceData,
                     preferredColorConfig = mPreferredColorConfig
                 )
@@ -66,7 +98,7 @@ class HeifDecoder(
         }
 
         val originalImage =
-            HeifCoder().decodeSampled(
+            coder.decodeSampled(
                 sourceData,
                 dstWidth,
                 dstHeight,
@@ -81,7 +113,10 @@ class HeifDecoder(
         )
     }
 
-    class Factory : Decoder.Factory {
+    /**
+     * @param context is preferred to be set when displaying an HDR content to apply Vulkan shaders
+     */
+    class Factory(private val context: Context?) : Decoder.Factory {
         override fun create(
             result: SourceResult,
             options: Options,
@@ -89,7 +124,7 @@ class HeifDecoder(
         ): Decoder? {
             return if (AVAILABLE_BRANDS.any {
                     result.source.source().rangeEquals(4, it)
-                }) HeifDecoder(result, options, imageLoader) else null
+                }) HeifDecoder(context, result, options, imageLoader) else null
         }
 
         companion object {

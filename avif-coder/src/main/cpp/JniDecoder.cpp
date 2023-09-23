@@ -29,8 +29,11 @@
 #include "ReformatBitmap.h"
 #include "IccRecognizer.h"
 #include "thread"
+#include "VulkanRunner.h"
+#include <android/asset_manager_jni.h>
 
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
+                                   AAssetManager *assetManager,
                                    std::vector<uint8_t> &srcBuffer, jint scaledWidth,
                                    jint scaledHeight, jint javaColorSpace, jint javaScaleMode) {
     PreferredColorConfig preferredColorConfig;
@@ -48,7 +51,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return static_cast<jobject>(nullptr);
     }
 
-    heif_context_set_max_decoding_threads(ctx.get(), (int)std::thread::hardware_concurrency());
+    heif_context_set_max_decoding_threads(ctx.get(), (int) std::thread::hardware_concurrency());
 
     auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
                                                              srcBuffer.size(),
@@ -147,6 +150,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return static_cast<jobject >(nullptr);
     }
 
+    heif_image_handle_release(handle);
+
     std::shared_ptr<uint8_t> dstARGB(static_cast<uint8_t *>(malloc(stride * imageHeight)),
                                      [](uint8_t *f) { free(f); });
 
@@ -166,55 +171,102 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     initialData.clear();
 
-    heif_image_handle_release(handle);
-
     if (!profile.empty()) {
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, profile.data(),
                       profile.size(),
                       useBitmapHalf16Floats, &stride);
     } else if (colorProfile == "BT2020_PQ") {
-        if (useBitmapHalf16Floats) {
-            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
-                                                        stride, imageWidth, imageHeight, true, true,
-                                                        16, Rec2020);
-            perceptualQuantinizer.transfer();
-        } else {
-            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
-                                                        stride, imageWidth, imageHeight, false,
-                                                        false,
-                                                        8, Rec2020);
-            perceptualQuantinizer.transfer();
+        bool isVulkanLoaded = loadVulkanRunner();
+        bool vulkanWorkerDone = false;
+        if (assetManager != nullptr && isVulkanLoaded) {
+            std::string kernel = "SMPTE2084_BT2020.comp.spv";
+            vulkanWorkerDone = VulkanRunner(kernel, assetManager,
+                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            imageHeight, stride,
+                                            useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
+        }
+        if (!vulkanWorkerDone) {
+            if (useBitmapHalf16Floats) {
+                PerceptualQuantinizer perceptualQuantinizer(
+                        reinterpret_cast<uint8_t *>(dstARGB.get()),
+                        stride, imageWidth, imageHeight, true, true,
+                        16, Rec2020);
+                perceptualQuantinizer.transfer();
+            } else {
+                PerceptualQuantinizer perceptualQuantinizer(
+                        reinterpret_cast<uint8_t *>(dstARGB.get()),
+                        stride, imageWidth, imageHeight, false,
+                        false,
+                        8, Rec2020);
+                perceptualQuantinizer.transfer();
+            }
         }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
                       useBitmapHalf16Floats, &stride);
     } else if (colorProfile == "BT2020_HLG") {
-        coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
-                          useBitmapHalf16Floats, stride, imageWidth, imageHeight,
-                          useBitmapHalf16Floats ? 16 : 8, coder::Rec2020);
+        bool isVulkanLoaded = loadVulkanRunner();
+        bool vulkanWorkerDone = false;
+        if (assetManager != nullptr && isVulkanLoaded) {
+            std::string kernel = "HLG_BT2020.comp.spv";
+            vulkanWorkerDone = VulkanRunner(kernel, assetManager,
+                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            imageHeight, stride,
+                                            useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
+        }
+        if (!vulkanWorkerDone) {
+            coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
+                              useBitmapHalf16Floats, stride, imageWidth, imageHeight,
+                              useBitmapHalf16Floats ? 16 : 8, coder::Rec2020);
+        }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
                       useBitmapHalf16Floats, &stride);
     } else if (colorProfile == "DISPLAY_P3_HLG") {
-        coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
-                          useBitmapHalf16Floats, stride, imageWidth, imageHeight,
-                          useBitmapHalf16Floats ? 16 : 8, coder::DCIP3);
+        bool isVulkanLoaded = loadVulkanRunner();
+        bool vulkanWorkerDone = false;
+        if (assetManager != nullptr && isVulkanLoaded) {
+            std::string kernel = "HLG_P3.comp.spv";
+            vulkanWorkerDone = VulkanRunner(kernel, assetManager,
+                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            imageHeight, stride,
+                                            useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
+        }
+        if (!vulkanWorkerDone) {
+            coder::ProcessHLG(reinterpret_cast<uint8_t *>(initialData.data()),
+                              useBitmapHalf16Floats, stride, imageWidth, imageHeight,
+                              useBitmapHalf16Floats ? 16 : 8, coder::DCIP3);
+        }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
                       sizeof(displayP3),
                       useBitmapHalf16Floats, &stride);
     } else if (colorProfile == "DISPLAY_P3_PQ") {
-        if (useBitmapHalf16Floats) {
-            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
-                                                        stride, imageWidth, imageHeight, true, true,
-                                                        16, DCIP3);
-            perceptualQuantinizer.transfer();
-        } else {
-            PerceptualQuantinizer perceptualQuantinizer(reinterpret_cast<uint8_t *>(dstARGB.get()),
-                                                        stride, imageWidth, imageHeight, false,
-                                                        false,
-                                                        8, DCIP3);
-            perceptualQuantinizer.transfer();
+        bool isVulkanLoaded = loadVulkanRunner();
+        bool vulkanWorkerDone = false;
+        if (assetManager != nullptr && isVulkanLoaded) {
+            std::string kernel = "HLG_BT2020.comp.spv";
+            vulkanWorkerDone = VulkanRunner(kernel, assetManager,
+                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            imageHeight, stride,
+                                            useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
+        if (!vulkanWorkerDone) {
+            if (useBitmapHalf16Floats) {
+                PerceptualQuantinizer perceptualQuantinizer(
+                        reinterpret_cast<uint8_t *>(dstARGB.get()),
+                        stride, imageWidth, imageHeight, true, true,
+                        16, DCIP3);
+                perceptualQuantinizer.transfer();
+            } else {
+                PerceptualQuantinizer perceptualQuantinizer(
+                        reinterpret_cast<uint8_t *>(dstARGB.get()),
+                        stride, imageWidth, imageHeight, false,
+                        false,
+                        8, DCIP3);
+                perceptualQuantinizer.transfer();
+            }
+        }
+
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
                       sizeof(displayP3),
                       useBitmapHalf16Floats, &stride);
@@ -259,6 +311,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject thiz,
+                                                            jobject assetManager,
                                                             jbyteArray byte_array, jint scaledWidth,
                                                             jint scaledHeight,
                                                             jint javaColorspace, jint scaleMode) {
@@ -266,13 +319,19 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
     std::vector<uint8_t> srcBuffer(totalLength);
     env->GetByteArrayRegion(byte_array, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
-    return decodeImplementationNative(env, thiz, srcBuffer, scaledWidth, scaledHeight,
+    AAssetManager *manager = nullptr;
+    if (assetManager) {
+        manager = AAssetManager_fromJava(env, assetManager);
+    }
+    return decodeImplementationNative(env, thiz, manager, srcBuffer,
+                                      scaledWidth, scaledHeight,
                                       javaColorspace, scaleMode);
 }
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *env, jobject thiz,
                                                                       jobject byteBuffer,
+                                                                      jobject assetManager,
                                                                       jint scaledWidth,
                                                                       jint scaledHeight,
                                                                       jint clrConfig,
@@ -286,6 +345,11 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
     }
     std::vector<uint8_t> srcBuffer(length);
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
-    return decodeImplementationNative(env, thiz, srcBuffer, scaledWidth, scaledHeight,
+    AAssetManager *manager = nullptr;
+    if (assetManager) {
+        manager = AAssetManager_fromJava(env, assetManager);
+    }
+    return decodeImplementationNative(env, thiz, manager, srcBuffer,
+                                      scaledWidth, scaledHeight,
                                       clrConfig, scaleMode);
 }
