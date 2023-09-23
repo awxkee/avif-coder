@@ -1,8 +1,7 @@
 # AVIF/HEIF Coder for Android 24+
 
 Library provides simple interface to decode or encode ( create ) AVIF and HEIF images for Android
-Very fast and convinient to use AVIF in android apps with api version 24+
-26+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d
+Very fast and convinient to use AVIF in android apps with api version 24+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d
 
 Correctly handles ICC, and color profiles and HDR images.
 Fully supports HDR images, 10, 12 bit. Preprocess image in tile to increase speed.
