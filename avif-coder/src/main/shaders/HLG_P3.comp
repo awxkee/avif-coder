@@ -27,7 +27,7 @@
  */
 
 /**
-    Applies HLG EOTF function with P3 2020 Primaries
+    Applies HLG EOTF function with P3 Primaries
 **/
 
 #version 450
