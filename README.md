@@ -53,7 +53,7 @@ Just add to image loader heif decoder factory and use it as image loader in coil
 ```kotlin
 val imageLoader = ImageLoader.Builder(context)
     .components {
-        add(HeifDecoder.Factory())
+        add(HeifDecoder.Factory(context))
     }
     .build()
 ```
