@@ -186,20 +186,11 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            if (useBitmapHalf16Floats) {
-                PerceptualQuantinizer perceptualQuantinizer(
-                        reinterpret_cast<uint8_t *>(dstARGB.get()),
-                        stride, imageWidth, imageHeight, true, true,
-                        16, Rec2020);
-                perceptualQuantinizer.transfer();
-            } else {
-                PerceptualQuantinizer perceptualQuantinizer(
-                        reinterpret_cast<uint8_t *>(dstARGB.get()),
-                        stride, imageWidth, imageHeight, false,
-                        false,
-                        8, Rec2020);
-                perceptualQuantinizer.transfer();
-            }
+            PerceptualQuantinizer perceptualQuantinizer(
+                    reinterpret_cast<uint8_t *>(dstARGB.get()),
+                    stride, imageWidth, imageHeight, useBitmapHalf16Floats, useBitmapHalf16Floats,
+                    useBitmapHalf16Floats ? 16 : 8, Rec2020);
+            perceptualQuantinizer.transfer();
         }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
@@ -244,27 +235,20 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         bool isVulkanLoaded = loadVulkanRunner();
         bool vulkanWorkerDone = false;
         if (assetManager != nullptr && isVulkanLoaded) {
-            std::string kernel = "HLG_BT2020.comp.spv";
+            std::string kernel = "SMPTE2084_P3.comp.spv";
             vulkanWorkerDone = VulkanRunner(kernel, assetManager,
                                             reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
                                             imageHeight, stride,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            if (useBitmapHalf16Floats) {
-                PerceptualQuantinizer perceptualQuantinizer(
-                        reinterpret_cast<uint8_t *>(dstARGB.get()),
-                        stride, imageWidth, imageHeight, true, true,
-                        16, DCIP3);
-                perceptualQuantinizer.transfer();
-            } else {
-                PerceptualQuantinizer perceptualQuantinizer(
-                        reinterpret_cast<uint8_t *>(dstARGB.get()),
-                        stride, imageWidth, imageHeight, false,
-                        false,
-                        8, DCIP3);
-                perceptualQuantinizer.transfer();
-            }
+            PerceptualQuantinizer perceptualQuantinizer(
+                    reinterpret_cast<uint8_t *>(dstARGB.get()),
+                    stride, imageWidth, imageHeight,
+                    useBitmapHalf16Floats,
+                    useBitmapHalf16Floats,
+                    useBitmapHalf16Floats ? 16 : 8, DCIP3);
+            perceptualQuantinizer.transfer();
         }
 
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],

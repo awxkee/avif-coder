@@ -67,30 +67,113 @@ class MainActivity : AppCompatActivity() {
         // Example of a call to a native method
 //
         val coder = HeifCoder(this)
-        val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
-//        assert(HeifCoder().isAvif(buffer))
-        val size = coder.getSize(buffer)!!
-        assert(size != null)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val time = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width / 2,
-                    size.height / 2,
-                    PreferredColorConfig.RGBA_F16,
-                    ScaleMode.RESIZE
-                )
-//        val opts = BitmapFactory.Options()
-//        opts.inMutable = true
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            opts.inPreferredConfig = Bitmap.Config.RGBA_F16
-//        }
-                binding.imageView.setImageBitmap(bitmap)
-            }
-            Log.i("MainActivity AVIF ", "Done in ${time}")
-//            val encoded = HeifCoder().encodeAvif(bitmap)
-//            val decodedSample = HeifCoder().decode(encoded)
-//            binding.imageView.setImageBitmap(bitmap)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/castle-hdr.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGBA_F16,
+                ScaleMode.RESIZE
+            )
+            binding.imageView.setImageBitmap(bitmap)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/future city.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGBA_8888,
+                ScaleMode.RESIZE
+            )
+            binding.imageView1.setImageBitmap(bitmap)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/Sea of Umbrellas at Shibuya Crossing-hdr.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView2.setImageBitmap(bitmap)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/Elevate-hdr.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView3.setImageBitmap(bitmap)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/house on lake.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGB_565,
+                ScaleMode.RESIZE
+            )
+            binding.imageView4.setImageBitmap(bitmap)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/Triad-hdr.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView5.setImageBitmap(bitmap)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("hdr/Land of the Lost-hdr.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width * 2,
+                size.height * 2,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView6.setImageBitmap(bitmap)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width / 3,
+                size.height / 3,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView7.setImageBitmap(bitmap)
         }
 
         //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
