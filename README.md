@@ -37,13 +37,13 @@ repositories {
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.4.2' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.5.0' // or any version above picker from release tags
 
 // Glide JPEG XL plugin if you need one
-implementation 'com.github.awxkee:avif-coder-glide:1.4.2' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-glide:1.5.0' // or any version above picker from release tags
 
 // Coil JPEG XL plugin if you need one
-implementation 'com.github.awxkee:avif-coder-coil:1.4.2' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-coil:1.5.0' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
@@ -53,7 +53,7 @@ Just add to image loader heif decoder factory and use it as image loader in coil
 ```kotlin
 val imageLoader = ImageLoader.Builder(context)
     .components {
-        add(HeifDecoder.Factory())
+        add(HeifDecoder.Factory(context))
     }
     .build()
 ```
