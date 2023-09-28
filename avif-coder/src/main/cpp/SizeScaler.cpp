@@ -36,8 +36,8 @@
 
 bool RescaleImage(std::vector<uint8_t> &initialData,
                   JNIEnv *env,
-                  heif_image_handle *handle,
-                  heif_image *img,
+                  std::shared_ptr<heif_image_handle> &handle,
+                  std::shared_ptr<heif_image> &img,
                   int *stride,
                   bool useFloats,
                   int *imageWidthPtr, int *imageHeightPtr,
@@ -83,29 +83,30 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
             }
         }
 
-        heif_image *scaledImg;
-        heif_error result = heif_image_scale_image(img, &scaledImg, scaledWidth, scaledHeight,
+        heif_image *scaledImgPtr;
+        heif_error result = heif_image_scale_image(img.get(), &scaledImgPtr, scaledWidth,
+                                                   scaledHeight,
                                                    nullptr);
         if (result.code != heif_error_Ok) {
-            heif_image_release(img);
-            heif_image_handle_release(handle);
             std::string cp(result.message);
             std::string exception = "HEIF wasn't able to scale image due to " + cp;
             throwException(env, exception);
             return false;
         }
-        heif_image_release(img);
 
-        auto data = heif_image_get_plane_readonly(scaledImg, heif_channel_interleaved, stride);
+        std::shared_ptr<heif_image> scaledImg(scaledImgPtr, [](heif_image *im) {
+            heif_image_release(im);
+        });
+
+        auto data = heif_image_get_plane_readonly(scaledImg.get(), heif_channel_interleaved,
+                                                  stride);
         if (!data) {
-            heif_image_release(scaledImg);
-            heif_image_handle_release(handle);
             std::string exception = "Interleaving planed has failed";
             throwException(env, exception);
             return false;
         }
-        imageWidth = heif_image_get_width(scaledImg, heif_channel_interleaved);
-        imageHeight = heif_image_get_height(scaledImg, heif_channel_interleaved);
+        imageWidth = heif_image_get_width(scaledImg.get(), heif_channel_interleaved);
+        imageHeight = heif_image_get_height(scaledImg.get(), heif_channel_interleaved);
 
         if (xTranslation > 0 || yTranslation > 0) {
 
@@ -159,29 +160,22 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
 
         *imageWidthPtr = imageWidth;
         *imageHeightPtr = imageHeight;
-
-        heif_image_release(scaledImg);
-
     } else {
-        auto data = heif_image_get_plane_readonly(img, heif_channel_interleaved, stride);
+        auto data = heif_image_get_plane_readonly(img.get(), heif_channel_interleaved, stride);
         if (!data) {
-            heif_image_release(img);
-            heif_image_handle_release(handle);
             std::string exception = "Interleaving planed has failed";
             throwException(env, exception);
             return false;
         }
 
-        imageWidth = heif_image_get_width(img, heif_channel_interleaved);
-        imageHeight = heif_image_get_height(img, heif_channel_interleaved);
+        imageWidth = heif_image_get_width(img.get(), heif_channel_interleaved);
+        imageHeight = heif_image_get_height(img.get(), heif_channel_interleaved);
         initialData.resize(*stride * imageHeight);
 
         coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), *stride,
                                  reinterpret_cast<uint8_t *>(initialData.data()), *stride,
                                  imageWidth,
                                  imageHeight, useFloats ? 2 : 1);
-
-        heif_image_release(img);
 
         *imageWidthPtr = imageWidth;
         *imageHeightPtr = imageHeight;

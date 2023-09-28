@@ -62,18 +62,21 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return static_cast<jobject>(nullptr);
     }
 
-    heif_image_handle *handle;
-    result = heif_context_get_primary_image_handle(ctx.get(), &handle);
-    if (result.code != heif_error_Ok) {
+    heif_image_handle *handlePtr;
+    result = heif_context_get_primary_image_handle(ctx.get(), &handlePtr);
+    if (result.code != heif_error_Ok || handlePtr == nullptr) {
         std::string exception = "Acquiring an image from file has failed";
         throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
 
-    int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle);
+    std::shared_ptr<heif_image_handle> handle(handlePtr, [](heif_image_handle* hd) {
+        heif_image_handle_release(hd);
+    });
+
+    int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle.get());
     bool useBitmapHalf16Floats = false;
     if (bitDepth < 0) {
-        heif_image_handle_release(handle);
         throwBitDepthException(env);
         return static_cast<jobject>(nullptr);
     }
@@ -83,25 +86,28 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     if (bitDepth > 8 && osVersion >= 26) {
         useBitmapHalf16Floats = true;
     }
-    heif_image *img;
+    heif_image *imgPtr;
     std::shared_ptr<heif_decoding_options> options(heif_decoding_options_alloc(),
                                                    [](heif_decoding_options *deo) {
                                                        heif_decoding_options_free(deo);
                                                    });
     options->convert_hdr_to_8bit = false;
     options->ignore_transformations = false;
-    result = heif_decode_image(handle, &img, heif_colorspace_RGB,
+    result = heif_decode_image(handle.get(), &imgPtr, heif_colorspace_RGB,
                                useBitmapHalf16Floats ? heif_chroma_interleaved_RRGGBBAA_LE
                                                      : heif_chroma_interleaved_RGBA,
                                options.get());
     options.reset();
 
-    if (result.code != heif_error_Ok) {
-        heif_image_handle_release(handle);
+    if (result.code != heif_error_Ok || imgPtr == nullptr) {
         std::string exception = "Decoding an image has failed";
         throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }
+
+    std::shared_ptr<heif_image> img(imgPtr, [](heif_image* im) {
+        heif_image_release(im);
+    });
 
     /*
      *     SRGB,
@@ -130,8 +136,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     RecognizeICC(handle, img, profile, colorProfile);
 
     bool alphaPremultiplied = true;
-    if (heif_image_handle_has_alpha_channel(handle)) {
-        alphaPremultiplied = heif_image_handle_is_premultiplied_alpha(handle) != 0;
+    if (heif_image_handle_has_alpha_channel(handle.get())) {
+        alphaPremultiplied = heif_image_handle_is_premultiplied_alpha(handle.get()) != 0;
     } else {
         alphaPremultiplied = false;
     }
@@ -141,8 +147,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     int stride;
     std::vector<uint8_t> initialData;
 
-    imageWidth = heif_image_get_width(img, heif_channel_interleaved);
-    imageHeight = heif_image_get_height(img, heif_channel_interleaved);
+    imageWidth = heif_image_get_width(img.get(), heif_channel_interleaved);
+    imageHeight = heif_image_get_height(img.get(), heif_channel_interleaved);
     auto scaleResult = RescaleImage(initialData, env, handle, img, &stride, useBitmapHalf16Floats,
                                     &imageWidth, &imageHeight, scaledWidth, scaledHeight,
                                     scaleMode);
@@ -150,7 +156,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return static_cast<jobject >(nullptr);
     }
 
-    heif_image_handle_release(handle);
+    img.reset();
+    handle.reset();
 
     std::shared_ptr<uint8_t> dstARGB(static_cast<uint8_t *>(malloc(stride * imageHeight)),
                                      [](uint8_t *f) { free(f); });
@@ -299,17 +306,23 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
                                                             jbyteArray byte_array, jint scaledWidth,
                                                             jint scaledHeight,
                                                             jint javaColorspace, jint scaleMode) {
-    auto totalLength = env->GetArrayLength(byte_array);
-    std::vector<uint8_t> srcBuffer(totalLength);
-    env->GetByteArrayRegion(byte_array, 0, totalLength,
-                            reinterpret_cast<jbyte *>(srcBuffer.data()));
-    AAssetManager *manager = nullptr;
-    if (assetManager) {
-        manager = AAssetManager_fromJava(env, assetManager);
+    try {
+        auto totalLength = env->GetArrayLength(byte_array);
+        std::vector<uint8_t> srcBuffer(totalLength);
+        env->GetByteArrayRegion(byte_array, 0, totalLength,
+                                reinterpret_cast<jbyte *>(srcBuffer.data()));
+        AAssetManager *manager = nullptr;
+        if (assetManager) {
+            manager = AAssetManager_fromJava(env, assetManager);
+        }
+        return decodeImplementationNative(env, thiz, manager, srcBuffer,
+                                          scaledWidth, scaledHeight,
+                                          javaColorspace, scaleMode);
+    } catch (std::bad_alloc &err) {
+        std::string exception = "Not enough memory to decode this image";
+        throwException(env, exception);
+        return static_cast<jobject>(nullptr);
     }
-    return decodeImplementationNative(env, thiz, manager, srcBuffer,
-                                      scaledWidth, scaledHeight,
-                                      javaColorspace, scaleMode);
 }
 extern "C"
 JNIEXPORT jobject JNICALL
@@ -320,20 +333,26 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
                                                                       jint scaledHeight,
                                                                       jint clrConfig,
                                                                       jint scaleMode) {
-    auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
-    int length = (int) env->GetDirectBufferCapacity(byteBuffer);
-    if (!bufferAddress || length <= 0) {
-        std::string errorString = "Only direct byte buffers are supported";
-        throwException(env, errorString);
-        return nullptr;
+    try {
+        auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
+        int length = (int) env->GetDirectBufferCapacity(byteBuffer);
+        if (!bufferAddress || length <= 0) {
+            std::string errorString = "Only direct byte buffers are supported";
+            throwException(env, errorString);
+            return nullptr;
+        }
+        std::vector<uint8_t> srcBuffer(length);
+        std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
+        AAssetManager *manager = nullptr;
+        if (assetManager) {
+            manager = AAssetManager_fromJava(env, assetManager);
+        }
+        return decodeImplementationNative(env, thiz, manager, srcBuffer,
+                                          scaledWidth, scaledHeight,
+                                          clrConfig, scaleMode);
+    } catch (std::bad_alloc &err) {
+        std::string exception = "Not enough memory to decode this image";
+        throwException(env, exception);
+        return static_cast<jobject>(nullptr);
     }
-    std::vector<uint8_t> srcBuffer(length);
-    std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
-    AAssetManager *manager = nullptr;
-    if (assetManager) {
-        manager = AAssetManager_fromJava(env, assetManager);
-    }
-    return decodeImplementationNative(env, thiz, manager, srcBuffer,
-                                      scaledWidth, scaledHeight,
-                                      clrConfig, scaleMode);
 }

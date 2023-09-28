@@ -32,8 +32,8 @@
 #include <string>
 #include "heif.h"
 
-void RecognizeICC(heif_image_handle* handle,
-                  heif_image *image,
+void RecognizeICC(std::shared_ptr<heif_image_handle>& handle,
+                  std::shared_ptr<heif_image>& image,
                   std::vector<uint8_t> &iccProfile,
                   std::string &colorSpaceName);
 

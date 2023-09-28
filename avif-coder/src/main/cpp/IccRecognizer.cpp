@@ -30,15 +30,16 @@
 #include "IccRecognizer.h"
 #include "LinearExtendedRec2020.h"
 
-void RecognizeICC(heif_image_handle* handle,
-                  heif_image *image,
+void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
+                  std::shared_ptr<heif_image> &image,
                   std::vector<uint8_t> &iccProfile,
                   std::string &colorSpaceName) {
 
     heif_color_profile_nclx *colorProfileNclx = nullptr;
-    auto type = heif_image_get_color_profile_type(image);
+    auto type = heif_image_get_color_profile_type(image.get());
 
-    auto nclxColorProfile = heif_image_handle_get_nclx_color_profile(handle, &colorProfileNclx);
+    auto nclxColorProfile = heif_image_handle_get_nclx_color_profile(handle.get(),
+                                                                     &colorProfileNclx);
 
     if (nclxColorProfile.code == heif_error_Ok) {
         if (colorProfileNclx && colorProfileNclx->color_primaries != 0 &&
@@ -81,10 +82,10 @@ void RecognizeICC(heif_image_handle* handle,
             }
         }
     } else if (type == heif_color_profile_type_prof || type == heif_color_profile_type_rICC) {
-        auto profileSize = heif_image_get_raw_color_profile_size(image);
+        auto profileSize = heif_image_get_raw_color_profile_size(image.get());
         if (profileSize > 0) {
             iccProfile.resize(profileSize);
-            auto iccStatus = heif_image_get_raw_color_profile(image, iccProfile.data());
+            auto iccStatus = heif_image_get_raw_color_profile(image.get(), iccProfile.data());
             if (iccStatus.code != heif_error_Ok) {
                 if (iccStatus.message) {
                     __android_log_print(ANDROID_LOG_ERROR, "AVIF",

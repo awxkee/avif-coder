@@ -41,8 +41,8 @@ enum ScaleMode {
 
 bool RescaleImage(std::vector<uint8_t> &initialData,
                   JNIEnv *env,
-                  heif_image_handle *handle,
-                  heif_image *img,
+                  std::shared_ptr<heif_image_handle>& handle,
+                  std::shared_ptr<heif_image>& img,
                   int *stride,
                   bool useFloats,
                   int *imageWidthPtr, int *imageHeightPtr,

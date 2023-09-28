@@ -41,7 +41,8 @@
 void
 ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
-                    int imageWidth, int imageHeight, int *stride, bool *useFloats, jobject* hwBuffer) {
+                    int imageWidth, int imageHeight, int *stride, bool *useFloats,
+                    jobject *hwBuffer) {
     *hwBuffer = nullptr;
     switch (preferredColorConfig) {
         case Rgba_8888:
@@ -171,9 +172,9 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
 
             int pixelSize = (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t);
             coder::CopyUnalignedRGBA(imageData.get(), *stride, buffer,
-                                     (int)bufferDesc.stride * 4 * pixelSize,
-                                     (int)bufferDesc.width,
-                                     (int)bufferDesc.height,
+                                     (int) bufferDesc.stride * 4 * pixelSize,
+                                     (int) bufferDesc.width,
+                                     (int) bufferDesc.height,
                                      (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t));
 
             status = AHardwareBuffer_unlock_compat(hardwareBuffer, nullptr);
