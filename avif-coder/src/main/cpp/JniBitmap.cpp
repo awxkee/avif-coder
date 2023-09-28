@@ -34,7 +34,7 @@
 #include "imagebits/CopyUnalignedRGBA.h"
 
 jobject
-createBitmap(JNIEnv *env, std::shared_ptr<uint8_t> &data, std::string &colorConfig, int stride,
+createBitmap(JNIEnv *env, std::vector<uint8_t> &data, std::string &colorConfig, int stride,
              int imageWidth, int imageHeight, bool use16Floats, jobject hwBuffer) {
     if (colorConfig == "HARDWARE") {
         jclass bitmapClass = env->FindClass("android/graphics/Bitmap");
@@ -69,12 +69,12 @@ createBitmap(JNIEnv *env, std::shared_ptr<uint8_t> &data, std::string &colorConf
     }
 
     if (colorConfig == "RGB_565") {
-        coder::CopyUnalignedRGB565(reinterpret_cast<const uint8_t *>(data.get()), stride,
+        coder::CopyUnalignedRGB565(reinterpret_cast<const uint8_t *>(data.data()), stride,
                                    reinterpret_cast<uint8_t *>(addr), (int) info.stride,
                                    (int) info.width,
                                    (int) info.height);
     } else {
-        coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data.get()), stride,
+        coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data.data()), stride,
                                  reinterpret_cast<uint8_t *>(addr), (int) info.stride,
                                  (int) info.width,
                                  (int) info.height, use16Floats ? 2 : 1);

@@ -70,7 +70,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return static_cast<jobject>(nullptr);
     }
 
-    std::shared_ptr<heif_image_handle> handle(handlePtr, [](heif_image_handle* hd) {
+    std::shared_ptr<heif_image_handle> handle(handlePtr, [](heif_image_handle *hd) {
         heif_image_handle_release(hd);
     });
 
@@ -105,7 +105,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return static_cast<jobject>(nullptr);
     }
 
-    std::shared_ptr<heif_image> img(imgPtr, [](heif_image* im) {
+    std::shared_ptr<heif_image> img(imgPtr, [](heif_image *im) {
         heif_image_release(im);
     });
 
@@ -159,21 +159,20 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     img.reset();
     handle.reset();
 
-    std::shared_ptr<uint8_t> dstARGB(static_cast<uint8_t *>(malloc(stride * imageHeight)),
-                                     [](uint8_t *f) { free(f); });
+    std::vector<uint8_t> dstARGB(stride * imageHeight);
 
     if (useBitmapHalf16Floats) {
         const float scale = 1.0f / float((1 << bitDepth) - 1);
         libyuv::HalfFloatPlane(reinterpret_cast<const uint16_t *>(initialData.data()),
                                stride,
-                               reinterpret_cast<uint16_t *>(dstARGB.get()),
+                               reinterpret_cast<uint16_t *>(dstARGB.data()),
                                stride,
                                scale,
                                imageWidth * 4,
                                imageHeight);
 
     } else {
-        std::copy(initialData.begin(), initialData.end(), dstARGB.get());
+        dstARGB = initialData;
     }
 
     initialData.clear();
@@ -188,13 +187,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         if (assetManager != nullptr && isVulkanLoaded) {
             std::string kernel = "SMPTE2084_BT2020.comp.spv";
             vulkanWorkerDone = VulkanRunner(kernel, assetManager,
-                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            reinterpret_cast<uint8_t *>(dstARGB.data()), imageWidth,
                                             imageHeight, stride,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
             PerceptualQuantinizer perceptualQuantinizer(
-                    reinterpret_cast<uint8_t *>(dstARGB.get()),
+                    reinterpret_cast<uint8_t *>(dstARGB.data()),
                     stride, imageWidth, imageHeight, useBitmapHalf16Floats, useBitmapHalf16Floats,
                     useBitmapHalf16Floats ? 16 : 8, Rec2020);
             perceptualQuantinizer.transfer();
@@ -208,12 +207,12 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         if (assetManager != nullptr && isVulkanLoaded) {
             std::string kernel = "HLG_BT2020.comp.spv";
             vulkanWorkerDone = VulkanRunner(kernel, assetManager,
-                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            reinterpret_cast<uint8_t *>(dstARGB.data()), imageWidth,
                                             imageHeight, stride,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.get()),
+            coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.data()),
                               useBitmapHalf16Floats, stride, imageWidth, imageHeight,
                               useBitmapHalf16Floats ? 16 : 8, coder::Rec2020);
         }
@@ -226,7 +225,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         if (assetManager != nullptr && isVulkanLoaded) {
             std::string kernel = "HLG_P3.comp.spv";
             vulkanWorkerDone = VulkanRunner(kernel, assetManager,
-                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            reinterpret_cast<uint8_t *>(dstARGB.data()), imageWidth,
                                             imageHeight, stride,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
@@ -244,13 +243,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         if (assetManager != nullptr && isVulkanLoaded) {
             std::string kernel = "SMPTE2084_P3.comp.spv";
             vulkanWorkerDone = VulkanRunner(kernel, assetManager,
-                                            reinterpret_cast<uint8_t *>(dstARGB.get()), imageWidth,
+                                            reinterpret_cast<uint8_t *>(dstARGB.data()), imageWidth,
                                             imageHeight, stride,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
             PerceptualQuantinizer perceptualQuantinizer(
-                    reinterpret_cast<uint8_t *>(dstARGB.get()),
+                    reinterpret_cast<uint8_t *>(dstARGB.data()),
                     stride, imageWidth, imageHeight,
                     useBitmapHalf16Floats,
                     useBitmapHalf16Floats,
@@ -279,8 +278,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     if (!alphaPremultiplied) {
         if (!useBitmapHalf16Floats) {
-            libyuv::ARGBAttenuate(reinterpret_cast<uint8_t *>(dstARGB.get()), stride,
-                                  reinterpret_cast<uint8_t *>(dstARGB.get()), stride, imageWidth,
+            libyuv::ARGBAttenuate(reinterpret_cast<uint8_t *>(dstARGB.data()), stride,
+                                  reinterpret_cast<uint8_t *>(dstARGB.data()), stride, imageWidth,
                                   imageHeight);
         } else {
             // Premultiplying HDR images in half float currently not implemented

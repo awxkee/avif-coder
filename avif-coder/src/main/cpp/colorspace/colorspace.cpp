@@ -290,7 +290,7 @@ cmsHPROFILE colorspacesCreateLinearInfraredProfile() {
 }
 
 void
-convertUseProfiles(std::shared_ptr<uint8_t> &vector, int stride,
+convertUseProfiles(std::vector<uint8_t> &vector, int stride,
                    cmsHPROFILE srcProfile,
                    int width, int height,
                    cmsHPROFILE dstProfile,
@@ -317,14 +317,14 @@ convertUseProfiles(std::shared_ptr<uint8_t> &vector, int stride,
     ThreadPool pool;
     std::vector<std::future<void>> results;
 
-    std::vector<char> iccARGB;
+    std::vector<uint8_t> iccARGB;
     int mStride = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
     int newLength = mStride * height;
     iccARGB.resize(newLength);
 
     for (int y = 0; y < height; ++y) {
         auto r = pool.enqueue(cmsDoTransformLineStride, ptrTransform.get(),
-                              vector.get() + stride * y, iccARGB.data() + mStride * y, width, 1,
+                              vector.data() + stride * y, iccARGB.data() + mStride * y, width, 1,
                               stride, stride, 0, 0);
         results.push_back(std::move(r));
     }
@@ -333,13 +333,13 @@ convertUseProfiles(std::shared_ptr<uint8_t> &vector, int stride,
         result.wait();
     }
 
-    std::copy(iccARGB.begin(), iccARGB.end(), vector.get());
+    iccARGB = vector;
     *newStride = mStride;
 }
 
 
 void
-convertUseICC(std::shared_ptr<uint8_t> &vector, int stride, int width, int height,
+convertUseICC(std::vector<uint8_t> &vector, int stride, int width, int height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
               bool image16Bits, int *newStride) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);

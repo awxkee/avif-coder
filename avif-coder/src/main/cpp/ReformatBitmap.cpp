@@ -39,7 +39,7 @@
 #include <mutex>
 
 void
-ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
+ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
                     int imageWidth, int imageHeight, int *stride, bool *useFloats,
                     jobject *hwBuffer) {
@@ -48,11 +48,9 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
         case Rgba_8888:
             if (*useFloats) {
                 int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
-                std::shared_ptr<uint8_t> rgba8888Data(
-                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
-                        [](uint8_t *f) { free(f); });
-                coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(imageData.get()),
-                                          *stride, rgba8888Data.get(), dstStride, imageWidth,
+                std::vector<uint8_t> rgba8888Data(dstStride * imageHeight);
+                coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(imageData.data()),
+                                          *stride, rgba8888Data.data(), dstStride, imageWidth,
                                           imageHeight, 8);
                 *stride = dstStride;
                 *useFloats = false;
@@ -65,11 +63,9 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
                 break;
             } else {
                 int dstStride = imageWidth * 4 * (int) sizeof(uint16_t);
-                std::shared_ptr<uint8_t> rgbaF16Data(
-                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
-                        [](uint8_t *f) { free(f); });
-                coder::Rgba8ToF16(imageData.get(), *stride,
-                                  reinterpret_cast<uint16_t *>(rgbaF16Data.get()), dstStride,
+                std::vector<uint8_t> rgbaF16Data(dstStride * imageHeight);
+                coder::Rgba8ToF16(imageData.data(), *stride,
+                                  reinterpret_cast<uint16_t *>(rgbaF16Data.data()), dstStride,
                                   imageWidth, imageHeight, depth);
                 *stride = dstStride;
                 *useFloats = true;
@@ -80,11 +76,9 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
         case Rgb_565:
             if (*useFloats) {
                 int dstStride = imageWidth * (int) sizeof(uint16_t);
-                std::shared_ptr<uint8_t> rgb565Data(
-                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
-                        [](uint8_t *f) { free(f); });
-                coder::RGBAF16To565(reinterpret_cast<const uint16_t *>(imageData.get()), *stride,
-                                    reinterpret_cast<uint16_t *>(rgb565Data.get()), dstStride,
+                std::vector<uint8_t> rgb565Data(dstStride * imageHeight);
+                coder::RGBAF16To565(reinterpret_cast<const uint16_t *>(imageData.data()), *stride,
+                                    reinterpret_cast<uint16_t *>(rgb565Data.data()), dstStride,
                                     imageWidth, imageHeight);
                 *stride = dstStride;
                 *useFloats = false;
@@ -93,11 +87,9 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
                 break;
             } else {
                 int dstStride = imageWidth * (int) sizeof(uint16_t);
-                std::shared_ptr<uint8_t> rgb565Data(
-                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
-                        [](uint8_t *f) { free(f); });
-                coder::Rgba8To565(imageData.get(), *stride,
-                                  reinterpret_cast<uint16_t *>(rgb565Data.get()), dstStride,
+                std::vector<uint8_t> rgb565Data(dstStride * imageHeight);
+                coder::Rgba8To565(imageData.data(), *stride,
+                                  reinterpret_cast<uint16_t *>(rgb565Data.data()), dstStride,
                                   imageWidth, imageHeight, depth);
                 *stride = dstStride;
                 *useFloats = false;
@@ -108,12 +100,10 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
         case Rgba_1010102:
             if (*useFloats) {
                 int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
-                std::shared_ptr<uint8_t> rgba1010102Data(
-                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
-                        [](uint8_t *f) { free(f); });
-                coder::F16ToRGBA1010102(reinterpret_cast<const uint16_t *>(imageData.get()),
+                std::vector<uint8_t> rgba1010102Data(dstStride * imageHeight);
+                coder::F16ToRGBA1010102(reinterpret_cast<const uint16_t *>(imageData.data()),
                                         *stride,
-                                        reinterpret_cast<uint8_t *>(rgba1010102Data.get()),
+                                        reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
                                         dstStride,
                                         imageWidth, imageHeight);
                 *stride = dstStride;
@@ -123,12 +113,10 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
                 break;
             } else {
                 int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
-                std::shared_ptr<uint8_t> rgba1010102Data(
-                        static_cast<uint8_t *>(malloc(dstStride * imageHeight)),
-                        [](uint8_t *f) { free(f); });
-                coder::Rgba8ToRGBA1010102(reinterpret_cast<const uint8_t *>(imageData.get()),
+                std::vector<uint8_t> rgba1010102Data(dstStride * imageHeight);
+                coder::Rgba8ToRGBA1010102(reinterpret_cast<const uint8_t *>(imageData.data()),
                                           *stride,
-                                          reinterpret_cast<uint8_t *>(rgba1010102Data.get()),
+                                          reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
                                           dstStride,
                                           imageWidth, imageHeight);
                 *stride = dstStride;
@@ -171,7 +159,7 @@ ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::strin
             AHardwareBuffer_describe_compat(hardwareBuffer, &bufferDesc);
 
             int pixelSize = (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t);
-            coder::CopyUnalignedRGBA(imageData.get(), *stride, buffer,
+            coder::CopyUnalignedRGBA(imageData.data(), *stride, buffer,
                                      (int) bufferDesc.stride * 4 * pixelSize,
                                      (int) bufferDesc.width,
                                      (int) bufferDesc.height,

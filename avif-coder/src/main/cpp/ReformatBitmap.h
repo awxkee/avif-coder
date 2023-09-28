@@ -34,7 +34,7 @@
 #include "Support.h"
 
 void
-ReformatColorConfig(JNIEnv *env, std::shared_ptr<uint8_t> &imageData, std::string &imageConfig,
+ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
                     int imageWidth, int imageHeight, int *stride, bool *useFloats,
                     jobject *hwBuffer);

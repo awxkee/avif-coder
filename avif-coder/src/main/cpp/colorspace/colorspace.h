@@ -38,7 +38,7 @@
 #include "lcms2.h"
 
 void
-convertUseICC(std::shared_ptr<uint8_t> &vector, int stride, int width, int height,
+convertUseICC(std::vector<uint8_t> &vector, int stride, int width, int height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
               bool image16Bits, int *newStride);
 
@@ -79,7 +79,7 @@ static ColorSpace colorspacesCreateDisplayP3RgbProfile();
 
 cmsHPROFILE createGammaCorrectionProfile(double gamma);
 void
-convertUseProfiles(std::shared_ptr<uint8_t> &vector, int stride,
+convertUseProfiles(std::vector<uint8_t> &vector, int stride,
                    cmsHPROFILE srcProfile,
                    int width, int height,
                    cmsHPROFILE dstProfile,
