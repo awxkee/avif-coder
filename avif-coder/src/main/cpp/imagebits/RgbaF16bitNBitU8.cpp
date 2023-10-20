@@ -27,12 +27,15 @@
  */
 
 #include "RgbaF16bitNBitU8.h"
-#include "HalfFloats.h"
+#include "half.hpp"
 #include <algorithm>
 #include "ThreadPool.hpp"
 
+using namespace std;
+
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "imagebits/RgbaF16bitNBitU8.cpp"
+
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
 
@@ -118,15 +121,15 @@ namespace coder::HWY_NAMESPACE {
 
             StoreInterleaved4(r16Row, g16Row, b16Row, a16Row, du8, dst);
 
-            src += 4*pixels;
-            dst += 4*pixels;
+            src += 4 * pixels;
+            dst += 4 * pixels;
         }
 
         for (; x < width; ++x) {
-            auto tmpR = (uint16_t) std::clamp(half_to_float(src[0]) / scale, 0.0f, maxColors);
-            auto tmpG = (uint16_t) std::clamp(half_to_float(src[1]) / scale, 0.0f, maxColors);
-            auto tmpB = (uint16_t) std::clamp(half_to_float(src[2]) / scale, 0.0f, maxColors);
-            auto tmpA = (uint16_t) std::clamp(half_to_float(src[3]) / scale, 0.0f, maxColors);
+            auto tmpR = (uint16_t) clamp(LoadHalf(src[0]) / scale, 0.0f, maxColors);
+            auto tmpG = (uint16_t) clamp(LoadHalf(src[1]) / scale, 0.0f, maxColors);
+            auto tmpB = (uint16_t) clamp(LoadHalf(src[2]) / scale, 0.0f, maxColors);
+            auto tmpA = (uint16_t) clamp(LoadHalf(src[3]) / scale, 0.0f, maxColors);
 
             dst[0] = tmpR;
             dst[1] = tmpG;
@@ -142,8 +145,6 @@ namespace coder::HWY_NAMESPACE {
     void RGBAF16BitToNBitU8(const uint16_t *sourceData, int srcStride,
                             uint8_t *dst, int dstStride, int width,
                             int height, int bitDepth) {
-        ThreadPool pool;
-        std::vector<std::future<void>> results;
 
         float maxColors = powf(2, (float) bitDepth) - 1;
 
@@ -152,18 +153,31 @@ namespace coder::HWY_NAMESPACE {
 
         const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-        for (int y = 0; y < height; ++y) {
-            auto r = pool.enqueue(RGBAF16BitToNBitRowU8,
-                                  reinterpret_cast<const uint16_t *>(mSrc),
-                                  reinterpret_cast<uint8_t *>(mDst), width, scale,
-                                  maxColors);
-            results.push_back(std::move(r));
-            mSrc += srcStride;
-            mDst += dstStride;
-        }
+        int minimumTilingAreaSize = 850 * 850;
 
-        for (auto &result: results) {
-            result.wait();
+        if (width * height >= minimumTilingAreaSize) {
+            ThreadPool pool;
+            std::vector<std::future<void>> results;
+            for (int y = 0; y < height; ++y) {
+                auto r = pool.enqueue(RGBAF16BitToNBitRowU8,
+                                      reinterpret_cast<const uint16_t *>(mSrc),
+                                      reinterpret_cast<uint8_t *>(mDst), width, scale,
+                                      maxColors);
+                results.push_back(std::move(r));
+                mSrc += srcStride;
+                mDst += dstStride;
+            }
+            for (auto &result: results) {
+                result.wait();
+            }
+        } else {
+            for (int y = 0; y < height; ++y) {
+                RGBAF16BitToNBitRowU8(reinterpret_cast<const uint16_t *>(mSrc),
+                                      reinterpret_cast<uint8_t *>(mDst), width, scale,
+                                      maxColors);
+                mSrc += srcStride;
+                mDst += dstStride;
+            }
         }
     }
 }

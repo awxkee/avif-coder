@@ -28,7 +28,9 @@
 
 #include "HLG.h"
 #include "ThreadPool.hpp"
-#include "imagebits/HalfFloats.h"
+#include "imagebits/half.hpp"
+
+using namespace half_float;
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "HLG.cpp"
@@ -231,13 +233,13 @@ namespace coder {
             auto g = (float) data[1] / (float) maxColors;
             auto b = (float) data[2] / (float) maxColors;
             if (gammaCorrection == Rec2020) {
-                data[0] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(r)));
-                data[1] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(g)));
-                data[2] = (uint16_t) float_to_half((float) bt2020HLGGammaCorrection(Evaluate(b)));
+                data[0] = (uint16_t) half((float) bt2020HLGGammaCorrection(Evaluate(r))).data_;
+                data[1] = (uint16_t) half((float) bt2020HLGGammaCorrection(Evaluate(g))).data_;
+                data[2] = (uint16_t) half((float) bt2020HLGGammaCorrection(Evaluate(b))).data_;
             } else if (gammaCorrection == DCIP3) {
-                data[0] = (uint16_t) float_to_half((float) dciP3HLGGammaCorrection(Evaluate(r)));
-                data[1] = (uint16_t) float_to_half((float) dciP3HLGGammaCorrection(Evaluate(g)));
-                data[2] = (uint16_t) float_to_half((float) dciP3HLGGammaCorrection(Evaluate(b)));
+                data[0] = (uint16_t) half((float) dciP3HLGGammaCorrection(Evaluate(r))).data_;
+                data[1] = (uint16_t) half((float) dciP3HLGGammaCorrection(Evaluate(g))).data_;
+                data[2] = (uint16_t) half((float) dciP3HLGGammaCorrection(Evaluate(b))).data_;
             }
         }
 

@@ -28,7 +28,7 @@
 
 #include "Rgb565.h"
 #include "ThreadPool.hpp"
-#include "HalfFloats.h"
+#include "half.hpp"
 #include <algorithm>
 
 #undef HWY_TARGET_INCLUDE
@@ -203,9 +203,9 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            uint16_t red565 = ((uint16_t )roundf(half_to_float(src[0]) * maxColors) >> 3) << 11;
-            uint16_t green565 = ((uint16_t )roundf(half_to_float(src[1]) * maxColors) >> 2) << 5;
-            uint16_t blue565 = (uint16_t )roundf(half_to_float(src[2]) * maxColors) >> 3;
+            uint16_t red565 = ((uint16_t )roundf(LoadHalf(src[0]) * maxColors) >> 3) << 11;
+            uint16_t green565 = ((uint16_t )roundf(LoadHalf(src[1]) * maxColors) >> 2) << 5;
+            uint16_t blue565 = (uint16_t )roundf(LoadHalf(src[2]) * maxColors) >> 3;
 
             auto result = static_cast<uint16_t>(red565 | green565 | blue565);
             dst[0] = result;

@@ -28,7 +28,9 @@
 
 #include "Rgba8ToF16.h"
 #include "ThreadPool.hpp"
-#include "HalfFloats.h"
+#include "half.hpp"
+
+using namespace half_float;
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "imagebits/Rgba8ToF16.cpp"
@@ -110,10 +112,10 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            auto tmpR = (uint16_t) float_to_half((float) src[0] * scale);
-            auto tmpG = (uint16_t) float_to_half((float) src[1] * scale);
-            auto tmpB = (uint16_t) float_to_half((float) src[2] * scale);
-            auto tmpA = (uint16_t) float_to_half((float) src[3] * scale);
+            auto tmpR = (uint16_t) half((float) src[0] * scale).data_;
+            auto tmpG = (uint16_t) half((float) src[1] * scale).data_;
+            auto tmpB = (uint16_t) half((float) src[2] * scale).data_;
+            auto tmpA = (uint16_t) half((float) src[3] * scale).data_;
 
             dst[0] = tmpR;
             dst[1] = tmpG;
@@ -129,26 +131,37 @@ namespace coder::HWY_NAMESPACE {
     void Rgba8ToF16HWY(const uint8_t *sourceData, int srcStride,
                        uint16_t *dst, int dstStride, int width,
                        int height, int bitDepth) {
-
-        ThreadPool pool;
-        std::vector<std::future<void>> results;
-
         auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
         auto mDst = reinterpret_cast<uint8_t *>(dst);
 
         const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-        for (int y = 0; y < height; ++y) {
-            auto r = pool.enqueue(Rgba8ToF16HWYRow,
-                                  reinterpret_cast<const uint8_t *>(mSrc),
-                                  reinterpret_cast<uint16_t *>(mDst), width, scale);
-            results.push_back(std::move(r));
-            mSrc += srcStride;
-            mDst += dstStride;
-        }
+        int minimumTilingAreaSize = 850 * 850;
 
-        for (auto &result: results) {
-            result.wait();
+        int currentAreaSize = width * height;
+        if (minimumTilingAreaSize > currentAreaSize) {
+            ThreadPool pool;
+            std::vector<std::future<void>> results;
+
+            for (int y = 0; y < height; ++y) {
+                auto r = pool.enqueue(Rgba8ToF16HWYRow,
+                                      reinterpret_cast<const uint8_t *>(mSrc),
+                                      reinterpret_cast<uint16_t *>(mDst), width, scale);
+                results.push_back(std::move(r));
+                mSrc += srcStride;
+                mDst += dstStride;
+            }
+
+            for (auto &result: results) {
+                result.wait();
+            }
+        } else {
+            for (int y = 0; y < height; ++y) {
+                Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc),
+                                 reinterpret_cast<uint16_t *>(mDst), width, scale);
+                mSrc += srcStride;
+                mDst += dstStride;
+            }
         }
 
     }

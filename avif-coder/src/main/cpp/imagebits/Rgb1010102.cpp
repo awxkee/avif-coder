@@ -30,7 +30,9 @@
 #include <vector>
 #include "ThreadPool.hpp"
 #include <algorithm>
-#include "HalfFloats.h"
+#include "half.hpp"
+
+using namespace std;
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "imagebits/Rgb1010102.cpp"
@@ -129,14 +131,14 @@ namespace coder {
             }
 
             for (; x < width; ++x) {
-                auto A16 = (float) half_to_float(data[permuteMap[0]]);
-                auto R16 = (float) half_to_float(data[permuteMap[1]]);
-                auto G16 = (float) half_to_float(data[permuteMap[2]]);
-                auto B16 = (float) half_to_float(data[permuteMap[3]]);
-                auto R10 = (uint32_t) (std::clamp(R16 * range10, 0.0f, (float) range10));
-                auto G10 = (uint32_t) (std::clamp(G16 * range10, 0.0f, (float) range10));
-                auto B10 = (uint32_t) (std::clamp(B16 * range10, 0.0f, (float) range10));
-                auto A10 = (uint32_t) std::clamp(roundf(A16 * 3.f), 0.0f, 3.0f);
+                auto A16 = (float) LoadHalf(data[permuteMap[0]]);
+                auto R16 = (float) LoadHalf(data[permuteMap[1]]);
+                auto G16 = (float) LoadHalf(data[permuteMap[2]]);
+                auto B16 = (float) LoadHalf(data[permuteMap[3]]);
+                auto R10 = (uint32_t) (clamp(R16 * range10, 0.0f, (float) range10));
+                auto G10 = (uint32_t) (clamp(G16 * range10, 0.0f, (float) range10));
+                auto B10 = (uint32_t) (clamp(B16 * range10, 0.0f, (float) range10));
+                auto A10 = (uint32_t) clamp(roundf(A16 * 3.f), 0.0f, 3.0f);
 
                 dst32[0] = (A10 << 30) | (R10 << 20) | (G10 << 10) | B10;
 

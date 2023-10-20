@@ -27,9 +27,11 @@
  */
 
 #include "PerceptualQuantinizer.h"
-#include "imagebits/HalfFloats.h"
 #include <vector>
 #include "ThreadPool.hpp"
+#include "imagebits/half.hpp"
+
+using namespace half_float;
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "PerceptualQuantinizer.cpp"
@@ -74,49 +76,49 @@ namespace coder {
         using hwy::float16_t;
         using hwy::float32_t;
 
-        FixedTag<float32_t, 4> fixedFloatTagPQ;
-
-        const Vec<FixedTag<float32_t, 4>> expTab[8] =
+        const float expTab[8] =
                 {
-                        Set(fixedFloatTagPQ, 1.f),
-                        Set(fixedFloatTagPQ, 0.0416598916054f),
-                        Set(fixedFloatTagPQ, 0.500000596046f),
-                        Set(fixedFloatTagPQ, 0.0014122662833f),
-                        Set(fixedFloatTagPQ, 1.00000011921f),
-                        Set(fixedFloatTagPQ, 0.00833693705499f),
-                        Set(fixedFloatTagPQ, 0.166665703058f),
-                        Set(fixedFloatTagPQ, 0.000195780929062f),
+                        1.f,
+                        0.0416598916054f,
+                        0.500000596046f,
+                        0.0014122662833f,
+                        1.00000011921f,
+                        0.00833693705499f,
+                        0.166665703058f,
+                        0.000195780929062f,
                 };
 
-        const Vec<FixedTag<float32_t, 4>> logTab[8] =
+        const float logTab[8] =
                 {
-                        Set(fixedFloatTagPQ, -2.29561495781f),
-                        Set(fixedFloatTagPQ, -2.47071170807f),
-                        Set(fixedFloatTagPQ, -5.68692588806f),
-                        Set(fixedFloatTagPQ, -0.165253549814f),
-                        Set(fixedFloatTagPQ, 5.17591238022f),
-                        Set(fixedFloatTagPQ, 0.844007015228f),
-                        Set(fixedFloatTagPQ, 4.58445882797f),
-                        Set(fixedFloatTagPQ, 0.0141278216615f),
+                        -2.29561495781f,
+                        -2.47071170807f,
+                        -5.68692588806f,
+                        -0.165253549814f,
+                        5.17591238022f,
+                        0.844007015228f,
+                        4.58445882797f,
+                        0.0141278216615f,
                 };
 
-        inline Vec<FixedTag<float32_t, 4>>
-        TaylorPolyExp(Vec<FixedTag<float32_t, 4>> x, const Vec<FixedTag<float32_t, 4>> *coeffs) {
-            FixedTag<float32_t, 4> d;
+        template<typename T, size_t N, HWY_IF_FLOAT(T)>
+        inline Vec<FixedTag<T, N>>
+        TaylorPolyExp(Vec<FixedTag<T, N>> x, const float *coeffs) {
+            FixedTag<T, N> d;
             using VF32 = Vec<decltype(d)>;
 
-            VF32 A = MulAdd(coeffs[4], x, coeffs[0]);
-            VF32 B = MulAdd(coeffs[6], x, coeffs[2]);
-            VF32 C = MulAdd(coeffs[5], x, coeffs[1]);
-            VF32 D = MulAdd(coeffs[7], x, coeffs[3]);
+            VF32 A = MulAdd(Set(d, coeffs[4]), x, Set(d, coeffs[0]));
+            VF32 B = MulAdd(Set(d, coeffs[6]), x, Set(d, coeffs[2]));
+            VF32 C = MulAdd(Set(d, coeffs[5]), x, Set(d, coeffs[1]));
+            VF32 D = MulAdd(Set(d, coeffs[1]), x, Set(d, coeffs[3]));
             VF32 x2 = Mul(x, x);
             VF32 x4 = Mul(x2, x2);
             VF32 res = MulAdd(MulAdd(D, x2, C), x4, MulAdd(B, x2, A));
             return res;
         }
 
-        inline Vec<FixedTag<float32_t, 4>> ExpF32(Vec<FixedTag<float32_t, 4>> x) {
-            FixedTag<float32_t, 4> d;
+        template<typename T, size_t N, HWY_IF_FLOAT(T)>
+        inline Vec<FixedTag<T, N>> ExpF32(Vec<FixedTag<T, N>> x) {
+            FixedTag<T, N> d;
             using VF32 = Vec<decltype(d)>;
             Rebind<int32_t, decltype(d)> s32;
             using VS32 = Vec<decltype(s32)>;
@@ -127,16 +129,17 @@ namespace coder {
             VS32 m = ConvertTo(s32, Mul(x, CONST_INV_LN2));
             auto val = NegMulAdd(ConvertTo(fs32, m), CONST_LN2, x);
             // Polynomial Approximation
-            auto poly = TaylorPolyExp(val, &expTab[0]);
+            auto poly = TaylorPolyExp<float32_t, 4>(val, &expTab[0]);
             // Reconstruct
             poly = BitCast(fs32, Add(BitCast(s32, poly), ShiftLeft<23>(m)));
             return poly;
         }
 
-        inline Vec<FixedTag<float32_t, 4>> LogPQF32(Vec<FixedTag<float32_t, 4>> x) {
-            FixedTag<float32_t, 4> d;
+        template<typename T, size_t N, HWY_IF_FLOAT(T)>
+        inline Vec<FixedTag<T, N>> LogPQF32(Vec<FixedTag<T, N>> x) {
+            FixedTag<T, N> d;
             using VF32 = Vec<decltype(d)>;
-            FixedTag<int32_t, 4> s32;
+            FixedTag<int32_t, N> s32;
             Rebind<int32_t, decltype(d)> sb32;
             Rebind<float32_t, decltype(s32)> fli32;
             using VS32 = Vec<decltype(s32)>;
@@ -147,15 +150,16 @@ namespace coder {
             VF32 val = BitCast(fli32,
                                Sub(BitCast(sb32, x), ShiftLeft<23>(m)));
             // Polynomial Approximation
-            VF32 poly = TaylorPolyExp(val, &logTab[0]);
+            VF32 poly = TaylorPolyExp<float32_t, 4>(val, &logTab[0]);
             // Reconstruct
             poly = MulAdd(ConvertTo(fli32, m), CONST_LN2, poly);
             return poly;
         }
 
-        inline Vec<FixedTag<float32_t, 4>>
-        PowPQ(Vec<FixedTag<float32_t, 4>> val, Vec<FixedTag<float32_t, 4>> n) {
-            return ExpF32(Mul(n, LogPQF32(val)));
+        template<typename T, size_t N, HWY_IF_FLOAT(T)>
+        inline Vec<FixedTag<T, N>>
+        PowPQ(Vec<FixedTag<T, N>> val, Vec<FixedTag<T, N>> n) {
+            return ExpF32<T, N>(Mul(n, LogPQF32<T, N>(val)));
         }
 
         static const float betaRec2020 = 0.018053968510807f;
@@ -208,7 +212,7 @@ namespace coder {
 
         template<class D, typename T = Vec<D>>
         inline T dciP3PQGammaCorrection(const D d, T color) {
-            return PowPQ(color, Set(d, 1 / 2.6f));
+            return PowPQ<float32_t, 4>(color, Set(d, 1 / 2.6f));
         }
 
         inline float dciP3PQGammaCorrection(float linear) {
@@ -216,25 +220,26 @@ namespace coder {
         }
 
         inline void TransferROWU16HFloats(uint16_t *data, PQGammaCorrection gammaCorrection) {
-            auto r = (float) half_to_float(data[0]);
-            auto g = (float) half_to_float(data[1]);
-            auto b = (float) half_to_float(data[2]);
+            auto r = (float) LoadHalf(data[0]);
+            auto g = (float) LoadHalf(data[1]);
+            auto b = (float) LoadHalf(data[2]);
             float luma = Luma(ToLinearToneMap(r), ToLinearToneMap(g), ToLinearToneMap(b));
             TriStim smpte = {ToLinearPQ(r), ToLinearPQ(g), ToLinearPQ(b)};
             float pqLuma = Luma(smpte);
             float scale = luma / pqLuma;
             if (gammaCorrection == Rec2020) {
-                data[0] = float_to_half((float) bt2020GammaCorrection(smpte.r * scale));
-                data[1] = float_to_half((float) bt2020GammaCorrection(smpte.g * scale));
-                data[2] = float_to_half((float) bt2020GammaCorrection(smpte.b * scale));
+                data[0] = half((float) bt2020GammaCorrection(smpte.r * scale)).data_;
+                data[1] = half((float) bt2020GammaCorrection(smpte.g * scale)).data_;
+                data[2] = half((float) bt2020GammaCorrection(smpte.b * scale)).data_;
             } else if (gammaCorrection == DCIP3) {
-                data[0] = float_to_half((float) dciP3PQGammaCorrection(smpte.r * scale));
-                data[1] = float_to_half((float) dciP3PQGammaCorrection(smpte.g * scale));
-                data[2] = float_to_half((float) dciP3PQGammaCorrection(smpte.b * scale));
+                data[0] = half((float) dciP3PQGammaCorrection(smpte.r * scale)).data_;
+                data[1] = half((float) dciP3PQGammaCorrection(smpte.g * scale)).data_;
+                data[2] = half((float) dciP3PQGammaCorrection(smpte.b * scale)).data_;
             }
         }
 
-        inline void TransferROWU8(uint8_t *data, float maxColors, PQGammaCorrection gammaCorrection) {
+        inline void
+        TransferROWU8(uint8_t *data, float maxColors, PQGammaCorrection gammaCorrection) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;
             auto b = (float) data[2] / (float) maxColors;
@@ -263,7 +268,8 @@ namespace coder {
             const auto cmp = color < bt2020;
             const auto branch1 = Mul(color, Set(d, 4.5f));
             const auto branch2 =
-                    Sub(Mul(alpha2020, PowPQ(color, Set(d, 0.45f))), Sub(alpha2020, Set(d, 1.0f)));
+                    Sub(Mul(alpha2020, PowPQ<float, 4>(color, Set(d, 0.45f))),
+                        Sub(alpha2020, Set(d, 1.0f)));
             return IfThenElse(cmp, branch1, branch2);
         }
 
@@ -277,7 +283,7 @@ namespace coder {
         inline T ToLinearToneMap(const D d, T v) {
             v = Max(Zero(d), v);
             auto divSet = Set(d, 5.0f);
-            return Min(Mul(PowPQ(v, Set(d, 2.8f)), Set(d, 2.3f)),
+            return Min(Mul(PowPQ<float, 4>(v, Set(d, 2.8f)), Set(d, 2.3f)),
                        Add(Div(v, divSet), Set(d, 0.8f)));
         }
 
@@ -289,8 +295,9 @@ namespace coder {
             T c1 = Set(d, 3424.0f / 4096.0f);
             T c2 = Set(d, (2413.0f / 4096.0f) * 32.0f);
             T c3 = Set(d, (2392.0f / 4096.0f) * 32.0f);
-            T p = PowPQ(v, Set(d, 1.0f / m2));
-            v = PowPQ(Div(Max(Sub(p, c1), Zero(d)), (Sub(c2, Mul(c3, p)))), Set(d, 1.0f / m1));
+            T p = PowPQ<float, 4>(v, Set(d, 1.0f / m2));
+            v = PowPQ<float, 4>(Div(Max(Sub(p, c1), Zero(d)), (Sub(c2, Mul(c3, p)))),
+                                Set(d, 1.0f / m1));
             v = Mul(v, Set(d, 10000.0f / 80.0f));
             return v;
         }

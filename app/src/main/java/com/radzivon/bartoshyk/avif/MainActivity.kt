@@ -149,7 +149,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/Land of the Lost-hdr.avif").source().buffer().readByteArray()
+            val buffer = this.assets.open("hdr/GUM Mall Lights-hdr.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
             val bitmap = coder.decodeSampled(

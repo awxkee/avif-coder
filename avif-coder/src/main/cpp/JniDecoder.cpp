@@ -17,7 +17,6 @@
 #include "colorspace/colorspace.h"
 #include <algorithm>
 #include <limits>
-#include "imagebits/HalfFloats.h"
 #include "imagebits/RgbaF16bitToNBitU16.h"
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
@@ -326,8 +325,8 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env, jobject
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *env, jobject thiz,
-                                                                      jobject byteBuffer,
                                                                       jobject assetManager,
+                                                                      jobject byteBuffer,
                                                                       jint scaledWidth,
                                                                       jint scaledHeight,
                                                                       jint clrConfig,
