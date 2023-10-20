@@ -591,14 +591,14 @@ void convertRGBA1010102ToU8_C(const uint8_t *src, int srcStride, uint8_t *dst, i
             uint32_t a = (a1 << 8) | (a1 << 6) | (a1 << 4) | (a1 << 2) | a1;
 
             // Convert each channel to floating-point values
-            auto rFloat = std::clamp(static_cast<uint8_t>((r * 255) / 1023), (uint8_t) 255,
-                                     (uint8_t) 0);
-            auto gFloat = std::clamp(static_cast<uint8_t>((g * 255) / 1023), (uint8_t) 255,
-                                     (uint8_t) 0);
-            auto bFloat = std::clamp(static_cast<uint8_t>((b * 255) / 1023), (uint8_t) 255,
-                                     (uint8_t) 0);
-            auto aFloat = std::clamp(static_cast<uint8_t>((a * 255) / 1023), (uint8_t) 255,
-                                     (uint8_t) 0);
+            auto rFloat = clamp(static_cast<uint8_t>((r * 255) / 1023), (uint8_t) 255,
+                                (uint8_t) 0);
+            auto gFloat = clamp(static_cast<uint8_t>((g * 255) / 1023), (uint8_t) 255,
+                                (uint8_t) 0);
+            auto bFloat = clamp(static_cast<uint8_t>((b * 255) / 1023), (uint8_t) 255,
+                                (uint8_t) 0);
+            auto aFloat = clamp(static_cast<uint8_t>((a * 255) / 1023), (uint8_t) 255,
+                                (uint8_t) 0);
 
             auto dstCast = reinterpret_cast<uint8_t *>(dstPointer);
             if (littleEndian) {

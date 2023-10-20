@@ -33,6 +33,8 @@
 #include "ThreadPool.hpp"
 #include <android/log.h>
 
+using namespace std;
+
 static const cmsCIEXYZ d65 = {0.95045471, 1.00000000, 1.08905029};
 
 //D65 (sRGB, AdobeRGB, Rec2020)
@@ -290,13 +292,13 @@ cmsHPROFILE colorspacesCreateLinearInfraredProfile() {
 }
 
 void
-convertUseProfiles(std::vector<uint8_t> &vector, int stride,
+convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
                    cmsHPROFILE srcProfile,
                    int width, int height,
                    cmsHPROFILE dstProfile,
                    bool image16Bits, int *newStride) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);
-    std::shared_ptr<void> contextPtr(context, [](void *profile) {
+    shared_ptr<void> contextPtr(context, [](void *profile) {
         cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
     });
     cmsHTRANSFORM transform = cmsCreateTransform(srcProfile,
@@ -310,21 +312,21 @@ convertUseProfiles(std::vector<uint8_t> &vector, int stride,
         __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
         return;
     }
-    std::shared_ptr<void> ptrTransform(transform, [](void *transform) {
+    shared_ptr<void> ptrTransform(transform, [](void *transform) {
         cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
     });
 
     ThreadPool pool;
-    std::vector<std::future<void>> results;
+    vector<future<void>> results;
 
-    std::vector<uint8_t> iccARGB;
+    vector<uint8_t> iccARGB;
     int mStride = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
     int newLength = mStride * height;
     iccARGB.resize(newLength);
 
     for (int y = 0; y < height; ++y) {
         auto r = pool.enqueue(cmsDoTransformLineStride, ptrTransform.get(),
-                              vector.data() + stride * y, iccARGB.data() + mStride * y, width, 1,
+                              srcVector.data() + stride * y, iccARGB.data() + mStride * y, width, 1,
                               stride, stride, 0, 0);
         results.push_back(std::move(r));
     }
@@ -333,17 +335,17 @@ convertUseProfiles(std::vector<uint8_t> &vector, int stride,
         result.wait();
     }
 
-    iccARGB = vector;
+    srcVector = iccARGB;
     *newStride = mStride;
 }
 
 
 void
-convertUseICC(std::vector<uint8_t> &vector, int stride, int width, int height,
+convertUseICC(vector<uint8_t> &vector, int stride, int width, int height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
               bool image16Bits, int *newStride) {
     cmsContext context = cmsCreateContext(nullptr, nullptr);
-    std::shared_ptr<void> contextPtr(context, [](void *profile) {
+    shared_ptr<void> contextPtr(context, [](void *profile) {
         cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
     });
     cmsHPROFILE srcProfile = cmsOpenProfileFromMem(colorSpace, colorSpaceSize);
@@ -352,12 +354,12 @@ convertUseICC(std::vector<uint8_t> &vector, int stride, int width, int height,
         __android_log_print(ANDROID_LOG_ERROR, "JXLCoder", "ColorProfile Allocation Failed");
         return;
     }
-    std::shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
+    shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
         cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
     });
     cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(
             reinterpret_cast<cmsContext>(contextPtr.get()));
-    std::shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
+    shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
         cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
     });
     cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
