@@ -371,7 +371,7 @@ namespace coder {
         void ProcessUSRow(uint8_t *HWY_RESTRICT data, int width, float maxColors,
                           PQGammaCorrection gammaCorrection) {
             const FixedTag<float32_t, 4> df32;
-            hwy::HWY_NAMESPACE::FixedTag<uint8_t, 4> d;
+            FixedTag<uint8_t, 4> d;
 
             const Rebind<uint32_t, decltype(d)> signed32;
             const Rebind<int32_t, decltype(df32)> floatToSigned;
