@@ -4606,13 +4606,4 @@ namespace half_float
 
 #endif
 
-#ifndef HALF_HALF_HPP_LOAD
-#define HALF_HALF_HPP_LOAD
-
-static inline float LoadHalf(uint16_t f) {
-    half_float::half h;
-    h.data_ = f;
-    return f;
-}
-
-#endif
+float LoadHalf(uint16_t f);
