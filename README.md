@@ -9,6 +9,8 @@ Extremly fast in decoding large HDR images or just large images.
 The most features AVIF, HEIF library in android.
 Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
 
+If `context` is provided to the coder HDR images tone mapping is done on [Vulkan](https://developer.android.com/ndk/guides/graphics/getting-started)
+
 # Usage example
 
 ```kotlin
