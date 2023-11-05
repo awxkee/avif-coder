@@ -51,6 +51,18 @@ void main() {
     color.g = (color.g <= 0.5f) ? (color.g * color.g / 3.0f) : ((exp((color.g - c) / a) + b) / 12.f);
     color.b = (color.b <= 0.5f) ? (color.b * color.b / 3.0f) : ((exp((color.b - c) / a) + b) / 12.f);
 
+    vec4 lumaVec = vec4(0.2627f, 0.6780f, 0.0593f, 0.0f);
+    float Lin = dot(color, lumaVec);
+
+    float contentMaxBrightness = 1000;
+    float whitePoint = 203.0f;
+    float displayMaxBrightness = 250.0f;
+    float Ld = contentMaxBrightness / whitePoint;
+    float a1 = (displayMaxBrightness / whitePoint) / (Ld * Ld);
+    float b1 = 1.0f / (displayMaxBrightness / whitePoint);
+    float shScale = (1.f + a1 * Lin) / (1.f + b1 * Lin);
+    color *= shScale;
+
     float betaRec2020 = 0.018053968510807f;
     float alphaRec2020 = 1.09929682680944f;
 

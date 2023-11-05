@@ -6,5 +6,5 @@
 float LoadHalf(uint16_t f) {
     half_float::half h;
     h.data_ = f;
-    return f;
+    return (float)h;
 }

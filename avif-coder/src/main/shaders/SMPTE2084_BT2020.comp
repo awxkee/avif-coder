@@ -43,8 +43,6 @@ void main() {
     vec4 pixel = texture(inputImage, coord);
     vec4 color = vec4(pixel.rgb, 0.0f);
     vec4 lumaVec = vec4(0.2627f, 0.6780f, 0.0593f, 0.0f);
-    vec4 linearColor = min(2.3f * pow(color, vec4(2.8f)), color / 5.0f + 0.8f);
-    float luma = dot(linearColor, lumaVec);
 
     float m1 = (2610.0 / 4096.0) / 4.0;
     float m2 = (2523.0 / 4096.0) * 128.0;
@@ -53,8 +51,17 @@ void main() {
     float c3 = (2392.0 / 4096.0) * 32.0;
     vec4 p = pow(max(color, vec4(0.0)), vec4(1.0 / m2));
     vec4 denom = pow(max(p - c1, 0.0) / (c2 - c3 * p), vec4(1.0 / m1));
-    color = vec4(vec3(denom * 10000.0 / 80), 1.0);
-    color *= luma / dot(color, lumaVec);
+    color = vec4(vec3(denom * 10000.0 / 203.0f), 1.0);
+    float Lin = dot(color, lumaVec);
+
+    float contentMaxBrightness = 1000;
+    float whitePoint = 203.0f;
+    float displayMaxBrightness = 250.0f;
+    float Ld = contentMaxBrightness / whitePoint;
+    float a = (displayMaxBrightness / whitePoint) / (Ld * Ld);
+    float b = 1.0f / (displayMaxBrightness / whitePoint);
+    float shScale = (1.f + a * Lin) / (1.f + b * Lin);
+    color *= shScale;
 
     float betaRec2020 = 0.018053968510807f;
     float alphaRec2020 = 1.09929682680944f;

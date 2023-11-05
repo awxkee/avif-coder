@@ -29,7 +29,8 @@
 #include "RgbaF16bitNBitU8.h"
 #include "half.hpp"
 #include <algorithm>
-#include "ThreadPool.hpp"
+#include <thread>
+#include <vector>
 
 using namespace std;
 
@@ -153,31 +154,31 @@ namespace coder::HWY_NAMESPACE {
 
         const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-        int minimumTilingAreaSize = 850 * 850;
+        int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
+                                    height * width / (256 * 256)), 1, 12);
+        std::vector<std::thread> workers;
 
-        if (width * height >= minimumTilingAreaSize) {
-            ThreadPool pool;
-            std::vector<std::future<void>> results;
-            for (int y = 0; y < height; ++y) {
-                auto r = pool.enqueue(RGBAF16BitToNBitRowU8,
-                                      reinterpret_cast<const uint16_t *>(mSrc),
-                                      reinterpret_cast<uint8_t *>(mDst), width, scale,
-                                      maxColors);
-                results.push_back(std::move(r));
-                mSrc += srcStride;
-                mDst += dstStride;
+        int segmentHeight = height / threadCount;
+
+        for (int i = 0; i < threadCount; i++) {
+            int start = i * segmentHeight;
+            int end = (i + 1) * segmentHeight;
+            if (i == threadCount - 1) {
+                end = height;
             }
-            for (auto &result: results) {
-                result.wait();
-            }
-        } else {
-            for (int y = 0; y < height; ++y) {
-                RGBAF16BitToNBitRowU8(reinterpret_cast<const uint16_t *>(mSrc),
-                                      reinterpret_cast<uint8_t *>(mDst), width, scale,
-                                      maxColors);
-                mSrc += srcStride;
-                mDst += dstStride;
-            }
+            workers.emplace_back(
+                    [start, end, mSrc, dstStride, mDst, maxColors, srcStride, width, scale]() {
+                        for (int y = start; y < end; ++y) {
+                            RGBAF16BitToNBitRowU8(
+                                    reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
+                                    reinterpret_cast<uint8_t *>(mDst + y * dstStride), width, scale,
+                                    maxColors);
+                        }
+                    });
+        }
+
+        for (std::thread &thread: workers) {
+            thread.join();
         }
     }
 }

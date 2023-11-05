@@ -30,7 +30,7 @@
 #include <cmath>
 #include "lcms2.h"
 #include <vector>
-#include "ThreadPool.hpp"
+#include <thread>
 #include <android/log.h>
 
 using namespace std;
@@ -316,23 +316,40 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
         cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
     });
 
-    ThreadPool pool;
-    vector<future<void>> results;
-
     vector<uint8_t> iccARGB;
     int mStride = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
     int newLength = mStride * height;
     iccARGB.resize(newLength);
 
-    for (int y = 0; y < height; ++y) {
-        auto r = pool.enqueue(cmsDoTransformLineStride, ptrTransform.get(),
-                              srcVector.data() + stride * y, iccARGB.data() + mStride * y, width, 1,
-                              stride, stride, 0, 0);
-        results.push_back(std::move(r));
+    int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
+                                height * width / (256 * 256)), 1, 12);
+    std::vector<std::thread> workers;
+
+    int segmentHeight = height / threadCount;
+
+    auto mOutputBuffer = iccARGB.data();
+    auto mInputBuffer = srcVector.data();
+    auto mTransform = ptrTransform.get();
+
+    for (int i = 0; i < threadCount; i++) {
+        int start = i * segmentHeight;
+        int end = (i + 1) * segmentHeight;
+        if (i == threadCount - 1) {
+            end = height;
+        }
+        workers.emplace_back(
+                [start, end, stride, mOutputBuffer, mInputBuffer, mStride, width, mTransform]() {
+                    for (int y = start; y < end; ++y) {
+                        cmsDoTransformLineStride(mTransform,
+                                                 mInputBuffer + stride * y,
+                                                 mOutputBuffer + mStride * y, width, 1,
+                                                 stride, stride, 0, 0);
+                    }
+                });
     }
 
-    for (auto &result: results) {
-        result.wait();
+    for (std::thread &thread: workers) {
+        thread.join();
     }
 
     srcVector = iccARGB;

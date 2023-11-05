@@ -28,7 +28,7 @@
 
 #include "Rgb1010102.h"
 #include <vector>
-#include "ThreadPool.hpp"
+#include <thread>
 #include <algorithm>
 #include "half.hpp"
 
@@ -209,31 +209,36 @@ namespace coder {
             int permuteMap[4] = {3, 2, 1, 0};
             int minimumTilingAreaSize = 850 * 850;
             auto src = reinterpret_cast<const uint8_t *>(source);
-            int currentAreaSize = width * height;
-            if (minimumTilingAreaSize > currentAreaSize) {
-                for (int y = 0; y < height; ++y) {
-                    Rgba8ToRGBA1010102HWYRow(
-                            reinterpret_cast<const uint8_t *>(src + srcStride * y),
-                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                            width, &permuteMap[0]);
-                }
-            } else {
-                ThreadPool pool;
-                std::vector<std::future<void>> results;
+            auto dst = reinterpret_cast<uint8_t *>(destination);
 
-                for (int y = 0; y < height; ++y) {
-                    auto r = pool.enqueue(Rgba8ToRGBA1010102HWYRow,
-                                          reinterpret_cast<const uint8_t *>(src +
-                                                                            srcStride * y),
-                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                                          width, &permuteMap[0]);
-                    results.push_back(std::move(r));
-                }
+            int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
+                                        height * width / (256 * 256)), 1, 12);
+            std::vector<std::thread> workers;
 
-                for (auto &result: results) {
-                    result.wait();
-                }
+            int segmentHeight = height / threadCount;
 
+            for (int i = 0; i < threadCount; i++) {
+                int start = i * segmentHeight;
+                int end = (i + 1) * segmentHeight;
+                if (i == threadCount - 1) {
+                    end = height;
+                }
+                workers.emplace_back(
+                        [start, end, src, dstStride, permuteMap, srcStride, dst, width]() {
+                            for (int y = start; y < end; ++y) {
+                                Rgba8ToRGBA1010102HWYRow(reinterpret_cast<const uint8_t *>(src +
+                                                                                           srcStride *
+                                                                                           y),
+                                                         reinterpret_cast<uint32_t *>(dst +
+                                                                                      dstStride *
+                                                                                      y),
+                                                         width, &permuteMap[0]);
+                            }
+                        });
+            }
+
+            for (std::thread &thread: workers) {
+                thread.join();
             }
         }
 
@@ -247,31 +252,35 @@ namespace coder {
             int permuteMap[4] = {3, 2, 1, 0};
             int minimumTilingAreaSize = 850 * 850;
             auto src = reinterpret_cast<const uint8_t *>(source);
-            int currentAreaSize = width * height;
-            if (minimumTilingAreaSize > currentAreaSize) {
-                for (int y = 0; y < height; ++y) {
-                    F16ToRGBA1010102HWYRow(
-                            reinterpret_cast<const uint16_t *>(src + srcStride * y),
-                            reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                            width, &permuteMap[0]);
-                }
-            } else {
-                ThreadPool pool;
-                std::vector<std::future<void>> results;
+            auto dst = reinterpret_cast<uint8_t *>(destination);
 
-                for (int y = 0; y < height; ++y) {
-                    auto r = pool.enqueue(F16ToRGBA1010102HWYRow,
-                                          reinterpret_cast<const uint16_t *>(src +
-                                                                             srcStride * y),
-                                          reinterpret_cast<uint32_t *>(destination + dstStride * y),
-                                          width, &permuteMap[0]);
-                    results.push_back(std::move(r));
-                }
+            int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
+                                        height * width / (256 * 256)), 1, 12);
+            std::vector<std::thread> workers;
 
-                for (auto &result: results) {
-                    result.wait();
-                }
+            int segmentHeight = height / threadCount;
 
+            for (int i = 0; i < threadCount; i++) {
+                int start = i * segmentHeight;
+                int end = (i + 1) * segmentHeight;
+                if (i == threadCount - 1) {
+                    end = height;
+                }
+                workers.emplace_back(
+                        [start, end, dst, dstStride, src, srcStride, permuteMap, width]() {
+                            for (int y = start; y < end; ++y) {
+                                F16ToRGBA1010102HWYRow(reinterpret_cast<const uint16_t *>(src +
+                                                                                          srcStride *
+                                                                                          y),
+                                                       reinterpret_cast<uint32_t *>(dst +
+                                                                                    dstStride * y),
+                                                       width, &permuteMap[0]);
+                            }
+                        });
+            }
+
+            for (std::thread &thread: workers) {
+                thread.join();
             }
         }
 

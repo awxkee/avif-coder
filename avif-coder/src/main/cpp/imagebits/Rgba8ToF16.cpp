@@ -27,9 +27,11 @@
  */
 
 #include "Rgba8ToF16.h"
-#include "ThreadPool.hpp"
+#include <thread>
+#include <vector>
 #include "half.hpp"
 
+using namespace std;
 using namespace half_float;
 
 #undef HWY_TARGET_INCLUDE
@@ -136,32 +138,29 @@ namespace coder::HWY_NAMESPACE {
 
         const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-        int minimumTilingAreaSize = 850 * 850;
+        int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
+                                    height * width / (256 * 256)), 1, 12);
+        std::vector<std::thread> workers;
 
-        int currentAreaSize = width * height;
-        if (minimumTilingAreaSize > currentAreaSize) {
-            ThreadPool pool;
-            std::vector<std::future<void>> results;
+        int segmentHeight = height / threadCount;
 
-            for (int y = 0; y < height; ++y) {
-                auto r = pool.enqueue(Rgba8ToF16HWYRow,
-                                      reinterpret_cast<const uint8_t *>(mSrc),
-                                      reinterpret_cast<uint16_t *>(mDst), width, scale);
-                results.push_back(std::move(r));
-                mSrc += srcStride;
-                mDst += dstStride;
+        for (int i = 0; i < threadCount; i++) {
+            int start = i * segmentHeight;
+            int end = (i + 1) * segmentHeight;
+            if (i == threadCount - 1) {
+                end = height;
             }
+            workers.emplace_back([start, end, mSrc, dstStride, mDst, srcStride, width, scale]() {
+                for (int y = start; y < end; ++y) {
+                    Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc + y * srcStride),
+                                     reinterpret_cast<uint16_t *>(mDst + y * dstStride), width,
+                                     scale);
+                }
+            });
+        }
 
-            for (auto &result: results) {
-                result.wait();
-            }
-        } else {
-            for (int y = 0; y < height; ++y) {
-                Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc),
-                                 reinterpret_cast<uint16_t *>(mDst), width, scale);
-                mSrc += srcStride;
-                mDst += dstStride;
-            }
+        for (std::thread &thread: workers) {
+            thread.join();
         }
 
     }

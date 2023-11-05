@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
-        val coder = HeifCoder(this)
+        val coder = HeifCoder()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("hdr/castle-hdr.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
@@ -174,6 +174,34 @@ class MainActivity : AppCompatActivity() {
                 ScaleMode.RESIZE
             )
             binding.imageView7.setImageBitmap(bitmap)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("federico-beccari.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width / 3,
+                size.height / 3,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView8.setImageBitmap(bitmap)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val bitmap = coder.decodeSampled(
+                buffer,
+                size.width / 2,
+                size.height / 2,
+                PreferredColorConfig.RGBA_1010102,
+                ScaleMode.RESIZE
+            )
+            binding.imageView9.setImageBitmap(bitmap)
         }
 
         //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
