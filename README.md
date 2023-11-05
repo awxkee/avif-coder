@@ -37,13 +37,13 @@ repositories {
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.5.1' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.5.3' // or any version above picker from release tags
 
-// Glide JPEG XL plugin if you need one
-implementation 'com.github.awxkee:avif-coder-glide:1.5.1' // or any version above picker from release tags
+// Glide avif plugin if you need one
+implementation 'com.github.awxkee:avif-coder-glide:1.5.3' // or any version above picker from release tags
 
-// Coil JPEG XL plugin if you need one
-implementation 'com.github.awxkee:avif-coder-coil:1.5.1' // or any version above picker from release tags
+// Coil avif plugin if you need one
+implementation 'com.github.awxkee:avif-coder-coil:1.5.3' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
