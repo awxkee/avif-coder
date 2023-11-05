@@ -4,7 +4,7 @@
  * Copyright (c) 2023 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 15/9/2023
+ * Created by Radzivon Bartoshyk on 07/09/2023
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,19 +26,42 @@
  *
  */
 
-#ifndef AVIF_HLG_H
-#define AVIF_HLG_H
+#ifndef AVIF_HDRTRANSFERADAPTER_H
+#define AVIF_HDRTRANSFERADAPTER_H
 
 #include <cstdint>
 
-namespace coder {
+enum PQGammaCorrection {
+    Rec2020, DCIP3
+};
 
-    enum HLGGammaCorrection {
-        Rec2020, DCIP3
-    };
+enum HDRTransferFunction {
+    PQ, HLG
+};
 
-    void ProcessHLG(uint8_t *data, bool halfFloats, int stride, int width, int height, int depth,
-                    HLGGammaCorrection correction);
-}
+class HDRTransferAdapter {
+public:
+    HDRTransferAdapter(uint8_t *rgbaData, int stride, int width, int height, bool U16,
+                       bool halfFloats, int bitDepth, PQGammaCorrection gammaCorrection,
+                       HDRTransferFunction function): function(function), gammaCorrection(gammaCorrection),
+                       bitDepth(bitDepth), halfFloats(halfFloats), rgbaData(rgbaData), stride(stride),
+                       width(width), height(height), U16(U16) {
+    }
 
-#endif //AVIF_HLG_H
+    void transfer();
+
+private:
+    const bool halfFloats;
+    const int stride;
+    const int bitDepth;
+    const int width;
+    const int height;
+    const HDRTransferFunction function;
+    uint8_t *rgbaData;
+    const PQGammaCorrection gammaCorrection;
+    const bool U16;
+protected:
+};
+
+
+#endif //AVIF_HDRTRANSFERADAPTER_H

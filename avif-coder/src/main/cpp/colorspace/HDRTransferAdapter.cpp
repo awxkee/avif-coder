@@ -26,7 +26,7 @@
  *
  */
 
-#include "PerceptualQuantinizer.h"
+#include "HDRTransferAdapter.h"
 #include <vector>
 #include <thread>
 #include "imagebits/half.hpp"
@@ -35,7 +35,7 @@ using namespace half_float;
 using namespace std;
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "PerceptualQuantinizer.cpp"
+#define HWY_TARGET_INCLUDE "HDRTransferAdapter.cpp"
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
@@ -82,7 +82,7 @@ namespace coder {
         using hwy::HWY_NAMESPACE::IfThenElse;
         using hwy::float16_t;
         using hwy::float32_t;
-        
+
         using hwy::HWY_NAMESPACE::Mul;
         using hwy::HWY_NAMESPACE::Vec128;
         using hwy::HWY_NAMESPACE::FixedTag;
@@ -102,9 +102,9 @@ namespace coder {
 
         public:
             Rec2408PQToneMapper(const float contentMaxBrightness,
-                                 const float displayMaxBrightness,
-                                 const float whitePoint,
-                                 const float lumaCoefficients[3]) {
+                                const float displayMaxBrightness,
+                                const float whitePoint,
+                                const float lumaCoefficients[3]) {
                 this->Ld = contentMaxBrightness / whitePoint;
                 this->a = (displayMaxBrightness / whitePoint) / (Ld * Ld);
                 this->b = 1.0f / (displayMaxBrightness / whitePoint);
@@ -241,7 +241,7 @@ namespace coder {
             return linear;
         }
 
-        float ToLinearPQ(float v, const float sdrReferencePoint) {
+        inline float ToLinearPQ(float v, const float sdrReferencePoint) {
             float o = v;
             v = max(0.0f, v);
             float m1 = (2610.0f / 4096.0f) / 4.0f;
@@ -253,6 +253,32 @@ namespace coder {
             v = pow(max(p - c1, 0.0f) / (c2 - c3 * p), 1.0f / m1);
             v *= 10000.0f / sdrReferencePoint;
             return copysign(v, o);
+        }
+
+        inline Vec<FixedTag<float32_t, 4>> HLGEotf(Vec<FixedTag<float32_t, 4>> v) {
+            FixedTag<float32_t, 4> df_;
+            v = Max(Zero(df_), v);
+            using VF32 = Vec<decltype(df_)>;
+            VF32 a = Set(df_, 0.17883277f);
+            VF32 b = Set(df_, 0.28466892f);
+            VF32 c = Set(df_, 0.55991073f);
+            VF32 mm = Set(df_, 0.5f);
+            const auto cmp = v < mm;
+            auto branch1 = Div(Mul(v, v), Set(df_, 3.f));
+            auto branch2 = Div(ExpF32(Add(Div(Sub(v, c), a), b)), Set(df_, 12.0f));
+            return IfThenElse(cmp, branch1, branch2);
+        }
+
+        inline float HLGEotf(float v) {
+            v = max(0.0f, v);
+            constexpr float a = 0.17883277f;
+            constexpr float b = 0.28466892f;
+            constexpr float c = 0.55991073f;
+            if (v <= 0.5f)
+                v = v * v / 3.0f;
+            else
+                v = (exp((v - c) / a) + b) / 12.f;
+            return v;
         }
 
         template<class D, typename T = Vec<D>>
@@ -288,15 +314,26 @@ namespace coder {
         }
 
         inline void
-        TransferROWU8(uint8_t *data, float maxColors, PQGammaCorrection gammaCorrection,
+        TransferROWU8(uint8_t *data, const float maxColors,
+                      const PQGammaCorrection gammaCorrection,
+                      const HDRTransferFunction function,
                       Rec2408PQToneMapper<FixedTag<float, 4>> *toneMapper) {
             auto r = (float) data[0] / (float) maxColors;
             auto g = (float) data[1] / (float) maxColors;
             auto b = (float) data[2] / (float) maxColors;
 
-            r = ToLinearPQ(r, 203.0f);
-            g = ToLinearPQ(g, 203.0f);
-            b = ToLinearPQ(b, 203.0f);
+            switch (function) {
+                case HLG:
+                    r = HLGEotf(r);
+                    g = HLGEotf(g);
+                    b = HLGEotf(b);
+                    break;
+                case PQ:
+                    r = ToLinearPQ(r, 203.0f);
+                    g = ToLinearPQ(g, 203.0f);
+                    b = ToLinearPQ(b, 203.0f);
+                    break;
+            }
 
             toneMapper->Execute(r, g, b);
 
@@ -345,58 +382,115 @@ namespace coder {
         }
 
         void
-        ProcessF16Row(uint16_t *HWY_RESTRICT data, int width, PQGammaCorrection gammaCorrection) {
-            const FixedTag<float16_t, 4> df16;
+        ProcessF16Row(uint16_t *HWY_RESTRICT data, const int width,
+                      const PQGammaCorrection gammaCorrection, const HDRTransferFunction function) {
+            const FixedTag<float16_t, 4> df16x4;
+            const FixedTag<float16_t, 8> df16x8;
             const FixedTag<float32_t, 4> df32;
-            const FixedTag<uint16_t, 4> du16;
-            const Rebind<float32_t, decltype(df16)> rebind32;
+            const FixedTag<uint16_t, 4> du16x4;
+            const FixedTag<uint16_t, 8> du16x8;
+            const Rebind<float32_t, decltype(df16x4)> rebind32;
             const Rebind<float16_t, decltype(df32)> rebind16;
 
-            using VU16 = Vec<decltype(du16)>;
+            using VU16x4 = Vec<decltype(du16x4)>;
+            using VU16x8 = Vec<decltype(du16x8)>;
+            using VF16x8 = Vec<decltype(df16x8)>;
             using VF32 = Vec<decltype(df32)>;
 
             const float lumaPrimaries[3] = {0.2627f, 0.6780f, 0.0593f};
-            Rec2408PQToneMapper<FixedTag<float, 4>> toneMapper(1000, 250.0f, 203.0f, lumaPrimaries);
+            Rec2408PQToneMapper<FixedTag<float, 4>> toneMapper(1000,
+                                                               250.0f, 203.0f, lumaPrimaries);
 
             auto ptr16 = reinterpret_cast<float16_t *>(data);
 
-            int pixels = 4;
+            int pixels = 8;
 
             int x;
             for (x = 0; x + pixels < width; x += pixels) {
-                VU16 RURow;
-                VU16 GURow;
-                VU16 BURow;
-                VU16 AURow;
-                LoadInterleaved4(du16, reinterpret_cast<uint16_t *>(ptr16), RURow, GURow, BURow,
+                VU16x8 RURow;
+                VU16x8 GURow;
+                VU16x8 BURow;
+                VU16x8 AURow;
+                LoadInterleaved4(du16x8, reinterpret_cast<uint16_t *>(ptr16), RURow, GURow, BURow,
                                  AURow);
-                VF32 r32 = PromoteTo(rebind32, BitCast(df16, RURow));
-                VF32 g32 = PromoteTo(rebind32, BitCast(df16, GURow));
-                VF32 b32 = PromoteTo(rebind32, BitCast(df16, BURow));
+                VF16x8 rf16 = BitCast(df16x8, RURow);
+                VF16x8 gf16 = BitCast(df16x8, GURow);
+                VF16x8 bf16 = BitCast(df16x8, BURow);
+                VF32 rLow32 = PromoteLowerTo(rebind32, rf16);
+                VF32 gLow32 = PromoteLowerTo(rebind32, gf16);
+                VF32 bLow32 = PromoteLowerTo(rebind32, bf16);
+                VF32 rHigh32 = PromoteUpperTo(rebind32, rf16);
+                VF32 gHigh32 = PromoteUpperTo(rebind32, gf16);
+                VF32 bHigh32 = PromoteUpperTo(rebind32, bf16);
 
-                VF32 pqR = ToLinearPQ(df32, r32);
-                VF32 pqG = ToLinearPQ(df32, g32);
-                VF32 pqB = ToLinearPQ(df32, b32);
+                VF32 pqLowR;
+                VF32 pqLowG;
+                VF32 pqLowB;
+                VF32 pqHighR;
+                VF32 pqHighG;
+                VF32 pqHighB;
 
-                toneMapper.Execute(pqR, pqG, pqB);
-
-                if (gammaCorrection == Rec2020) {
-                    pqR = bt2020GammaCorrection(df32, pqR);
-                    pqG = bt2020GammaCorrection(df32, pqG);
-                    pqB = bt2020GammaCorrection(df32, pqB);
-                } else if (gammaCorrection == DCIP3) {
-                    pqR = dciP3PQGammaCorrection(df32, pqR);
-                    pqG = dciP3PQGammaCorrection(df32, pqG);
-                    pqB = dciP3PQGammaCorrection(df32, pqB);
+                switch (function) {
+                    case PQ:
+                        pqLowR = ToLinearPQ(df32, rLow32);
+                        pqLowG = ToLinearPQ(df32, gLow32);
+                        pqLowB = ToLinearPQ(df32, bLow32);
+                        pqHighR = ToLinearPQ(df32, rHigh32);
+                        pqHighG = ToLinearPQ(df32, gHigh32);
+                        pqHighB = ToLinearPQ(df32, bHigh32);
+                        break;
+                    case HLG:
+                        pqLowR = HLGEotf(rLow32);
+                        pqLowG = HLGEotf(gLow32);
+                        pqLowB = HLGEotf(bLow32);
+                        pqHighR = HLGEotf(rHigh32);
+                        pqHighG = HLGEotf(gHigh32);
+                        pqHighB = HLGEotf(bHigh32);
+                        break;
+                    default:
+                        pqLowR = rLow32;
+                        pqLowG = gLow32;
+                        pqLowB = bLow32;
+                        pqHighR = rHigh32;
+                        pqHighG = gHigh32;
+                        pqHighB = bHigh32;
                 }
 
-                VU16 rNew = BitCast(du16, DemoteTo(rebind16, pqR));
-                VU16 gNew = BitCast(du16, DemoteTo(rebind16, pqG));
-                VU16 bNew = BitCast(du16, DemoteTo(rebind16, pqB));
+                toneMapper.Execute(pqLowR, pqLowG, pqLowB);
+                toneMapper.Execute(pqHighR, pqHighG, pqHighB);
 
-                StoreInterleaved4(rNew, gNew, bNew, AURow, du16,
+                if (gammaCorrection == Rec2020) {
+                    pqLowR = bt2020GammaCorrection(df32, pqLowR);
+                    pqLowG = bt2020GammaCorrection(df32, pqLowG);
+                    pqLowB = bt2020GammaCorrection(df32, pqLowB);
+
+                    pqHighR = bt2020GammaCorrection(df32, pqHighR);
+                    pqHighG = bt2020GammaCorrection(df32, pqHighG);
+                    pqHighB = bt2020GammaCorrection(df32, pqHighB);
+                } else if (gammaCorrection == DCIP3) {
+                    pqLowR = dciP3PQGammaCorrection(df32, pqLowR);
+                    pqLowG = dciP3PQGammaCorrection(df32, pqLowG);
+                    pqLowB = dciP3PQGammaCorrection(df32, pqLowB);
+
+                    pqHighR = dciP3PQGammaCorrection(df32, pqHighR);
+                    pqHighG = dciP3PQGammaCorrection(df32, pqHighG);
+                    pqHighB = dciP3PQGammaCorrection(df32, pqHighB);
+                }
+
+                VU16x4 rLowNew = BitCast(du16x4, DemoteTo(rebind16, pqLowR));
+                VU16x4 gLowNew = BitCast(du16x4, DemoteTo(rebind16, pqLowG));
+                VU16x4 bLowNew = BitCast(du16x4, DemoteTo(rebind16, pqLowB));
+
+                VU16x4 rHighNew = BitCast(du16x4, DemoteTo(rebind16, pqHighR));
+                VU16x4 gHighNew = BitCast(du16x4, DemoteTo(rebind16, pqHighG));
+                VU16x4 bHighNew = BitCast(du16x4, DemoteTo(rebind16, pqHighB));
+
+                StoreInterleaved4(Combine(du16x8, rHighNew, rLowNew),
+                                  Combine(du16x8, gHighNew, gLowNew),
+                                  Combine(du16x8, bHighNew, bLowNew),
+                                  AURow, du16x8,
                                   reinterpret_cast<uint16_t *>(ptr16));
-                ptr16 += 4 * 4;
+                ptr16 += 4 * pixels;
             }
 
             for (; x < width; ++x) {
@@ -407,6 +501,7 @@ namespace coder {
         }
 
         void TransferU8Row(const PQGammaCorrection &gammaCorrection,
+                           const HDRTransferFunction function,
                            Rec2408PQToneMapper<FixedTag<float, 4>> &toneMapper,
                            Vec128<float> &R,
                            Vec128<float> &G,
@@ -416,9 +511,26 @@ namespace coder {
             const FixedTag<float32_t, 4> df32;
             using VF32 = Vec<decltype(df32)>;
 
-            VF32 pqR = ToLinearPQ(df32, R);
-            VF32 pqG = ToLinearPQ(df32, G);
-            VF32 pqB = ToLinearPQ(df32, B);
+            VF32 pqR;
+            VF32 pqG;
+            VF32 pqB;
+
+            switch (function) {
+                case PQ:
+                    pqR = ToLinearPQ(df32, R);
+                    pqG = ToLinearPQ(df32, G);
+                    pqB = ToLinearPQ(df32, B);
+                    break;
+                case HLG:
+                    pqR = HLGEotf(R);
+                    pqG = HLGEotf(G);
+                    pqB = HLGEotf(B);
+                    break;
+                default:
+                    pqR = R;
+                    pqG = G;
+                    pqB = B;
+            }
 
             toneMapper.Execute(pqR, pqG, pqB);
 
@@ -441,8 +553,9 @@ namespace coder {
             B = pqB;
         }
 
-        void ProcessUSRow(uint8_t *HWY_RESTRICT data, int width, float maxColors,
-                          PQGammaCorrection gammaCorrection) {
+        void ProcessUSRow(uint8_t *HWY_RESTRICT data, const int width, const float maxColors,
+                          const PQGammaCorrection gammaCorrection,
+                          const HDRTransferFunction function) {
             const FixedTag<float32_t, 4> df32;
             FixedTag<uint8_t, 16> d;
             FixedTag<uint16_t, 8> du16;
@@ -482,14 +595,16 @@ namespace coder {
                 VF32 gLowerLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowG16)), vColors);
                 VF32 bLowerLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), vColors);
 
-                TransferU8Row(gammaCorrection, toneMapper, rLowerLow32, gLowerLow32, bLowerLow32,
+                TransferU8Row(gammaCorrection, function, toneMapper, rLowerLow32, gLowerLow32,
+                              bLowerLow32,
                               vColors, vZeros);
 
                 VF32 rLowerHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, lowR16)), vColors);
                 VF32 gLowerHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, lowG16)), vColors);
                 VF32 bLowerHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, lowB16)), vColors);
 
-                TransferU8Row(gammaCorrection, toneMapper, rLowerHigh32, gLowerHigh32, bLowerHigh32,
+                TransferU8Row(gammaCorrection, function, toneMapper, rLowerHigh32, gLowerHigh32,
+                              bLowerHigh32,
                               vColors, vZeros);
 
                 auto upperR16 = PromoteUpperTo(du16, RURow);
@@ -502,7 +617,8 @@ namespace coder {
                                         vColors);
                 VF32 bHigherLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), vColors);
 
-                TransferU8Row(gammaCorrection, toneMapper, rHigherLow32, gHigherLow32, bHigherLow32,
+                TransferU8Row(gammaCorrection, function, toneMapper, rHigherLow32, gHigherLow32,
+                              bHigherLow32,
                               vColors, vZeros);
 
                 VF32 rHigherHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, upperR16)),
@@ -512,7 +628,7 @@ namespace coder {
                 VF32 bHigherHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, upperB16)),
                                          vColors);
 
-                TransferU8Row(gammaCorrection, toneMapper, rHigherHigh32, gHigherHigh32,
+                TransferU8Row(gammaCorrection, function, toneMapper, rHigherHigh32, gHigherHigh32,
                               bHigherHigh32, vColors, vZeros);
 
                 auto rNew = DemoteTo(rebindOrigin, ConvertTo(floatToSigned, rHigherHigh32));
@@ -550,6 +666,7 @@ namespace coder {
 
             for (; x < width; ++x) {
                 TransferROWU8(reinterpret_cast<uint8_t *>(ptr16), maxColors, gammaCorrection,
+                              function,
                               &toneMapper);
                 ptr16 += 4;
             }
@@ -564,24 +681,25 @@ namespace coder {
     HWY_EXPORT(ProcessUSRow);
     HWY_EXPORT(ProcessF16Row);
     HWY_DLLEXPORT void
-    ProcessCPURow(uint8_t *data, int y, bool U16, bool halfFloats, int stride, int width,
-                  float maxColors, PQGammaCorrection gammaCorrection) {
+    ProcessCPURow(uint8_t *data, int y, bool U16, bool halfFloats, int stride, const int width,
+                  float maxColors, const PQGammaCorrection gammaCorrection,
+                  const HDRTransferFunction function) {
         if (U16) {
             auto ptr16 = reinterpret_cast<uint16_t *>(data + y * stride);
             if (halfFloats) {
                 HWY_DYNAMIC_DISPATCH(ProcessF16Row)(reinterpret_cast<uint16_t *>(ptr16), width,
-                                                    gammaCorrection);
+                                                    gammaCorrection, function);
             }
         } else {
             auto ptr16 = reinterpret_cast<uint8_t *>(data + y * stride);
             HWY_DYNAMIC_DISPATCH(ProcessUSRow)(reinterpret_cast<uint8_t *>(ptr16),
                                                width,
-                                               (float) maxColors, gammaCorrection);
+                                               (float) maxColors, gammaCorrection, function);
         }
     }
 }
 
-void PerceptualQuantinizer::transfer() {
+void HDRTransferAdapter::transfer() {
     auto maxColors = powf(2, (float) this->bitDepth) - 1;
     int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                 this->width * this->height / (256 * 256)), 1, 12);
@@ -598,7 +716,8 @@ void PerceptualQuantinizer::transfer() {
         workers.emplace_back([start, end, this, maxColors]() {
             for (int y = start; y < end; ++y) {
                 coder::ProcessCPURow(this->rgbaData, y, this->U16, this->halfFloats,
-                                     this->stride, this->width, maxColors, this->gammaCorrection);
+                                     this->stride, this->width, maxColors, this->gammaCorrection,
+                                     this->function);
             }
         });
     }

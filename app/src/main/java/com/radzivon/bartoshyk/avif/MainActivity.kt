@@ -66,6 +66,11 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
 //
+        /*
+        2023-11-05 20:23:49.798 24181-24181 AVIF                    com.radzivon.bartoshyk.avif          I  execution time 820
+2023-11-05 20:23:51.574 24181-24181 AVIF                    com.radzivon.bartoshyk.avif          I  execution time 821
+2023-11-05 20:23:52.341 24181-24181 AVIF                    com.radzivon.bartoshyk.avif          I  execution time 767
+         */
         val coder = HeifCoder()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("hdr/castle-hdr.avif").source().buffer().readByteArray()
@@ -84,14 +89,17 @@ class MainActivity : AppCompatActivity() {
             val buffer = this.assets.open("hdr/future city.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGBA_8888,
-                ScaleMode.RESIZE
-            )
-            binding.imageView1.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width * 2,
+                    size.height * 2,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView1.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("hdr/Sea of Umbrellas at Shibuya Crossing-hdr.avif").source().buffer().readByteArray()
@@ -101,7 +109,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width * 2,
                 size.height * 2,
-                PreferredColorConfig.RGBA_1010102,
+                PreferredColorConfig.RGBA_F16,
                 ScaleMode.RESIZE
             )
             binding.imageView2.setImageBitmap(bitmap)
@@ -110,56 +118,68 @@ class MainActivity : AppCompatActivity() {
             val buffer = this.assets.open("hdr/Elevate-hdr.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGBA_1010102,
-                ScaleMode.RESIZE
-            )
-            binding.imageView3.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width * 2,
+                    size.height * 2,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView3.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("hdr/house on lake.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGB_565,
-                ScaleMode.RESIZE
-            )
-            binding.imageView4.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width * 2,
+                    size.height * 2,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView4.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("hdr/Triad-hdr.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGBA_1010102,
-                ScaleMode.RESIZE
-            )
-            binding.imageView5.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width * 2,
+                    size.height * 2,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView5.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("hdr/GUM Mall Lights-hdr.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGBA_1010102,
-                ScaleMode.RESIZE
-            )
-            binding.imageView6.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width * 2,
+                    size.height * 2,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView6.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -170,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width / 3,
                 size.height / 3,
-                PreferredColorConfig.RGBA_1010102,
+                PreferredColorConfig.RGBA_F16,
                 ScaleMode.RESIZE
             )
             binding.imageView7.setImageBitmap(bitmap)
@@ -180,28 +200,34 @@ class MainActivity : AppCompatActivity() {
             val buffer = this.assets.open("federico-beccari.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width / 3,
-                size.height / 3,
-                PreferredColorConfig.RGBA_1010102,
-                ScaleMode.RESIZE
-            )
-            binding.imageView8.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width / 3,
+                    size.height / 3,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView8.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width / 2,
-                size.height / 2,
-                PreferredColorConfig.RGBA_1010102,
-                ScaleMode.RESIZE
-            )
-            binding.imageView9.setImageBitmap(bitmap)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width / 2,
+                    size.height / 2,
+                    PreferredColorConfig.RGBA_F16,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView9.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
         }
 
         //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif

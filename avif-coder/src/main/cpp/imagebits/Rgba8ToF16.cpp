@@ -59,6 +59,8 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::Rebind;
     using hwy::HWY_NAMESPACE::LowerHalf;
     using hwy::HWY_NAMESPACE::UpperHalf;
+    using hwy::HWY_NAMESPACE::PromoteLowerTo;
+    using hwy::HWY_NAMESPACE::PromoteUpperTo;
     using hwy::HWY_NAMESPACE::LoadInterleaved4;
     using hwy::HWY_NAMESPACE::StoreInterleaved4;
     using hwy::float16_t;
@@ -72,12 +74,13 @@ namespace coder::HWY_NAMESPACE {
         Rebind<float32_t, decltype(ri32)> df32;
         Rebind<float16_t, decltype(df32)> dff16;
         Rebind<uint16_t, decltype(dff16)> du16;
+        auto r = PromoteTo(du16x8, v);
         auto lower = BitCast(du16, DemoteTo(dff16,
-                                            Mul(ConvertTo(df32, PromoteTo(ri32, LowerHalf(v))),
+                                            Mul(ConvertTo(df32, PromoteLowerTo(ri32, r)),
                                                 Set(df32, scale))));
         auto upper = BitCast(du16, DemoteTo(dff16,
                                             Mul(ConvertTo(df32,
-                                                          PromoteTo(ri32, UpperHalf(du8x4, v))),
+                                                          PromoteUpperTo(ri32, r)),
                                                 Set(df32, scale))));
         return Combine(du16x8, upper, lower);
     }

@@ -45,9 +45,8 @@
 #include "imagebits/RgbaF16bitToNBitU16.h"
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
-#include "colorspace/PerceptualQuantinizer.h"
+#include "colorspace/HDRTransferAdapter.h"
 #include "imagebits/CopyUnalignedRGBA.h"
-#include "colorspace/HLG.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;

@@ -20,9 +20,8 @@
 #include "imagebits/RgbaF16bitToNBitU16.h"
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
-#include "colorspace/PerceptualQuantinizer.h"
+#include "colorspace/HDRTransferAdapter.h"
 #include "imagebits/CopyUnalignedRGBA.h"
-#include "colorspace/HLG.h"
 #include "Support.h"
 #include "JniBitmap.h"
 #include "ReformatBitmap.h"
@@ -191,11 +190,11 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            PerceptualQuantinizer perceptualQuantinizer(
+            HDRTransferAdapter hdrTransferAdapter(
                     reinterpret_cast<uint8_t *>(dstARGB.data()),
                     stride, imageWidth, imageHeight, useBitmapHalf16Floats, useBitmapHalf16Floats,
-                    useBitmapHalf16Floats ? 16 : 8, Rec2020);
-            perceptualQuantinizer.transfer();
+                    useBitmapHalf16Floats ? 16 : 8, Rec2020, PQ);
+            hdrTransferAdapter.transfer();
         }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
@@ -211,9 +210,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            coder::ProcessHLG(reinterpret_cast<uint8_t *>(dstARGB.data()),
-                              useBitmapHalf16Floats, stride, imageWidth, imageHeight,
-                              useBitmapHalf16Floats ? 16 : 8, coder::Rec2020);
+            HDRTransferAdapter hdrTransferAdapter(
+                    reinterpret_cast<uint8_t *>(dstARGB.data()),
+                    stride, imageWidth, imageHeight,
+                    useBitmapHalf16Floats,
+                    useBitmapHalf16Floats,
+                    useBitmapHalf16Floats ? 16 : 8, DCIP3, HLG);
+            hdrTransferAdapter.transfer();
         }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
                       sizeof(bt2020),
@@ -229,9 +232,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            coder::ProcessHLG(reinterpret_cast<uint8_t *>(initialData.data()),
-                              useBitmapHalf16Floats, stride, imageWidth, imageHeight,
-                              useBitmapHalf16Floats ? 16 : 8, coder::DCIP3);
+            HDRTransferAdapter hdrTransferAdapter(
+                    reinterpret_cast<uint8_t *>(dstARGB.data()),
+                    stride, imageWidth, imageHeight,
+                    useBitmapHalf16Floats,
+                    useBitmapHalf16Floats,
+                    useBitmapHalf16Floats ? 16 : 8, DCIP3, HLG);
+            hdrTransferAdapter.transfer();
         }
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
                       sizeof(displayP3),
@@ -247,13 +254,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                             useBitmapHalf16Floats ? RgbaF16 : RgbaU8);
         }
         if (!vulkanWorkerDone) {
-            PerceptualQuantinizer perceptualQuantinizer(
+            HDRTransferAdapter hdrTransferAdapter(
                     reinterpret_cast<uint8_t *>(dstARGB.data()),
                     stride, imageWidth, imageHeight,
                     useBitmapHalf16Floats,
                     useBitmapHalf16Floats,
-                    useBitmapHalf16Floats ? 16 : 8, DCIP3);
-            perceptualQuantinizer.transfer();
+                    useBitmapHalf16Floats ? 16 : 8, DCIP3, PQ);
+            hdrTransferAdapter.transfer();
         }
 
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],

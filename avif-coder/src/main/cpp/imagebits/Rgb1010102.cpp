@@ -67,6 +67,11 @@ namespace coder {
         using hwy::HWY_NAMESPACE::Or;
         using hwy::HWY_NAMESPACE::ShiftLeft;
         using hwy::HWY_NAMESPACE::Store;
+        using hwy::HWY_NAMESPACE::Round;
+        using hwy::HWY_NAMESPACE::LowerHalf;
+        using hwy::HWY_NAMESPACE::UpperHalf;
+        using hwy::HWY_NAMESPACE::PromoteLowerTo;
+        using hwy::HWY_NAMESPACE::PromoteUpperTo;
         using hwy::float16_t;
 
         void
@@ -75,57 +80,92 @@ namespace coder {
                                const int *permuteMap) {
             float range10 = powf(2, 10) - 1;
             const FixedTag<float, 4> df;
-            const FixedTag<float16_t, 4> df16;
-            const FixedTag<uint16_t, 4> du16;
+            const FixedTag<float16_t, 8> df16;
+            const FixedTag<uint16_t, 4> du16x4;
+            const FixedTag<uint16_t, 8> du16x8;
             const Rebind<int32_t, FixedTag<float, 4>> di32;
             const FixedTag<uint32_t, 4> du;
             using V = Vec<decltype(df)>;
             using V16 = Vec<decltype(df16)>;
-            using VU16 = Vec<decltype(du16)>;
+            using VU16x8 = Vec<decltype(du16x8)>;
             using VU = Vec<decltype(du)>;
             const auto vRange10 = Set(df, range10);
             const auto zeros = Zero(df);
             const auto alphaMax = Set(df, 3.0);
 
-            const Rebind<float16_t, FixedTag<uint16_t, 4>> rbfu16;
+            const Rebind<float16_t, FixedTag<uint16_t, 8>> rbfu16;
             const Rebind<float, FixedTag<float16_t, 4>> rbf32;
 
             int x = 0;
             auto dst32 = reinterpret_cast<uint32_t *>(dst);
-            int pixels = 4;
+            int pixels = 8;
             for (x = 0; x + pixels < width; x += pixels) {
-                VU16 upixels1;
-                VU16 upixels2;
-                VU16 upixels3;
-                VU16 upixels4;
-                LoadInterleaved4(du16, reinterpret_cast<const uint16_t *>(data), upixels1, upixels2,
+                VU16x8 upixels1;
+                VU16x8 upixels2;
+                VU16x8 upixels3;
+                VU16x8 upixels4;
+                LoadInterleaved4(du16x8, reinterpret_cast<const uint16_t *>(data),
+                                 upixels1,
+                                 upixels2,
                                  upixels3, upixels4);
-                V pixels1 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels1)), vRange10), zeros),
+                V16 fpixels1 = BitCast(rbfu16, upixels1);
+                V16 fpixels2 = BitCast(rbfu16, upixels2);
+                V16 fpixels3 = BitCast(rbfu16, upixels3);
+                V16 fpixels4 = BitCast(rbfu16, upixels4);
+                V pixelsLow1 = Min(
+                        Max(Round(Mul(PromoteLowerTo(rbf32, fpixels1), vRange10)), zeros),
                         vRange10);
-                V pixels2 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels2)), vRange10), zeros),
+                V pixelsLow2 = Min(
+                        Max(Round(Mul(PromoteLowerTo(rbf32, fpixels2), vRange10)), zeros),
                         vRange10);
-                V pixels3 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels3)), vRange10), zeros),
+                V pixelsLow3 = Min(
+                        Max(Round(Mul(PromoteLowerTo(rbf32, fpixels3), vRange10)), zeros),
                         vRange10);
-                V pixels4 = Min(
-                        Max(Mul(PromoteTo(rbf32, BitCast(rbfu16, upixels4)), alphaMax), zeros),
+                V pixelsLow4 = Min(
+                        Max(Round(Mul(PromoteLowerTo(rbf32, fpixels4), alphaMax)), zeros),
                         alphaMax);
-                VU pixelsu1 = BitCast(du, ConvertTo(di32, pixels1));
-                VU pixelsu2 = BitCast(du, ConvertTo(di32, pixels2));
-                VU pixelsu3 = BitCast(du, ConvertTo(di32, pixels3));
-                VU pixelsu4 = BitCast(du, ConvertTo(di32, pixels4));
+                VU pixelsuLow1 = BitCast(du, ConvertTo(di32, pixelsLow1));
+                VU pixelsuLow2 = BitCast(du, ConvertTo(di32, pixelsLow2));
+                VU pixelsuLow3 = BitCast(du, ConvertTo(di32, pixelsLow3));
+                VU pixelsuLow4 = BitCast(du, ConvertTo(di32, pixelsLow4));
 
-                VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
-                VU AV = pixelsStore[permuteMap[0]];
-                VU RV = pixelsStore[permuteMap[1]];
-                VU GV = pixelsStore[permuteMap[2]];
-                VU BV = pixelsStore[permuteMap[3]];
+                V pixelsHigh1 = Min(
+                        Max(Round(Mul(PromoteUpperTo(rbf32, fpixels1), vRange10)), zeros),
+                        vRange10);
+                V pixelsHigh2 = Min(
+                        Max(Round(Mul(PromoteUpperTo(rbf32, fpixels2), vRange10)), zeros),
+                        vRange10);
+                V pixelsHigh3 = Min(
+                        Max(Round(Mul(PromoteUpperTo(rbf32, fpixels3), vRange10)), zeros),
+                        vRange10);
+                V pixelsHigh4 = Min(
+                        Max(Round(Mul(PromoteUpperTo(rbf32, fpixels4), alphaMax)), zeros),
+                        alphaMax);
+                VU pixelsuHigh1 = BitCast(du, ConvertTo(di32, pixelsHigh1));
+                VU pixelsuHigh2 = BitCast(du, ConvertTo(di32, pixelsHigh2));
+                VU pixelsuHigh3 = BitCast(du, ConvertTo(di32, pixelsHigh3));
+                VU pixelsuHigh4 = BitCast(du, ConvertTo(di32, pixelsHigh4));
+
+                VU pixelsHighStore[4] = {pixelsuHigh1, pixelsuHigh2, pixelsuHigh3, pixelsuHigh4};
+                VU AV = pixelsHighStore[permuteMap[0]];
+                VU RV = pixelsHighStore[permuteMap[1]];
+                VU GV = pixelsHighStore[permuteMap[2]];
+                VU BV = pixelsHighStore[permuteMap[3]];
                 VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
                 VU lower = Or(ShiftLeft<10>(GV), BV);
                 VU final = Or(upper, lower);
+                Store(final, du, dst32 + 4);
+
+                VU pixelsLowStore[4] = {pixelsuLow1, pixelsuLow2, pixelsuLow3, pixelsuLow4};
+                AV = pixelsLowStore[permuteMap[0]];
+                RV = pixelsLowStore[permuteMap[1]];
+                GV = pixelsLowStore[permuteMap[2]];
+                BV = pixelsLowStore[permuteMap[3]];
+                upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
+                lower = Or(ShiftLeft<10>(GV), BV);
+                final = Or(upper, lower);
                 Store(final, du, dst32);
+
                 data += pixels * 4;
                 dst32 += pixels;
             }
@@ -138,7 +178,7 @@ namespace coder {
                 auto R10 = (uint32_t) (clamp(R16 * range10, 0.0f, (float) range10));
                 auto G10 = (uint32_t) (clamp(G16 * range10, 0.0f, (float) range10));
                 auto B10 = (uint32_t) (clamp(B16 * range10, 0.0f, (float) range10));
-                auto A10 = (uint32_t) clamp(roundf(A16 * 3.f), 0.0f, 3.0f);
+                auto A10 = (uint32_t) clamp(round(A16 * 3.f), 0.0f, 3.0f);
 
                 dst32[0] = (A10 << 30) | (R10 << 20) | (G10 << 10) | B10;
 
@@ -152,27 +192,32 @@ namespace coder {
                                  int width,
                                  const int *permuteMap) {
             const FixedTag<uint8_t, 4> du8x4;
+            const FixedTag<uint8_t, 8> du8x8;
             const Rebind<int32_t, FixedTag<uint8_t, 4>> di32;
             const FixedTag<uint32_t, 4> du;
-            using VU8 = Vec<decltype(du8x4)>;
+            using VU8 = Vec<decltype(du8x8)>;
             using VU = Vec<decltype(du)>;
 
             int x = 0;
             auto dst32 = reinterpret_cast<uint32_t *>(dst);
-            int pixels = 4;
+            int pixels = 8;
             for (x = 0; x + pixels < width; x += pixels) {
                 VU8 upixels1;
                 VU8 upixels2;
                 VU8 upixels3;
                 VU8 upixels4;
-                LoadInterleaved4(du8x4, reinterpret_cast<const uint8_t *>(data), upixels1, upixels2,
+                LoadInterleaved4(du8x8, reinterpret_cast<const uint8_t *>(data), upixels1, upixels2,
                                  upixels3, upixels4);
 
-                VU pixelsu1 = Mul(BitCast(du, PromoteTo(di32, upixels1)), Set(du, 4));
-                VU pixelsu2 = Mul(BitCast(du, PromoteTo(di32, upixels2)), Set(du, 4));
-                VU pixelsu3 = Mul(BitCast(du, PromoteTo(di32, upixels3)), Set(du, 4));
+                VU pixelsu1 = Mul(BitCast(du, PromoteTo(di32, UpperHalf(du8x4, upixels1))),
+                                  Set(du, 4));
+                VU pixelsu2 = Mul(BitCast(du, PromoteTo(di32, UpperHalf(du8x4, upixels2))),
+                                  Set(du, 4));
+                VU pixelsu3 = Mul(BitCast(du, PromoteTo(di32, UpperHalf(du8x4, upixels3))),
+                                  Set(du, 4));
                 VU pixelsu4 = ShiftRight<8>(
-                        Add(Mul(BitCast(du, PromoteTo(di32, upixels4)), Set(du, 3)), Set(du, 127)));
+                        Add(Mul(BitCast(du, PromoteTo(di32, UpperHalf(du8x4, upixels4))),
+                                Set(du, 3)), Set(du, 127)));
 
                 VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
                 VU AV = pixelsStore[permuteMap[0]];
@@ -182,7 +227,28 @@ namespace coder {
                 VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
                 VU lower = Or(ShiftLeft<10>(GV), BV);
                 VU final = Or(upper, lower);
+                Store(final, du, dst32 + 4);
+
+                pixelsu1 = Mul(BitCast(du, PromoteTo(di32, LowerHalf(upixels1))),
+                               Set(du, 4));
+                pixelsu2 = Mul(BitCast(du, PromoteTo(di32, LowerHalf(upixels2))),
+                               Set(du, 4));
+                pixelsu3 = Mul(BitCast(du, PromoteTo(di32, LowerHalf(upixels3))),
+                               Set(du, 4));
+                pixelsu4 = ShiftRight<8>(
+                        Add(Mul(BitCast(du, PromoteTo(di32, LowerHalf(upixels4))),
+                                Set(du, 3)), Set(du, 127)));
+
+                VU pixelsLowStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
+                AV = pixelsLowStore[permuteMap[0]];
+                RV = pixelsLowStore[permuteMap[1]];
+                GV = pixelsLowStore[permuteMap[2]];
+                BV = pixelsLowStore[permuteMap[3]];
+                upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
+                lower = Or(ShiftLeft<10>(GV), BV);
+                final = Or(upper, lower);
                 Store(final, du, dst32);
+
                 data += pixels * 4;
                 dst32 += pixels;
             }
@@ -207,7 +273,6 @@ namespace coder {
                               int width,
                               int height) {
             int permuteMap[4] = {3, 2, 1, 0};
-            int minimumTilingAreaSize = 850 * 850;
             auto src = reinterpret_cast<const uint8_t *>(source);
             auto dst = reinterpret_cast<uint8_t *>(destination);
 
@@ -250,7 +315,6 @@ namespace coder {
                             int width,
                             int height) {
             int permuteMap[4] = {3, 2, 1, 0};
-            int minimumTilingAreaSize = 850 * 850;
             auto src = reinterpret_cast<const uint8_t *>(source);
             auto dst = reinterpret_cast<uint8_t *>(destination);
 
