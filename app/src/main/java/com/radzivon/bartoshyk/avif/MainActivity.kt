@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width * 2,
                 size.height * 2,
-                PreferredColorConfig.RGBA_F16,
+                PreferredColorConfig.RGBA_8888,
                 ScaleMode.RESIZE
             )
             binding.imageView.setImageBitmap(bitmap)
@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
                 binding.imageView1.setImageBitmap(bitmap)
@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width * 2,
                 size.height * 2,
-                PreferredColorConfig.RGBA_F16,
+                PreferredColorConfig.RGBA_8888,
                 ScaleMode.RESIZE
             )
             binding.imageView2.setImageBitmap(bitmap)
@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
                 binding.imageView3.setImageBitmap(bitmap)
@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
                 binding.imageView4.setImageBitmap(bitmap)
@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
                 binding.imageView5.setImageBitmap(bitmap)
@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
                 binding.imageView6.setImageBitmap(bitmap)
@@ -190,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width / 3,
                 size.height / 3,
-                PreferredColorConfig.RGBA_F16,
+                PreferredColorConfig.RGBA_8888,
                 ScaleMode.RESIZE
             )
             binding.imageView7.setImageBitmap(bitmap)
@@ -205,7 +205,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width / 3,
                     size.height / 3,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
                 binding.imageView8.setImageBitmap(bitmap)
@@ -214,18 +214,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("federico-beccari-hlg.avif").source().buffer().readByteArray()
+            val buffer = this.assets.open("alpha_t.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
             val executionTime = measureTimeMillis {
                 val bitmap = coder.decodeSampled(
                     buffer,
-                    size.width / 2,
-                    size.height / 2,
-                    PreferredColorConfig.RGBA_F16,
+                    size.width,
+                    size.height,
+                    PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
-                binding.imageView9.setImageBitmap(bitmap)
+                val enc = coder.encodeAvif(bitmap)
+                val decoded = coder.decode(enc)
+                binding.imageView9.setImageBitmap(decoded)
             }
             Log.i("AVIF", "execution time $executionTime")
         }

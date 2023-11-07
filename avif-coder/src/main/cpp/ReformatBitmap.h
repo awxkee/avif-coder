@@ -37,6 +37,6 @@ void
 ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
                     int imageWidth, int imageHeight, int *stride, bool *useFloats,
-                    jobject *hwBuffer);
+                    jobject *hwBuffer, bool alphaPremultiplied);
 
 #endif //AVIF_REFORMATBITMAP_H

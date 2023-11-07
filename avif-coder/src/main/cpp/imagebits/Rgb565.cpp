@@ -52,9 +52,12 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::Min;
     using hwy::HWY_NAMESPACE::Zero;
     using hwy::HWY_NAMESPACE::BitCast;
+    using hwy::HWY_NAMESPACE::Round;
     using hwy::HWY_NAMESPACE::ConvertTo;
     using hwy::HWY_NAMESPACE::PromoteTo;
     using hwy::HWY_NAMESPACE::DemoteTo;
+    using hwy::HWY_NAMESPACE::PromoteLowerTo;
+    using hwy::HWY_NAMESPACE::PromoteUpperTo;
     using hwy::HWY_NAMESPACE::Combine;
     using hwy::HWY_NAMESPACE::Rebind;
     using hwy::HWY_NAMESPACE::LowerHalf;
@@ -69,31 +72,38 @@ namespace coder::HWY_NAMESPACE {
     void
     Rgba8To565HWYRow(const uint8_t *source, uint16_t *destination, int width) {
         const FixedTag<uint16_t, 8> du16;
-        const FixedTag<uint8_t, 8> du8x8;
+        const FixedTag<uint8_t, 16> du8x16;
         using VU16 = Vec<decltype(du16)>;
-        using VU8x8 = Vec<decltype(du8x8)>;
-
-        Rebind<uint16_t, FixedTag<uint8_t, 8>> rdu16;
+        using VU8x16 = Vec<decltype(du8x16)>;
 
         int x = 0;
-        int pixels = 8;
+        int pixels = 16;
 
         auto src = reinterpret_cast<const uint8_t *>(source);
         auto dst = reinterpret_cast<uint16_t *>(destination);
         for (x = 0; x + pixels < width; x += pixels) {
-            VU8x8 ru8Row;
-            VU8x8 gu8Row;
-            VU8x8 bu8Row;
-            VU8x8 au8Row;
-            LoadInterleaved4(du8x8, reinterpret_cast<const uint8_t *>(src),
+            VU8x16 ru8Row;
+            VU8x16 gu8Row;
+            VU8x16 bu8Row;
+            VU8x16 au8Row;
+
+            LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(src),
                              ru8Row, gu8Row, bu8Row, au8Row);
 
-            auto rdu16Vec = ShiftLeft<11>(ShiftRight<3>(PromoteTo(rdu16, ru8Row)));
-            auto gdu16Vec = ShiftLeft<5>(ShiftRight<2>(PromoteTo(rdu16, gu8Row)));
-            auto bdu16Vec = ShiftRight<3>(PromoteTo(rdu16, bu8Row));
+            auto rdu16Vec = ShiftLeft<11>(ShiftRight<3>(PromoteLowerTo(du16, ru8Row)));
+            auto gdu16Vec = ShiftLeft<5>(ShiftRight<2>(PromoteLowerTo(du16, gu8Row)));
+            auto bdu16Vec = ShiftRight<3>(PromoteLowerTo(du16, bu8Row));
 
             auto result = Or(Or(rdu16Vec, gdu16Vec), bdu16Vec);
             Store(result, du16, dst);
+
+            rdu16Vec = ShiftLeft<11>(ShiftRight<3>(PromoteUpperTo(du16, ru8Row)));
+            gdu16Vec = ShiftLeft<5>(ShiftRight<2>(PromoteUpperTo(du16, gu8Row)));
+            bdu16Vec = ShiftRight<3>(PromoteUpperTo(du16, bu8Row));
+
+            result = Or(Or(rdu16Vec, gdu16Vec), bdu16Vec);
+            Store(result, du16, dst + 8);
+
             src += 4 * pixels;
             dst += pixels;
         }
@@ -160,15 +170,16 @@ namespace coder::HWY_NAMESPACE {
         auto vMaxColors = Set(rf32, (int) maxColors);
 
         auto lower = DemoteTo(ru8, ConvertTo(ri32,
-                                             Max(Min(Mul(
+                                             Max(Min(Round(Mul(
                                                      PromoteTo(rf32, BitCast(df16, LowerHalf(v))),
-                                                     vMaxColors), vMaxColors), minColors)
+                                                     vMaxColors)), vMaxColors), minColors)
         ));
         auto upper = DemoteTo(ru8, ConvertTo(ri32,
-                                             Max(Min(Mul(PromoteTo(rf32,
-                                                                   BitCast(df16,
-                                                                           UpperHalf(dfu416, v))),
-                                                         vMaxColors), vMaxColors), minColors)
+                                             Max(Min(Round(Mul(PromoteTo(rf32,
+                                                                         BitCast(df16,
+                                                                                 UpperHalf(dfu416,
+                                                                                           v))),
+                                                               vMaxColors)), vMaxColors), minColors)
         ));
         return Combine(du8, upper, lower);
     }

@@ -47,6 +47,7 @@
 #include "imagebits/Rgb1010102.h"
 #include "colorspace/HDRTransferAdapter.h"
 #include "imagebits/CopyUnalignedRGBA.h"
+#include "imagebits/RGBAlpha.h"
 
 struct AvifMemEncoder {
     std::vector<char> buffer;
@@ -163,9 +164,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     int stride;
     uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
     if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        libyuv::ARGBCopy(sourceData.data(), (int) info.stride,
-                         imgData,
-                         stride, (int) info.width, (int) info.height);
+        coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
+                                 imgData,
+                                 stride, (int) info.width, (int) info.height);
+        heif_image_set_premultiplied_alpha(image, false);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
         libyuv::RGB565ToARGB(sourceData.data(), (int) info.stride, imgData,
                              stride, (int) info.width, (int) info.height);

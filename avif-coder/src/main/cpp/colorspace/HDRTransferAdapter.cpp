@@ -112,7 +112,7 @@ namespace coder {
                 this->lumaCoefficients[3] = 0.0f;
             }
 
-            inline void Execute(V &R, V &G, V &B) {
+            inline __attribute__((flatten)) void Execute(V &R, V &G, V &B) {
 
                 V rLuma = Mul(R, Set(df_, lumaCoefficients[0]));
                 V gLuma = Mul(G, Set(df_, lumaCoefficients[1]));
@@ -126,7 +126,7 @@ namespace coder {
                 B = Mul(B, scales);
             }
 
-            inline void Execute(float &r, float &g, float &b) {
+            inline __attribute__((flatten)) void Execute(float &r, float &g, float &b) {
                 const float Lin =
                         r * lumaCoefficients[0] + g * lumaCoefficients[1] + b * lumaCoefficients[2];
                 if (Lin == 0) {
@@ -171,7 +171,7 @@ namespace coder {
                         Set(fixedFloatTagPQ, 0.0141278216615f),
                 };
 
-        inline Vec<FixedTag<float32_t, 4>>
+        inline __attribute__((flatten)) Vec<FixedTag<float32_t, 4>>
         TaylorPolyExp(Vec<FixedTag<float32_t, 4>> x, const Vec<FixedTag<float32_t, 4>> *coeffs) {
             FixedTag<float32_t, 4> d;
             using VF32 = Vec<decltype(d)>;
@@ -186,7 +186,8 @@ namespace coder {
             return res;
         }
 
-        inline Vec<FixedTag<float32_t, 4>> ExpF32(Vec<FixedTag<float32_t, 4>> x) {
+        inline __attribute__((flatten)) Vec<FixedTag<float32_t, 4>>
+        ExpF32(Vec<FixedTag<float32_t, 4>> x) {
             FixedTag<float32_t, 4> d;
             using VF32 = Vec<decltype(d)>;
             Rebind<int32_t, decltype(d)> s32;
@@ -204,7 +205,8 @@ namespace coder {
             return poly;
         }
 
-        inline Vec<FixedTag<float32_t, 4>> LogPQF32(Vec<FixedTag<float32_t, 4>> x) {
+        inline __attribute__((flatten)) Vec<FixedTag<float32_t, 4>>
+        LogPQF32(Vec<FixedTag<float32_t, 4>> x) {
             FixedTag<float32_t, 4> d;
             using VF32 = Vec<decltype(d)>;
             FixedTag<int32_t, 4> s32;
@@ -224,7 +226,7 @@ namespace coder {
             return poly;
         }
 
-        inline Vec<FixedTag<float32_t, 4>>
+        inline __attribute__((flatten)) Vec<FixedTag<float32_t, 4>>
         PowPQ(Vec<FixedTag<float32_t, 4>> val, Vec<FixedTag<float32_t, 4>> n) {
             return ExpF32(Mul(n, LogPQF32(val)));
         }
@@ -232,7 +234,7 @@ namespace coder {
         static const float betaRec2020 = 0.018053968510807f;
         static const float alphaRec2020 = 1.09929682680944f;
 
-        inline float bt2020GammaCorrection(float linear) {
+        inline __attribute__((flatten)) float bt2020GammaCorrection(float linear) {
             if (0 <= betaRec2020 && linear < betaRec2020) {
                 return 4.5f * linear;
             } else if (betaRec2020 <= linear && linear < 1) {
@@ -241,7 +243,7 @@ namespace coder {
             return linear;
         }
 
-        inline float ToLinearPQ(float v, const float sdrReferencePoint) {
+        inline __attribute__((flatten)) float ToLinearPQ(float v, const float sdrReferencePoint) {
             float o = v;
             v = max(0.0f, v);
             float m1 = (2610.0f / 4096.0f) / 4.0f;
@@ -255,7 +257,8 @@ namespace coder {
             return copysign(v, o);
         }
 
-        inline Vec<FixedTag<float32_t, 4>> HLGEotf(Vec<FixedTag<float32_t, 4>> v) {
+        inline __attribute__((flatten)) Vec<FixedTag<float32_t, 4>>
+        HLGEotf(Vec<FixedTag<float32_t, 4>> v) {
             FixedTag<float32_t, 4> df_;
             v = Max(Zero(df_), v);
             using VF32 = Vec<decltype(df_)>;
@@ -269,7 +272,7 @@ namespace coder {
             return IfThenElse(cmp, branch1, branch2);
         }
 
-        inline float HLGEotf(float v) {
+        inline __attribute__((flatten)) float HLGEotf(float v) {
             v = max(0.0f, v);
             constexpr float a = 0.17883277f;
             constexpr float b = 0.28466892f;
@@ -282,16 +285,17 @@ namespace coder {
         }
 
         template<class D, typename T = Vec<D>>
-        inline T dciP3PQGammaCorrection(const D d, T color) {
+        inline __attribute__((flatten)) T dciP3PQGammaCorrection(const D d, T color) {
             return PowPQ(color, Set(d, 1 / 2.6f));
         }
 
-        inline float dciP3PQGammaCorrection(float linear) {
+        inline __attribute__((flatten)) float dciP3PQGammaCorrection(float linear) {
             return powf(linear, 1 / 2.6f);
         }
 
-        inline void TransferROWU16HFloats(uint16_t *data, PQGammaCorrection gammaCorrection,
-                                          Rec2408PQToneMapper<FixedTag<float, 4>> *toneMapper) {
+        inline __attribute__((flatten)) void
+        TransferROWU16HFloats(uint16_t *data, PQGammaCorrection gammaCorrection,
+                              Rec2408PQToneMapper<FixedTag<float, 4>> *toneMapper) {
             auto r = (float) LoadHalf(data[0]);
             auto g = (float) LoadHalf(data[1]);
             auto b = (float) LoadHalf(data[2]);
@@ -313,7 +317,7 @@ namespace coder {
             }
         }
 
-        inline void
+        inline __attribute__((flatten)) void
         TransferROWU8(uint8_t *data, const float maxColors,
                       const PQGammaCorrection gammaCorrection,
                       const HDRTransferFunction function,
@@ -355,7 +359,7 @@ namespace coder {
         }
 
         template<class D, typename T = Vec<D>>
-        inline T bt2020GammaCorrection(const D d, T color) {
+        inline __attribute__((flatten)) T bt2020GammaCorrection(const D d, T color) {
             T bt2020 = Set(d, betaRec2020);
             T alpha2020 = Set(d, alphaRec2020);
             const auto cmp = color < bt2020;
@@ -367,7 +371,7 @@ namespace coder {
         }
 
         template<class D, typename T = Vec<D>>
-        inline T ToLinearPQ(const D d, T v) {
+        inline __attribute__((flatten)) T ToLinearPQ(const D d, T v) {
             v = Max(Zero(d), v);
             float m1 = (2610.0f / 4096.0f) / 4.0f;
             float m2 = (2523.0f / 4096.0f) * 128.0f;

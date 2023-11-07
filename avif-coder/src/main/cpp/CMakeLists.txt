@@ -19,7 +19,8 @@ add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         colorspace/HDRTransferAdapter.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
-        HardwareBuffersCompat.cpp VulkanRunner.cpp imagebits/half.cpp imagebits/half.hpp)
+        HardwareBuffersCompat.cpp VulkanRunner.cpp imagebits/half.cpp imagebits/half.hpp
+        imagebits/RGBAlpha.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)

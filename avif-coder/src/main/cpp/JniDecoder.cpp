@@ -29,6 +29,7 @@
 #include "thread"
 #include "VulkanRunner.h"
 #include <android/asset_manager_jni.h>
+#include "imagebits/RGBAlpha.h"
 
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    AAssetManager *assetManager,
@@ -156,6 +157,15 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     img.reset();
     handle.reset();
+
+    if (alphaPremultiplied && preferredColorConfig != Rgba_8888 && !useBitmapHalf16Floats) {
+        // Remove premultiplied alpha because only in RGBA 8888 it is required
+        coder::UnpremultiplyRGBA(reinterpret_cast<const uint8_t *>(initialData.data()),
+                                 stride,
+                                 reinterpret_cast<uint8_t *>(initialData.data()),
+                                 stride, imageWidth, imageHeight);
+        alphaPremultiplied = false;
+    }
 
     std::vector<uint8_t> dstARGB(stride * imageHeight);
 
@@ -287,10 +297,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             libyuv::ARGBAttenuate(reinterpret_cast<uint8_t *>(dstARGB.data()), stride,
                                   reinterpret_cast<uint8_t *>(dstARGB.data()), stride, imageWidth,
                                   imageHeight);
-        } else {
-            // Premultiplying HDR images in half float currently not implemented
         }
-
     }
 
     std::string imageConfig = useBitmapHalf16Floats ? "RGBA_F16" : "ARGB_8888";
@@ -298,7 +305,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     jobject hwBuffer = nullptr;
 
     ReformatColorConfig(env, dstARGB, imageConfig, preferredColorConfig, bitDepth, imageWidth,
-                        imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer);
+                        imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer, alphaPremultiplied);
 
     return createBitmap(env, dstARGB, imageConfig, stride, imageWidth, imageHeight,
                         useBitmapHalf16Floats, hwBuffer);

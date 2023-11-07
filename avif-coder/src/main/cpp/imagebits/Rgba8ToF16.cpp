@@ -68,7 +68,6 @@ namespace coder::HWY_NAMESPACE {
 
     inline Vec<FixedTag<uint16_t, 8>>
     ConvertRow(Vec<FixedTag<uint8_t, 8>> v, float scale) {
-        FixedTag<uint8_t, 4> du8x4;
         FixedTag<uint16_t, 8> du16x8;
         Rebind<int32_t, FixedTag<uint8_t, 4>> ri32;
         Rebind<float32_t, decltype(ri32)> df32;
@@ -130,7 +129,6 @@ namespace coder::HWY_NAMESPACE {
             src += 4;
             dst += 4;
         }
-
     }
 
     void Rgba8ToF16HWY(const uint8_t *sourceData, int srcStride,
