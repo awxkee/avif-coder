@@ -75,10 +75,10 @@ void RGBAF16BitToNU16NEON(const uint16_t *sourceData, int srcStride, uint16_t *d
 
         for (; x < width; ++x) {
             auto alpha = LoadHalf(srcPtr[3]);
-            auto tmpR = (uint16_t) std::clamp(LoadHalf(srcPtr[0]) / scale, 0.0f, maxColors);
-            auto tmpG = (uint16_t) std::clamp(LoadHalf(srcPtr[1]) / scale, 0.0f, maxColors);
-            auto tmpB = (uint16_t) std::clamp(LoadHalf(srcPtr[2]) / scale, 0.0f, maxColors);
-            auto tmpA = (uint16_t) std::clamp((alpha / scale), 0.0f, maxColors);
+            auto tmpR = (uint16_t) clamp(LoadHalf(srcPtr[0]) * maxColors, 0.0f, maxColors);
+            auto tmpG = (uint16_t) clamp(LoadHalf(srcPtr[1]) * maxColors, 0.0f, maxColors);
+            auto tmpB = (uint16_t) clamp(LoadHalf(srcPtr[2]) * maxColors, 0.0f, maxColors);
+            auto tmpA = (uint16_t) clamp((alpha / scale), 0.0f, maxColors);
 
             dstPtr[0] = tmpR;
             dstPtr[1] = tmpG;
@@ -109,9 +109,9 @@ void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
         auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
         for (int x = 0; x < width; ++x) {
             auto alpha = LoadHalf(srcPtr[3]);
-            auto tmpR = (uint16_t) clamp(LoadHalf(srcPtr[0]) / scale, 0.0f, maxColors);
-            auto tmpG = (uint16_t) clamp(LoadHalf(srcPtr[1]) / scale, 0.0f, maxColors);
-            auto tmpB = (uint16_t) clamp(LoadHalf(srcPtr[2]) / scale, 0.0f, maxColors);
+            auto tmpR = (uint16_t) clamp(LoadHalf(srcPtr[0]) * maxColors, 0.0f, maxColors);
+            auto tmpG = (uint16_t) clamp(LoadHalf(srcPtr[1]) * maxColors, 0.0f, maxColors);
+            auto tmpB = (uint16_t) clamp(LoadHalf(srcPtr[2]) * maxColors, 0.0f, maxColors);
             auto tmpA = (uint16_t) clamp((alpha / scale), 0.0f, maxColors);
 
             dstPtr[0] = tmpR;

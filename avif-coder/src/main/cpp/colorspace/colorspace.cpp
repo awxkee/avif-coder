@@ -317,8 +317,11 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     });
 
     vector<uint8_t> iccARGB;
-    int mStride = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
-    int newLength = mStride * height;
+    int lineWidth = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
+    int alignment = 64;
+    int padding = (alignment - (lineWidth % alignment)) % alignment;
+    int dstStride = lineWidth + padding;
+    int newLength = dstStride * height;
     iccARGB.resize(newLength);
 
     int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
@@ -338,11 +341,11 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
             end = height;
         }
         workers.emplace_back(
-                [start, end, stride, mOutputBuffer, mInputBuffer, mStride, width, mTransform]() {
+                [start, end, stride, mOutputBuffer, mInputBuffer, dstStride, width, mTransform]() {
                     for (int y = start; y < end; ++y) {
                         cmsDoTransformLineStride(mTransform,
                                                  mInputBuffer + stride * y,
-                                                 mOutputBuffer + mStride * y, width, 1,
+                                                 mOutputBuffer + dstStride * y, width, 1,
                                                  stride, stride, 0, 0);
                     }
                 });
@@ -353,9 +356,8 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     }
 
     srcVector = iccARGB;
-    *newStride = mStride;
+    *newStride = dstStride;
 }
-
 
 void
 convertUseICC(vector<uint8_t> &vector, int stride, int width, int height,

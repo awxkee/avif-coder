@@ -48,7 +48,10 @@ ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &i
     switch (preferredColorConfig) {
         case Rgba_8888:
             if (*useFloats) {
-                int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
+                int lineWidth = imageWidth * 4 * (int) sizeof(uint8_t);
+                int alignment = 64;
+                int padding = (alignment - (lineWidth % alignment)) % alignment;
+                int dstStride = lineWidth + padding;
                 std::vector<uint8_t> rgba8888Data(dstStride * imageHeight);
                 coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(imageData.data()),
                                           *stride, rgba8888Data.data(), dstStride, imageWidth,
@@ -71,7 +74,10 @@ ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &i
             if (*useFloats) {
                 break;
             } else {
-                int dstStride = imageWidth * 4 * (int) sizeof(uint16_t);
+                int lineWidth = imageWidth * 4 * (int) sizeof(uint16_t);
+                int alignment = 64;
+                int padding = (alignment - (lineWidth % alignment)) % alignment;
+                int dstStride = lineWidth + padding;
                 std::vector<uint8_t> rgbaF16Data(dstStride * imageHeight);
                 coder::Rgba8ToF16(imageData.data(), *stride,
                                   reinterpret_cast<uint16_t *>(rgbaF16Data.data()), dstStride,
@@ -84,7 +90,10 @@ ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &i
             break;
         case Rgb_565:
             if (*useFloats) {
-                int dstStride = imageWidth * (int) sizeof(uint16_t);
+                int lineWidth = imageWidth * (int) sizeof(uint16_t);
+                int alignment = 64;
+                int padding = (alignment - (lineWidth % alignment)) % alignment;
+                int dstStride = lineWidth + padding;
                 std::vector<uint8_t> rgb565Data(dstStride * imageHeight);
                 coder::RGBAF16To565(reinterpret_cast<const uint16_t *>(imageData.data()), *stride,
                                     reinterpret_cast<uint16_t *>(rgb565Data.data()), dstStride,
@@ -95,7 +104,10 @@ ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &i
                 imageData = rgb565Data;
                 break;
             } else {
-                int dstStride = imageWidth * (int) sizeof(uint16_t);
+                int lineWidth = imageWidth * (int) sizeof(uint16_t);
+                int alignment = 64;
+                int padding = (alignment - (lineWidth % alignment)) % alignment;
+                int dstStride = lineWidth + padding;
                 std::vector<uint8_t> rgb565Data(dstStride * imageHeight);
                 coder::Rgba8To565(imageData.data(), *stride,
                                   reinterpret_cast<uint16_t *>(rgb565Data.data()), dstStride,
@@ -108,7 +120,10 @@ ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &i
             break;
         case Rgba_1010102:
             if (*useFloats) {
-                int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
+                int lineWidth = imageWidth * 4 * (int) sizeof(uint8_t);
+                int alignment = 64;
+                int padding = (alignment - (lineWidth % alignment)) % alignment;
+                int dstStride = lineWidth + padding;
                 std::vector<uint8_t> rgba1010102Data(dstStride * imageHeight);
                 coder::F16ToRGBA1010102(reinterpret_cast<const uint16_t *>(imageData.data()),
                                         *stride,
@@ -121,7 +136,10 @@ ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &i
                 imageData = rgba1010102Data;
                 break;
             } else {
-                int dstStride = imageWidth * 4 * (int) sizeof(uint8_t);
+                int lineWidth = imageWidth * 4 * (int) sizeof(uint8_t);
+                int alignment = 64;
+                int padding = (alignment - (lineWidth % alignment)) % alignment;
+                int dstStride = lineWidth + padding;
                 std::vector<uint8_t> rgba1010102Data(dstStride * imageHeight);
                 coder::Rgba8ToRGBA1010102(reinterpret_cast<const uint8_t *>(imageData.data()),
                                           *stride,

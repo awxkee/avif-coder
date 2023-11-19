@@ -66,20 +66,20 @@ namespace coder::HWY_NAMESPACE {
     using hwy::float16_t;
     using hwy::float32_t;
 
-    inline Vec<FixedTag<uint16_t, 8>>
-    ConvertRow(Vec<FixedTag<uint8_t, 8>> v, float scale) {
+    template<typename D>
+    inline __attribute__((flatten)) Vec<D>
+    ConvertRow(D d, Vec<D> v, float scale) {
         FixedTag<uint16_t, 8> du16x8;
-        Rebind<int32_t, FixedTag<uint8_t, 4>> ri32;
-        Rebind<float32_t, decltype(ri32)> df32;
+        FixedTag<int32_t, 4> di32x4;
+        Rebind<float32_t, decltype(di32x4)> df32;
         Rebind<float16_t, decltype(df32)> dff16;
         Rebind<uint16_t, decltype(dff16)> du16;
-        auto r = PromoteTo(du16x8, v);
         auto lower = BitCast(du16, DemoteTo(dff16,
-                                            Mul(ConvertTo(df32, PromoteLowerTo(ri32, r)),
+                                            Mul(ConvertTo(df32, PromoteLowerTo(di32x4, v)),
                                                 Set(df32, scale))));
         auto upper = BitCast(du16, DemoteTo(dff16,
                                             Mul(ConvertTo(df32,
-                                                          PromoteUpperTo(ri32, r)),
+                                                          PromoteUpperTo(di32x4, v)),
                                                 Set(df32, scale))));
         return Combine(du16x8, upper, lower);
     }
@@ -87,29 +87,36 @@ namespace coder::HWY_NAMESPACE {
     void
     Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width, float scale) {
         const FixedTag<uint16_t, 8> du16;
-        const FixedTag<uint8_t, 8> du8x8;
+        const FixedTag<uint8_t, 16> du8x16;
         using VU16 = Vec<decltype(du16)>;
-        using VU8x8 = Vec<decltype(du8x8)>;
+        using VU8x16 = Vec<decltype(du8x16)>;
 
         int x = 0;
-        int pixels = 8;
+        const int pixels = 16;
 
         auto src = reinterpret_cast<const uint8_t *>(source);
         auto dst = reinterpret_cast<uint16_t *>(destination);
         for (x = 0; x + pixels < width; x += pixels) {
-            VU8x8 ru8Row;
-            VU8x8 gu8Row;
-            VU8x8 bu8Row;
-            VU8x8 au8Row;
-            LoadInterleaved4(du8x8, reinterpret_cast<const uint8_t *>(src),
+            VU8x16 ru8Row;
+            VU8x16 gu8Row;
+            VU8x16 bu8Row;
+            VU8x16 au8Row;
+            LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(src),
                              ru8Row, gu8Row, bu8Row, au8Row);
 
-            auto r16Row = ConvertRow(ru8Row, scale);
-            auto g16Row = ConvertRow(gu8Row, scale);
-            auto b16Row = ConvertRow(bu8Row, scale);
-            auto a16Row = ConvertRow(au8Row, scale);
+            auto r16Row = ConvertRow(du16, PromoteLowerTo(du16, ru8Row), scale);
+            auto g16Row = ConvertRow(du16, PromoteLowerTo(du16, gu8Row), scale);
+            auto b16Row = ConvertRow(du16, PromoteLowerTo(du16, bu8Row), scale);
+            auto a16Row = ConvertRow(du16, PromoteLowerTo(du16, au8Row), scale);
 
             StoreInterleaved4(r16Row, g16Row, b16Row, a16Row, du16, dst);
+
+            r16Row = ConvertRow(du16, PromoteUpperTo(du16, ru8Row), scale);
+            g16Row = ConvertRow(du16, PromoteUpperTo(du16, gu8Row), scale);
+            b16Row = ConvertRow(du16, PromoteUpperTo(du16, bu8Row), scale);
+            a16Row = ConvertRow(du16, PromoteUpperTo(du16, au8Row), scale);
+
+            StoreInterleaved4(r16Row, g16Row, b16Row, a16Row, du16, dst + 8 * 4);
 
             src += 4 * pixels;
             dst += 4 * pixels;
