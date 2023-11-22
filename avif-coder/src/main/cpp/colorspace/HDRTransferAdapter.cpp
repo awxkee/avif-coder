@@ -79,6 +79,8 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::Add;
     using hwy::HWY_NAMESPACE::Combine;
     using hwy::HWY_NAMESPACE::IfThenElse;
+    using hwy::HWY_NAMESPACE::ApproximateReciprocal;
+    using hwy::HWY_NAMESPACE::Full128;
     using hwy::float16_t;
     using hwy::float32_t;
 
@@ -96,7 +98,7 @@ namespace coder::HWY_NAMESPACE {
     template<typename D>
     class Rec2408PQToneMapper {
     private:
-        using V = hwy::HWY_NAMESPACE::Vec<D>;
+        using V = Vec<D>;
         D df_;
 
     public:
@@ -503,20 +505,19 @@ namespace coder::HWY_NAMESPACE {
         }
     }
 
-    void TransferU8Row(const PQGammaCorrection &gammaCorrection,
+    template<class D, typename T = Vec<D>>
+    void TransferU8Row(D df32,
+                       const PQGammaCorrection &gammaCorrection,
                        const HDRTransferFunction function,
-                       Rec2408PQToneMapper<FixedTag<float, 4>> &toneMapper,
-                       Vec128<float> &R,
-                       Vec128<float> &G,
-                       Vec128<float> &B,
-                       const Vec128<float32_t> vColors,
-                       const Vec128<float32_t> zeros) {
-        const FixedTag<float32_t, 4> df32;
-        using VF32 = Vec<decltype(df32)>;
-
-        VF32 pqR;
-        VF32 pqG;
-        VF32 pqB;
+                       Rec2408PQToneMapper<decltype(df32)> &toneMapper,
+                       T &R,
+                       T &G,
+                       T &B,
+                       const T vColors,
+                       const T zeros) {
+        T pqR;
+        T pqG;
+        T pqB;
 
         switch (function) {
             case PQ:
@@ -579,6 +580,7 @@ namespace coder::HWY_NAMESPACE {
         auto ptr16 = reinterpret_cast<uint8_t *>(data);
 
         VF32 vColors = Set(df32, (float) maxColors);
+        VF32 recProcColors = ApproximateReciprocal(vColors);
         const VF32 vZeros = Zero(df32);
 
         int pixels = 4 * 4;
@@ -594,19 +596,19 @@ namespace coder::HWY_NAMESPACE {
             auto lowG16 = PromoteLowerTo(du16, GURow);
             auto lowB16 = PromoteLowerTo(du16, BURow);
 
-            VF32 rLowerLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowR16)), vColors);
-            VF32 gLowerLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowG16)), vColors);
-            VF32 bLowerLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), vColors);
+            VF32 rLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowR16)), recProcColors);
+            VF32 gLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowG16)), recProcColors);
+            VF32 bLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), recProcColors);
 
-            TransferU8Row(gammaCorrection, function, toneMapper, rLowerLow32, gLowerLow32,
+            TransferU8Row(df32, gammaCorrection, function, toneMapper, rLowerLow32, gLowerLow32,
                           bLowerLow32,
                           vColors, vZeros);
 
-            VF32 rLowerHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, lowR16)), vColors);
-            VF32 gLowerHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, lowG16)), vColors);
-            VF32 bLowerHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, lowB16)), vColors);
+            VF32 rLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowR16)), recProcColors);
+            VF32 gLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowG16)), recProcColors);
+            VF32 bLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowB16)), recProcColors);
 
-            TransferU8Row(gammaCorrection, function, toneMapper, rLowerHigh32, gLowerHigh32,
+            TransferU8Row(df32, gammaCorrection, function, toneMapper, rLowerHigh32, gLowerHigh32,
                           bLowerHigh32,
                           vColors, vZeros);
 
@@ -614,24 +616,24 @@ namespace coder::HWY_NAMESPACE {
             auto upperG16 = PromoteUpperTo(du16, GURow);
             auto upperB16 = PromoteUpperTo(du16, BURow);
 
-            VF32 rHigherLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, upperR16)),
-                                    vColors);
-            VF32 gHigherLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, upperG16)),
-                                    vColors);
-            VF32 bHigherLow32 = Div(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), vColors);
+            VF32 rHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, upperR16)),
+                                    recProcColors);
+            VF32 gHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, upperG16)),
+                                    recProcColors);
+            VF32 bHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), recProcColors);
 
-            TransferU8Row(gammaCorrection, function, toneMapper, rHigherLow32, gHigherLow32,
+            TransferU8Row(df32, gammaCorrection, function, toneMapper, rHigherLow32, gHigherLow32,
                           bHigherLow32,
                           vColors, vZeros);
 
-            VF32 rHigherHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, upperR16)),
-                                     vColors);
-            VF32 gHigherHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, upperG16)),
-                                     vColors);
-            VF32 bHigherHigh32 = Div(ConvertTo(rebind32, PromoteUpperTo(du32, upperB16)),
-                                     vColors);
+            VF32 rHigherHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, upperR16)),
+                                     recProcColors);
+            VF32 gHigherHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, upperG16)),
+                                     recProcColors);
+            VF32 bHigherHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, upperB16)),
+                                     recProcColors);
 
-            TransferU8Row(gammaCorrection, function, toneMapper, rHigherHigh32, gHigherHigh32,
+            TransferU8Row(df32, gammaCorrection, function, toneMapper, rHigherHigh32, gHigherHigh32,
                           bHigherHigh32, vColors, vZeros);
 
             auto rNew = DemoteTo(rebindOrigin, ConvertTo(floatToSigned, rHigherHigh32));

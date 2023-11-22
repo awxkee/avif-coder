@@ -304,10 +304,12 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     jobject hwBuffer = nullptr;
 
-    ReformatColorConfig(env, dstARGB, imageConfig, preferredColorConfig, bitDepth, imageWidth,
-                        imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer, alphaPremultiplied);
+    ReformatColorConfig(env, ref(dstARGB), ref(imageConfig), preferredColorConfig,
+                        bitDepth, imageWidth,
+                        imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer,
+                        alphaPremultiplied);
 
-    return createBitmap(env, dstARGB, imageConfig, stride, imageWidth, imageHeight,
+    return createBitmap(env, ref(dstARGB), imageConfig, stride, imageWidth, imageHeight,
                         useBitmapHalf16Floats, hwBuffer);
 }
 
