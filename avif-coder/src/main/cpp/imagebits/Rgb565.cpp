@@ -156,7 +156,7 @@ namespace coder::HWY_NAMESPACE {
     }
 
     inline Vec<FixedTag<uint8_t, 8>>
-    ConvertF16ToU16Row(Vec<FixedTag<uint16_t, 8>> v, float maxColors) {
+    ConvertF16ToU16Row(Vec<FixedTag<uint16_t, 8>> v, const float maxColors) {
         FixedTag<float16_t, 4> df16;
         FixedTag<uint16_t, 4> dfu416;
         FixedTag<uint8_t, 8> du8;
@@ -166,8 +166,8 @@ namespace coder::HWY_NAMESPACE {
 
         using VU8 = Vec<decltype(du8)>;
 
-        auto minColors = Zero(rf32);
-        auto vMaxColors = Set(rf32, (int) maxColors);
+        const auto minColors = Zero(rf32);
+        const auto vMaxColors = Set(rf32, static_cast<float>(maxColors));
 
         auto lower = DemoteTo(ru8, ConvertTo(ri32,
                                              Max(Min(Round(Mul(
@@ -186,7 +186,7 @@ namespace coder::HWY_NAMESPACE {
 
     void
     RGBAF16To565RowHWY(const uint16_t *source, uint16_t *destination, int width,
-                       float maxColors) {
+                       const float maxColors) {
         const FixedTag<uint16_t, 8> du16;
         const FixedTag<uint8_t, 8> du8;
         using VU16 = Vec<decltype(du16)>;
@@ -225,9 +225,9 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            uint16_t red565 = ((uint16_t) roundf(LoadHalf(src[0]) * maxColors) >> 3) << 11;
-            uint16_t green565 = ((uint16_t) roundf(LoadHalf(src[1]) * maxColors) >> 2) << 5;
-            uint16_t blue565 = (uint16_t) roundf(LoadHalf(src[2]) * maxColors) >> 3;
+            uint16_t red565 = ((uint16_t) round(LoadHalf(src[0]) * maxColors) >> 3) << 11;
+            uint16_t green565 = ((uint16_t) round(LoadHalf(src[1]) * maxColors) >> 2) << 5;
+            uint16_t blue565 = (uint16_t) round(LoadHalf(src[2]) * maxColors) >> 3;
 
             auto result = static_cast<uint16_t>(red565 | green565 | blue565);
             dst[0] = result;
@@ -241,7 +241,7 @@ namespace coder::HWY_NAMESPACE {
     void RGBAF16To565HWY(const uint16_t *sourceData, int srcStride,
                          uint16_t *dst, int dstStride, int width,
                          int height) {
-        float maxColors = powf(2, (float) 8) - 1;
+        const float maxColors = powf(2, (float) 8) - 1;
 
         auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
         auto mDst = reinterpret_cast<uint8_t *>(dst);

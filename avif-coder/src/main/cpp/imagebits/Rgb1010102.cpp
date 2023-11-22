@@ -185,24 +185,26 @@ namespace coder::HWY_NAMESPACE {
         }
     }
 
-    template<typename D, typename R>
+    template<typename D, typename R, typename T = Vec<D>, typename I = Vec<R>>
     inline __attribute__((flatten)) Vec<D>
-    ConvertPixelsTo(D d, R rd, Vec<R> r, Vec<R> g, Vec<R> b, Vec<R> a, const int *permuteMap) {
-        using VU = Vec<D>;
+    ConvertPixelsTo(D d, R rd, I r, I g, I b, I a, const int *permuteMap) {
         using RD = Vec<R>;
-        VU pixelsu1 = Mul(BitCast(d, r), Set(d, 4));
-        VU pixelsu2 = Mul(BitCast(d, g), Set(d, 4));
-        VU pixelsu3 = Mul(BitCast(d, b), Set(d, 4));
-        VU pixelsu4 = ShiftRight<8>(Add(Mul(BitCast(d, a), Set(d, 3)), Set(d, 127)));
+        const T MulBy4Const = Set(d, 4);
+        const T MulBy3Const = Set(d, 3);
+        const T O127Const = Set(d, 127);
+        T pixelsu1 = Mul(BitCast(d, r), MulBy4Const);
+        T pixelsu2 = Mul(BitCast(d, g), MulBy4Const);
+        T pixelsu3 = Mul(BitCast(d, b), MulBy4Const);
+        T pixelsu4 = ShiftRight<8>(Add(Mul(BitCast(d, a), MulBy3Const), O127Const));
 
-        VU pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
-        VU AV = pixelsStore[permuteMap[0]];
-        VU RV = pixelsStore[permuteMap[1]];
-        VU GV = pixelsStore[permuteMap[2]];
-        VU BV = pixelsStore[permuteMap[3]];
-        VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
-        VU lower = Or(ShiftLeft<10>(GV), BV);
-        VU final = Or(upper, lower);
+        T pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
+        T AV = pixelsStore[permuteMap[0]];
+        T RV = pixelsStore[permuteMap[1]];
+        T GV = pixelsStore[permuteMap[2]];
+        T BV = pixelsStore[permuteMap[3]];
+        T upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
+        T lower = Or(ShiftLeft<10>(GV), BV);
+        T final = Or(upper, lower);
         return final;
     }
 
@@ -289,7 +291,7 @@ namespace coder::HWY_NAMESPACE {
 
         int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                     height * width / (256 * 256)), 1, 12);
-        std::vector<std::thread> workers;
+        vector<thread> workers;
 
         int segmentHeight = height / threadCount;
 

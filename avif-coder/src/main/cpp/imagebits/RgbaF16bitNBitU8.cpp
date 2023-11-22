@@ -65,7 +65,7 @@ namespace coder::HWY_NAMESPACE {
     using hwy::float32_t;
 
     inline __attribute__((flatten)) Vec<FixedTag<uint8_t, 8>>
-    ConvertRow(Vec<FixedTag<uint16_t, 8>> v, float maxColors) {
+    ConvertRow(Vec<FixedTag<uint16_t, 8>> v, const float maxColors) {
         FixedTag<float16_t, 4> df16;
         FixedTag<uint16_t, 4> dfu416;
         FixedTag<uint8_t, 8> du8;
@@ -75,8 +75,8 @@ namespace coder::HWY_NAMESPACE {
 
         using VU8 = Vec<decltype(du8)>;
 
-        auto minColors = Zero(rf32);
-        auto vMaxColors = Set(rf32, (float) maxColors);
+        const auto minColors = Zero(rf32);
+        const auto vMaxColors = Set(rf32, (float) maxColors);
 
         auto lower = DemoteTo(ru8, ConvertTo(ri32,
                                              Max(Min(Round(Mul(
@@ -94,7 +94,7 @@ namespace coder::HWY_NAMESPACE {
     }
 
     void
-    RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, int width, float scale,
+    RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, int width, const float scale,
                           float maxColors) {
         const FixedTag<uint16_t, 8> du16;
         const FixedTag<uint8_t, 8> du8;

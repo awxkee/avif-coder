@@ -66,26 +66,27 @@ namespace coder::HWY_NAMESPACE {
     using hwy::float16_t;
     using hwy::float32_t;
 
-    template<typename D>
-    inline __attribute__((flatten)) Vec<D>
-    ConvertRow(D d, Vec<D> v, float scale) {
-        FixedTag<uint16_t, 8> du16x8;
+    template<typename D, typename T = Vec<D>>
+    inline __attribute__((flatten)) T
+    ConvertRow(D d, T v, const float scale) {
         FixedTag<int32_t, 4> di32x4;
         Rebind<float32_t, decltype(di32x4)> df32;
         Rebind<float16_t, decltype(df32)> dff16;
         Rebind<uint16_t, decltype(dff16)> du16;
+
+        const auto vScale = Set(df32, scale);
         auto lower = BitCast(du16, DemoteTo(dff16,
                                             Mul(ConvertTo(df32, PromoteLowerTo(di32x4, v)),
-                                                Set(df32, scale))));
+                                                vScale)));
         auto upper = BitCast(du16, DemoteTo(dff16,
                                             Mul(ConvertTo(df32,
                                                           PromoteUpperTo(di32x4, v)),
-                                                Set(df32, scale))));
-        return Combine(du16x8, upper, lower);
+                                                vScale)));
+        return Combine(d, upper, lower);
     }
 
     void
-    Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width, float scale) {
+    Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width, const float scale) {
         const FixedTag<uint16_t, 8> du16;
         const FixedTag<uint8_t, 16> du8x16;
         using VU16 = Vec<decltype(du16)>;
@@ -148,7 +149,7 @@ namespace coder::HWY_NAMESPACE {
 
         int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                     height * width / (256 * 256)), 1, 12);
-        std::vector<std::thread> workers;
+        vector<thread> workers;
 
         int segmentHeight = height / threadCount;
 
