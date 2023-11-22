@@ -72,12 +72,13 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::PromoteLowerTo;
     using hwy::HWY_NAMESPACE::PromoteUpperTo;
     using hwy::float16_t;
+    using hwy::float32_t;
 
     void
     F16ToRGBA1010102HWYRow(const uint16_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
                            int width,
                            const int *permuteMap) {
-        float range10 = powf(2, 10) - 1;
+        const float range10 = pow(2.0f, 10.0f) - 1.0f;
         const FixedTag<float, 4> df;
         const FixedTag<float16_t, 8> df16;
         const FixedTag<uint16_t, 8> du16x8;
@@ -92,24 +93,32 @@ namespace coder::HWY_NAMESPACE {
         const auto alphaMax = Set(df, 3.0);
 
         const Rebind<float16_t, FixedTag<uint16_t, 8>> rbfu16;
-        const Rebind<float, FixedTag<float16_t, 4>> rbf32;
+        const Rebind<float32_t, FixedTag<float16_t, 4>> rbf32;
 
         int x = 0;
         auto dst32 = reinterpret_cast<uint32_t *>(dst);
         int pixels = 8;
-        for (x = 0; x + pixels < width; x += pixels) {
+        const auto avShift = permuteMap[0];
+        const auto rvShift = permuteMap[1];
+        const auto gvShift = permuteMap[2];
+        const auto bvShift = permuteMap[3];
+        for (; x + pixels < width; x += pixels) {
             VU16x8 upixels1;
             VU16x8 upixels2;
             VU16x8 upixels3;
             VU16x8 upixels4;
-            LoadInterleaved4(du16x8, reinterpret_cast<const uint16_t *>(data),
+            LoadInterleaved4(du16x8,
+                             reinterpret_cast<const uint16_t *>(data),
                              upixels1,
                              upixels2,
-                             upixels3, upixels4);
+                             upixels3,
+                             upixels4);
+
             V16 fpixels1 = BitCast(rbfu16, upixels1);
             V16 fpixels2 = BitCast(rbfu16, upixels2);
             V16 fpixels3 = BitCast(rbfu16, upixels3);
             V16 fpixels4 = BitCast(rbfu16, upixels4);
+
             V pixelsLow1 = Min(
                     Max(Round(Mul(PromoteLowerTo(rbf32, fpixels1), vRange10)), zeros),
                     vRange10);
@@ -122,6 +131,7 @@ namespace coder::HWY_NAMESPACE {
             V pixelsLow4 = Min(
                     Max(Round(Mul(PromoteLowerTo(rbf32, fpixels4), alphaMax)), zeros),
                     alphaMax);
+
             VU pixelsuLow1 = BitCast(du, ConvertTo(di32, pixelsLow1));
             VU pixelsuLow2 = BitCast(du, ConvertTo(di32, pixelsLow2));
             VU pixelsuLow3 = BitCast(du, ConvertTo(di32, pixelsLow3));
@@ -145,20 +155,21 @@ namespace coder::HWY_NAMESPACE {
             VU pixelsuHigh4 = BitCast(du, ConvertTo(di32, pixelsHigh4));
 
             VU pixelsHighStore[4] = {pixelsuHigh1, pixelsuHigh2, pixelsuHigh3, pixelsuHigh4};
-            VU AV = pixelsHighStore[permuteMap[0]];
-            VU RV = pixelsHighStore[permuteMap[1]];
-            VU GV = pixelsHighStore[permuteMap[2]];
-            VU BV = pixelsHighStore[permuteMap[3]];
+            VU AV = pixelsHighStore[avShift];
+            VU RV = pixelsHighStore[rvShift];
+            VU GV = pixelsHighStore[gvShift];
+            VU BV = pixelsHighStore[bvShift];
             VU upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
             VU lower = Or(ShiftLeft<10>(GV), BV);
             VU final = Or(upper, lower);
             Store(final, du, dst32 + 4);
 
             VU pixelsLowStore[4] = {pixelsuLow1, pixelsuLow2, pixelsuLow3, pixelsuLow4};
-            AV = pixelsLowStore[permuteMap[0]];
-            RV = pixelsLowStore[permuteMap[1]];
-            GV = pixelsLowStore[permuteMap[2]];
-            BV = pixelsLowStore[permuteMap[3]];
+
+            AV = pixelsLowStore[avShift];
+            RV = pixelsLowStore[rvShift];
+            GV = pixelsLowStore[gvShift];
+            BV = pixelsLowStore[bvShift];
             upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
             lower = Or(ShiftLeft<10>(GV), BV);
             final = Or(upper, lower);
@@ -169,10 +180,10 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            auto A16 = (float) LoadHalf(data[permuteMap[0]]);
-            auto R16 = (float) LoadHalf(data[permuteMap[1]]);
-            auto G16 = (float) LoadHalf(data[permuteMap[2]]);
-            auto B16 = (float) LoadHalf(data[permuteMap[3]]);
+            auto A16 = (float) LoadHalf(data[avShift]);
+            auto R16 = (float) LoadHalf(data[rvShift]);
+            auto G16 = (float) LoadHalf(data[gvShift]);
+            auto B16 = (float) LoadHalf(data[bvShift]);
             auto R10 = (uint32_t) (clamp(round(R16 * range10), 0.0f, (float) range10));
             auto G10 = (uint32_t) (clamp(round(G16 * range10), 0.0f, (float) range10));
             auto B10 = (uint32_t) (clamp(round(B16 * range10), 0.0f, (float) range10));
@@ -222,12 +233,13 @@ namespace coder::HWY_NAMESPACE {
         int x = 0;
         auto dst32 = reinterpret_cast<uint32_t *>(dst);
         int pixels = 16;
-        for (x = 0; x + pixels < width; x += pixels) {
+        for (; x + pixels < width; x += pixels) {
             VU8x16 upixels1;
             VU8x16 upixels2;
             VU8x16 upixels3;
             VU8x16 upixels4;
-            LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(data), upixels1,
+            LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(data),
+                             upixels1,
                              upixels2,
                              upixels3, upixels4);
             VU final = ConvertPixelsTo(du, di32,
@@ -614,7 +626,6 @@ void convertRGBA1010102ToU16_C(const uint8_t *src, int srcStride, uint16_t *dst,
             uint32_t a1 = (rgba1010102 >> 30);
             uint32_t a = (a1 << 8) | (a1 << 6) | (a1 << 4) | (a1 << 2) | a1;
 
-            // Convert each channel to floating-point values
             auto rUInt16 = static_cast<uint16_t>(r);
             auto gUInt16 = static_cast<uint16_t>(g);
             auto bUInt16 = static_cast<uint16_t>(b);

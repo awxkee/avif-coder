@@ -4,7 +4,7 @@
  * Copyright (c) 2023 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 06/11/2023
+ * Created by Radzivon Bartoshyk on 22/11/2023
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,19 +26,15 @@
  *
  */
 
-#ifndef JXLCODER_RGBALPHA_H
-#define JXLCODER_RGBALPHA_H
+#ifndef AVIF_RGBAU16TOHF_H
+#define AVIF_RGBAU16TOHF_H
 
 #include <cstdint>
 
 namespace coder {
-    void UnpremultiplyRGBA(const uint8_t *src, int srcStride,
-                           uint8_t *dst, int dstStride, int width,
-                           int height);
-
-    void PremultiplyRGBA(const uint8_t *src, int srcStride,
-                         uint8_t *dst, int dstStride, int width,
-                         int height);
+    void RgbaU16ToF(const uint16_t *src, const int srcStride,
+                    uint16_t *dst, const int dstStride, const int width,
+                    const int height, const int bitDepth);
 }
 
-#endif //JXLCODER_RGBALPHA_H
+#endif //AVIF_RGBAU16TOHF_H

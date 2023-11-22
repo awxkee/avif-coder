@@ -74,10 +74,17 @@ createBitmap(JNIEnv *env, std::vector<uint8_t> &data, std::string &colorConfig, 
                                    (int) info.width,
                                    (int) info.height);
     } else {
+        int pixelSize = 1;
+        if (use16Floats) {
+            pixelSize = 2;
+        }
+        if (colorConfig == "RGBA_1010102") {
+            pixelSize = sizeof(uint32_t);
+        }
         coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data.data()), stride,
                                  reinterpret_cast<uint8_t *>(addr), (int) info.stride,
                                  (int) info.width,
-                                 (int) info.height, use16Floats ? 2 : 1);
+                                 (int) info.height, pixelSize);
     }
 
     if (AndroidBitmap_unlockPixels(env, bitmapObj) != 0) {

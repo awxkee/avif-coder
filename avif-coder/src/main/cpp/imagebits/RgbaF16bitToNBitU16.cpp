@@ -102,7 +102,7 @@ void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
     auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
     auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
     const float scale = 1.0f / float((1 << bitDepth) - 1);
-    float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
+    const float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
 
     for (int y = 0; y < height; ++y) {
         auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);

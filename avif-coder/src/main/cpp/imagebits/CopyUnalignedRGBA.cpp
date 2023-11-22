@@ -47,17 +47,19 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::Store;
     using hwy::HWY_NAMESPACE::Load;
     using hwy::HWY_NAMESPACE::Vec;
-    using hwy::HWY_NAMESPACE::TFromD;
+    using hwy::HWY_NAMESPACE::LoadInterleaved4;
+    using hwy::HWY_NAMESPACE::StoreInterleaved4;
 
-    template<class D, typename T = TFromD<D>>
+    template<class D, typename Buf, typename T = Vec<D>>
     void
-    CopyUnalignedRGBARow(const D d, const T *HWY_RESTRICT src, T *HWY_RESTRICT dst, int width) {
+    CopyUnalignedRGBARow(const D d, const Buf *HWY_RESTRICT src, Buf *HWY_RESTRICT dst, int width) {
         int x = 0;
         using VU = Vec<decltype(d)>;
-        int pixels = d.MaxLanes() / 4;
-        for (x = 0; x + pixels < width; x += pixels) {
-            VU pixel = Load(d, src);
-            Store(pixel, d, dst);
+        int pixels = d.MaxLanes();
+        for (; x + pixels < width; x += pixels) {
+            VU a, r, g, b;
+            LoadInterleaved4(d, src, a, r, g, b);
+            StoreInterleaved4(a, r, g, b, d, dst);
 
             src += pixels * 4;
             dst += pixels * 4;
@@ -86,7 +88,7 @@ namespace coder::HWY_NAMESPACE {
                       int pixelSize) {
         int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                     width * height / (256 * 256)), 1, 12);
-        std::vector<std::thread> workers;
+        vector<thread> workers;
 
         int segmentHeight = height / threadCount;
 
@@ -100,26 +102,32 @@ namespace coder::HWY_NAMESPACE {
                 for (int y = start; y < end; ++y) {
                     if (pixelSize == 1) {
                         const ScalableTag<uint8_t> du8;
-                        auto fn = CopyUnalignedRGBARow<decltype(du8)>;
+                        auto fn = CopyUnalignedRGBARow<decltype(du8), uint8_t>;
                         fn(du8,
-                           reinterpret_cast<const uint8_t *>(src + (y * srcStride)),
-                           reinterpret_cast<uint8_t *>(dst + (y * dstStride)),
+                           reinterpret_cast<const uint8_t *>(
+                                   reinterpret_cast<const uint8_t *>(src) + (y * srcStride)),
+                           reinterpret_cast<uint8_t *>(reinterpret_cast<uint8_t *>(dst) +
+                                                       (y * dstStride)),
                            width);
                     } else if (pixelSize == 2) {
                         const ScalableTag<uint16_t> du16;
-                        auto fn = CopyUnalignedRGBARow<decltype(du16)>;
+                        auto fn = CopyUnalignedRGBARow<decltype(du16), uint16_t>;
                         fn(du16,
-                           reinterpret_cast<const uint16_t *>(src +
-                                                              (y * srcStride)),
-                           reinterpret_cast<uint16_t *>(dst + (y * dstStride)),
+                           reinterpret_cast<const uint16_t *>(
+                                   reinterpret_cast<const uint8_t *>(src) +
+                                   (y * srcStride)),
+                           reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) +
+                                                        (y * dstStride)),
                            width);
                     } else if (pixelSize == 4) {
-                        const ScalableTag<float> df32;
-                        auto fn = CopyUnalignedRGBARow<decltype(df32)>;
+                        const ScalableTag<uint32_t> df32;
+                        auto fn = CopyUnalignedRGBARow<decltype(df32), uint32_t>;
                         fn(df32,
-                           reinterpret_cast<const float *>(src +
-                                                           (y * srcStride)),
-                           reinterpret_cast<float *>(dst + (y * dstStride)),
+                           reinterpret_cast<const uint32_t *>(
+                                   reinterpret_cast<const uint8_t *>(src) +
+                                   (y * srcStride)),
+                           reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(dst) +
+                                                        (y * dstStride)),
                            width);
                     }
                 }
@@ -137,7 +145,7 @@ namespace coder::HWY_NAMESPACE {
         const ScalableTag<uint16_t> du;
         using VU = Vec<decltype(du)>;
         int pixels = du.MaxLanes();
-        for (x = 0; x + pixels < width; x += pixels) {
+        for (; x + pixels < width; x += pixels) {
             VU pixel = Load(du, src);
             Store(pixel, du, dst);
 

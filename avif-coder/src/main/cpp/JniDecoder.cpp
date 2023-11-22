@@ -30,6 +30,9 @@
 #include "VulkanRunner.h"
 #include <android/asset_manager_jni.h>
 #include "imagebits/RGBAlpha.h"
+#include "imagebits/RgbaU16toHF.h"
+
+using namespace std;
 
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    AAssetManager *assetManager,
@@ -167,17 +170,15 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         alphaPremultiplied = false;
     }
 
-    std::vector<uint8_t> dstARGB(stride * imageHeight);
+    vector<uint8_t> dstARGB(stride * imageHeight);
 
     if (useBitmapHalf16Floats) {
-        const float scale = 1.0f / float((1 << bitDepth) - 1);
-        libyuv::HalfFloatPlane(reinterpret_cast<const uint16_t *>(initialData.data()),
-                               stride,
-                               reinterpret_cast<uint16_t *>(dstARGB.data()),
-                               stride,
-                               scale,
-                               imageWidth * 4,
-                               imageHeight);
+        coder::RgbaU16ToF(reinterpret_cast<const uint16_t*>(initialData.data()),
+                          stride,
+                          reinterpret_cast<uint16_t*>(dstARGB.data()),
+                          stride,
+                          imageWidth * 4, imageHeight,
+                          bitDepth);
 
     } else {
         dstARGB = initialData;

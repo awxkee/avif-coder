@@ -92,8 +92,8 @@ class MainActivity : AppCompatActivity() {
             val executionTime = measureTimeMillis {
                 val bitmap = coder.decodeSampled(
                     buffer,
-                    size.width * 2,
-                    size.height * 2,
+                    size.width,
+                    size.height,
                     PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView5.setImageBitmap(bitmap)
@@ -225,9 +225,7 @@ class MainActivity : AppCompatActivity() {
                     PreferredColorConfig.RGBA_8888,
                     ScaleMode.RESIZE
                 )
-                val enc = coder.encodeAvif(bitmap)
-                val decoded = coder.decode(enc)
-                binding.imageView9.setImageBitmap(decoded)
+                binding.imageView9.setImageBitmap(bitmap)
             }
             Log.i("AVIF", "execution time $executionTime")
         }

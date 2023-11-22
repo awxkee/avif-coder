@@ -247,11 +247,11 @@ namespace coder::HWY_NAMESPACE {
     inline __attribute__((flatten)) float ToLinearPQ(float v, const float sdrReferencePoint) {
         float o = v;
         v = max(0.0f, v);
-        float m1 = (2610.0f / 4096.0f) / 4.0f;
-        float m2 = (2523.0f / 4096.0f) * 128.0f;
-        float c1 = 3424.0f / 4096.0f;
-        float c2 = (2413.0f / 4096.0f) * 32.0f;
-        float c3 = (2392.0f / 4096.0f) * 32.0f;
+        const float m1 = (2610.0f / 4096.0f) / 4.0f;
+        const float m2 = (2523.0f / 4096.0f) * 128.0f;
+        const float c1 = 3424.0f / 4096.0f;
+        const float c2 = (2413.0f / 4096.0f) * 32.0f;
+        const float c3 = (2392.0f / 4096.0f) * 32.0f;
         float p = pow(v, 1.0f / m2);
         v = pow(max(p - c1, 0.0f) / (c2 - c3 * p), 1.0f / m1);
         v *= 10000.0f / sdrReferencePoint;
@@ -361,28 +361,32 @@ namespace coder::HWY_NAMESPACE {
 
     template<class D, typename T = Vec<D>>
     inline __attribute__((flatten)) T bt2020GammaCorrection(const D d, T color) {
-        T bt2020 = Set(d, betaRec2020);
-        T alpha2020 = Set(d, alphaRec2020);
+        const T bt2020 = Set(d, betaRec2020);
+        const T alpha2020 = Set(d, alphaRec2020);
         const auto cmp = color < bt2020;
         const auto branch1 = Mul(color, Set(d, 4.5f));
+        const T power1 = Set(d, 0.45f);
+        const T power2 = Sub(alpha2020, Set(d, 1.0f));
         const auto branch2 =
-                Sub(Mul(alpha2020, PowPQ(color, Set(d, 0.45f))),
-                    Sub(alpha2020, Set(d, 1.0f)));
+                Sub(Mul(alpha2020, PowPQ(color, power1)), power2);
         return IfThenElse(cmp, branch1, branch2);
     }
 
     template<class D, typename T = Vec<D>>
     inline __attribute__((flatten)) T ToLinearPQ(const D d, T v) {
-        v = Max(Zero(d), v);
-        float m1 = (2610.0f / 4096.0f) / 4.0f;
-        float m2 = (2523.0f / 4096.0f) * 128.0f;
-        T c1 = Set(d, 3424.0f / 4096.0f);
-        T c2 = Set(d, (2413.0f / 4096.0f) * 32.0f);
-        T c3 = Set(d, (2392.0f / 4096.0f) * 32.0f);
-        T p = PowPQ(v, Set(d, 1.0f / m2));
-        v = PowPQ(Div(Max(Sub(p, c1), Zero(d)), (Sub(c2, Mul(c3, p)))),
-                  Set(d, 1.0f / m1));
-        v = Mul(v, Set(d, 10000.0f / 203.0f));
+        const T zeros = Zero(d);
+        v = Max(zeros, v);
+        const float m1 = (2610.0f / 4096.0f) / 4.0f;
+        const float m2 = (2523.0f / 4096.0f) * 128.0f;
+        const T c1 = Set(d, 3424.0f / 4096.0f);
+        const T c2 = Set(d, (2413.0f / 4096.0f) * 32.0f);
+        const T c3 = Set(d, (2392.0f / 4096.0f) * 32.0f);
+        const T p1Power = Set(d, 1.0f / m2);
+        const T p2Power = Set(d, 1.0f / m1);
+        const T p3Power = Set(d, 10000.0f / 203.0f);
+        const T p = PowPQ(v, p1Power);
+        v = PowPQ(Div(Max(Sub(p, c1), zeros), Sub(c2, Mul(c3, p))), p2Power);
+        v = Mul(v, p3Power);
         return v;
     }
 
@@ -596,17 +600,23 @@ namespace coder::HWY_NAMESPACE {
             auto lowG16 = PromoteLowerTo(du16, GURow);
             auto lowB16 = PromoteLowerTo(du16, BURow);
 
-            VF32 rLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowR16)), recProcColors);
-            VF32 gLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowG16)), recProcColors);
-            VF32 bLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), recProcColors);
+            VF32 rLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowR16)),
+                                   recProcColors);
+            VF32 gLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowG16)),
+                                   recProcColors);
+            VF32 bLowerLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)),
+                                   recProcColors);
 
             TransferU8Row(df32, gammaCorrection, function, toneMapper, rLowerLow32, gLowerLow32,
                           bLowerLow32,
                           vColors, vZeros);
 
-            VF32 rLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowR16)), recProcColors);
-            VF32 gLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowG16)), recProcColors);
-            VF32 bLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowB16)), recProcColors);
+            VF32 rLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowR16)),
+                                    recProcColors);
+            VF32 gLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowG16)),
+                                    recProcColors);
+            VF32 bLowerHigh32 = Mul(ConvertTo(rebind32, PromoteUpperTo(du32, lowB16)),
+                                    recProcColors);
 
             TransferU8Row(df32, gammaCorrection, function, toneMapper, rLowerHigh32, gLowerHigh32,
                           bLowerHigh32,
@@ -620,7 +630,8 @@ namespace coder::HWY_NAMESPACE {
                                     recProcColors);
             VF32 gHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, upperG16)),
                                     recProcColors);
-            VF32 bHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)), recProcColors);
+            VF32 bHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)),
+                                    recProcColors);
 
             TransferU8Row(df32, gammaCorrection, function, toneMapper, rHigherLow32, gHigherLow32,
                           bHigherLow32,
@@ -705,9 +716,9 @@ namespace coder {
 
 void HDRTransferAdapter::transfer() {
     auto maxColors = powf(2, (float) this->bitDepth) - 1;
-    int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
+    int threadCount = clamp(min(static_cast<int>(thread::hardware_concurrency()),
                                 this->width * this->height / (256 * 256)), 1, 12);
-    std::vector<std::thread> workers;
+    vector<thread> workers;
 
     int segmentHeight = this->height / threadCount;
 

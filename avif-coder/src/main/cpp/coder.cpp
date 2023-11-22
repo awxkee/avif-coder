@@ -49,10 +49,11 @@
 #include "imagebits/CopyUnalignedRGBA.h"
 #include "imagebits/RGBAlpha.h"
 
+using namespace std;
+
 struct AvifMemEncoder {
     std::vector<char> buffer;
 };
-
 
 struct heif_error writeHeifData(struct heif_context *ctx,
                                 const void *data,
@@ -189,7 +190,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         if (heifCompressionFormat == heif_compression_AV1) {
-            std::shared_ptr<char> dstARGB(
+            shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
                     [](char *f) { free(f); });
             int dstStride = (int) info.width * 4 * (int) sizeof(uint16_t);
@@ -206,7 +207,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 
             dstARGB.reset();
         } else {
-            std::shared_ptr<char> dstARGB(
+            shared_ptr<char> dstARGB(
                     static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint8_t))),
                     [](char *f) { free(f); });
             int dstStride = (int) info.width * 4 * (int) sizeof(uint8_t);
