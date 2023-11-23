@@ -173,9 +173,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     vector<uint8_t> dstARGB(stride * imageHeight);
 
     if (useBitmapHalf16Floats) {
-        coder::RgbaU16ToF(reinterpret_cast<const uint16_t*>(initialData.data()),
+        coder::RgbaU16ToF(reinterpret_cast<const uint16_t *>(initialData.data()),
                           stride,
-                          reinterpret_cast<uint16_t*>(dstARGB.data()),
+                          reinterpret_cast<uint16_t *>(dstARGB.data()),
                           stride,
                           imageWidth * 4, imageHeight,
                           bitDepth);
@@ -305,13 +305,19 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     jobject hwBuffer = nullptr;
 
-    ReformatColorConfig(env, ref(dstARGB), ref(imageConfig), preferredColorConfig,
-                        bitDepth, imageWidth,
-                        imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer,
-                        alphaPremultiplied);
+    try {
+        coder::ReformatColorConfig(env, ref(dstARGB), ref(imageConfig), preferredColorConfig,
+                                   bitDepth, imageWidth,
+                                   imageHeight, &stride, &useBitmapHalf16Floats, &hwBuffer,
+                                   alphaPremultiplied);
 
-    return createBitmap(env, ref(dstARGB), imageConfig, stride, imageWidth, imageHeight,
-                        useBitmapHalf16Floats, hwBuffer);
+        return createBitmap(env, ref(dstARGB), imageConfig, stride, imageWidth, imageHeight,
+                            useBitmapHalf16Floats, hwBuffer);
+    } catch (coder::ReformatBitmapError &err) {
+        std::string exception(err.what());
+        throwException(env, exception);
+        return static_cast<jobject>(nullptr);
+    }
 }
 
 extern "C"

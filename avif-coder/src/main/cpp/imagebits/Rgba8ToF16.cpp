@@ -63,18 +63,19 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::PromoteUpperTo;
     using hwy::HWY_NAMESPACE::LoadInterleaved4;
     using hwy::HWY_NAMESPACE::StoreInterleaved4;
+    using hwy::HWY_NAMESPACE::Store;
+    using hwy::HWY_NAMESPACE::Load;
     using hwy::float16_t;
     using hwy::float32_t;
 
     template<typename D, typename T = Vec<D>>
     inline __attribute__((flatten)) T
-    ConvertRow(D d, T v, const float scale) {
+    ConvertRow(D d, T v, const Vec<FixedTag<float32_t, 4>> vScale) {
         FixedTag<int32_t, 4> di32x4;
         Rebind<float32_t, decltype(di32x4)> df32;
         Rebind<float16_t, decltype(df32)> dff16;
         Rebind<uint16_t, decltype(dff16)> du16;
 
-        const auto vScale = Set(df32, scale);
         auto lower = BitCast(du16, DemoteTo(dff16,
                                             Mul(ConvertTo(df32, PromoteLowerTo(di32x4, v)),
                                                 vScale)));
@@ -97,7 +98,11 @@ namespace coder::HWY_NAMESPACE {
 
         auto src = reinterpret_cast<const uint8_t *>(source);
         auto dst = reinterpret_cast<uint16_t *>(destination);
-        for (x = 0; x + pixels < width; x += pixels) {
+
+        const FixedTag<float32_t, 4> df32x4;
+        const auto vScale = Set(df32x4, scale);
+
+        for (; x + pixels < width; x += pixels) {
             VU8x16 ru8Row;
             VU8x16 gu8Row;
             VU8x16 bu8Row;
@@ -105,17 +110,17 @@ namespace coder::HWY_NAMESPACE {
             LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(src),
                              ru8Row, gu8Row, bu8Row, au8Row);
 
-            auto r16Row = ConvertRow(du16, PromoteLowerTo(du16, ru8Row), scale);
-            auto g16Row = ConvertRow(du16, PromoteLowerTo(du16, gu8Row), scale);
-            auto b16Row = ConvertRow(du16, PromoteLowerTo(du16, bu8Row), scale);
-            auto a16Row = ConvertRow(du16, PromoteLowerTo(du16, au8Row), scale);
+            auto r16Row = ConvertRow(du16, PromoteLowerTo(du16, ru8Row), vScale);
+            auto g16Row = ConvertRow(du16, PromoteLowerTo(du16, gu8Row), vScale);
+            auto b16Row = ConvertRow(du16, PromoteLowerTo(du16, bu8Row), vScale);
+            auto a16Row = ConvertRow(du16, PromoteLowerTo(du16, au8Row), vScale);
 
             StoreInterleaved4(r16Row, g16Row, b16Row, a16Row, du16, dst);
 
-            r16Row = ConvertRow(du16, PromoteUpperTo(du16, ru8Row), scale);
-            g16Row = ConvertRow(du16, PromoteUpperTo(du16, gu8Row), scale);
-            b16Row = ConvertRow(du16, PromoteUpperTo(du16, bu8Row), scale);
-            a16Row = ConvertRow(du16, PromoteUpperTo(du16, au8Row), scale);
+            r16Row = ConvertRow(du16, PromoteUpperTo(du16, ru8Row), vScale);
+            g16Row = ConvertRow(du16, PromoteUpperTo(du16, gu8Row), vScale);
+            b16Row = ConvertRow(du16, PromoteUpperTo(du16, bu8Row), vScale);
+            a16Row = ConvertRow(du16, PromoteUpperTo(du16, au8Row), vScale);
 
             StoreInterleaved4(r16Row, g16Row, b16Row, a16Row, du16, dst + 8 * 4);
 
@@ -123,16 +128,17 @@ namespace coder::HWY_NAMESPACE {
             dst += 4 * pixels;
         }
 
-        for (; x < width; ++x) {
-            auto tmpR = (uint16_t) half((float) src[0] * scale).data_;
-            auto tmpG = (uint16_t) half((float) src[1] * scale).data_;
-            auto tmpB = (uint16_t) half((float) src[2] * scale).data_;
-            auto tmpA = (uint16_t) half((float) src[3] * scale).data_;
+        const FixedTag<float16_t, 4> df16x4;
+        const FixedTag<uint8_t, 4> du8x4;
+        const FixedTag<int32_t, 4> di32x4;
+        using VU8x4 = Vec<decltype(du8x4)>;
+        using VF16x4 = Vec<decltype(df16x4)>;
 
-            dst[0] = tmpR;
-            dst[1] = tmpG;
-            dst[2] = tmpB;
-            dst[3] = tmpA;
+        for (; x < width; ++x) {
+            VU8x4 v8Vec = Load(du8x4, src);
+            VF16x4 v16Vec = DemoteTo(df16x4,
+                                     Mul(ConvertTo(df32x4, PromoteTo(di32x4, v8Vec)), vScale));
+            Store(v16Vec, df16x4, reinterpret_cast<float16_t *>(dst));
 
             src += 4;
             dst += 4;

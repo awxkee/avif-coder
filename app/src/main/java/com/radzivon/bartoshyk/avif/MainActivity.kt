@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width * 2,
                 size.height * 2,
-                PreferredColorConfig.RGBA_8888,
+                PreferredColorConfig.RGBA_F16,
                 ScaleMode.RESIZE
             )
             binding.imageView.setImageBitmap(bitmap)
@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width,
                     size.height,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView1.setImageBitmap(bitmap)
@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width * 2,
                 size.height * 2,
-                PreferredColorConfig.RGBA_8888,
+                PreferredColorConfig.RGBA_F16,
                 ScaleMode.RESIZE
             )
             binding.imageView2.setImageBitmap(bitmap)
@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView3.setImageBitmap(bitmap)
@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView4.setImageBitmap(bitmap)
@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView6.setImageBitmap(bitmap)
@@ -190,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width / 3,
                 size.height / 3,
-                PreferredColorConfig.RGBA_8888,
+                PreferredColorConfig.RGBA_F16,
                 ScaleMode.RESIZE
             )
             binding.imageView7.setImageBitmap(bitmap)
@@ -205,7 +205,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width / 3,
                     size.height / 3,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView8.setImageBitmap(bitmap)
@@ -222,7 +222,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width,
                     size.height,
-                    PreferredColorConfig.RGBA_8888,
+                    PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
                 )
                 binding.imageView9.setImageBitmap(bitmap)
@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity() {
 //                    .components {
 //                        add(HeifDecoder.Factory())
 //                    }
-//                    .bitmapConfig(Bitmap.Config.HARDWARE)
+//                    .bitmapConfig(Bitmap.Config.RGBA_F16)
 //                    .build())
 //        }
 

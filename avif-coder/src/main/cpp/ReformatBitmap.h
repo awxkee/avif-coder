@@ -31,12 +31,26 @@
 
 #include <jni.h>
 #include <vector>
+#include <string>
 #include "Support.h"
 
-void
-ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &imageConfig,
-                    PreferredColorConfig preferredColorConfig, int depth,
-                    int imageWidth, int imageHeight, int *stride, bool *useFloats,
-                    jobject *hwBuffer, bool alphaPremultiplied);
+namespace coder {
+    class ReformatBitmapError : public std::runtime_error {
+        std::string whatMessage;
+    public:
+        explicit ReformatBitmapError(const std::string &str)
+                : runtime_error(str), whatMessage(str) {}
+
+        const char *what() {
+            return whatMessage.c_str();
+        }
+    };
+
+    void
+    ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &imageConfig,
+                        PreferredColorConfig preferredColorConfig, int depth,
+                        int imageWidth, int imageHeight, int *stride, bool *useFloats,
+                        jobject *hwBuffer, bool alphaPremultiplied);
+}
 
 #endif //AVIF_REFORMATBITMAP_H

@@ -61,6 +61,10 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::UpperHalf;
     using hwy::HWY_NAMESPACE::LoadInterleaved4;
     using hwy::HWY_NAMESPACE::StoreInterleaved4;
+    using hwy::HWY_NAMESPACE::Load;
+    using hwy::HWY_NAMESPACE::Round;
+    using hwy::HWY_NAMESPACE::Store;
+    using hwy::HWY_NAMESPACE::Rebind;
     using hwy::float16_t;
     using hwy::float32_t;
 
@@ -94,11 +98,19 @@ namespace coder::HWY_NAMESPACE {
     }
 
     void
-    RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, int width, const float scale,
+    RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, int width,
+                          const float scale,
                           float maxColors) {
         const FixedTag<uint16_t, 8> du16;
         const FixedTag<uint8_t, 8> du8;
+        const FixedTag<float16_t, 4> df16x4;
+        const FixedTag<float32_t, 4> df32x4;
+        const FixedTag<int32_t, 4> di32x4;
+        const FixedTag<int16_t, 4> di16x4;
+        const FixedTag<uint8_t, 4> du8x4;
         using VU16 = Vec<decltype(du16)>;
+        using VF16 = Vec<decltype(df16x4)>;
+        using VF32 = Vec<decltype(df32x4)>;
         using VU8 = Vec<decltype(du8)>;
 
         int x = 0;
@@ -106,7 +118,9 @@ namespace coder::HWY_NAMESPACE {
 
         auto src = reinterpret_cast<const uint16_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
-        for (x = 0; x + pixels < width; x += pixels) {
+        const VF32 vColors = Set(df32x4, maxColors);
+        const VF32 zeros = Zero(df32x4);
+        for (; x + pixels < width; x += pixels) {
             VU16 ru16Row;
             VU16 gu16Row;
             VU16 bu16Row;
@@ -128,16 +142,11 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            auto tmpR = (uint16_t) clamp(round(LoadHalf(src[0]) * maxColors), 0.0f, maxColors);
-            auto tmpG = (uint16_t) clamp(round(LoadHalf(src[1]) * maxColors), 0.0f, maxColors);
-            auto tmpB = (uint16_t) clamp(round(LoadHalf(src[2]) * maxColors), 0.0f, maxColors);
-            auto tmpA = (uint16_t) clamp(round(LoadHalf(src[3]) * maxColors), 0.0f, maxColors);
-
-            dst[0] = tmpR;
-            dst[1] = tmpG;
-            dst[2] = tmpB;
-            dst[3] = tmpA;
-
+            VF16 vec = Load(df16x4, reinterpret_cast<const float16_t *>(src));
+            VF32 v32 = PromoteTo(df32x4, vec);
+            v32 = Min(Max(Round(Mul(v32, vColors)), zeros), vColors);
+            auto u8Vec = DemoteTo(du8x4, DemoteTo(di16x4, ConvertTo(di32x4, v32)));
+            Store(u8Vec, du8x4, dst);
             src += 4;
             dst += 4;
         }
