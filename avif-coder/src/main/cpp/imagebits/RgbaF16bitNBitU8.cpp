@@ -142,11 +142,16 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            VF16 vec = Load(df16x4, reinterpret_cast<const float16_t *>(src));
-            VF32 v32 = PromoteTo(df32x4, vec);
-            v32 = Min(Max(Round(Mul(v32, vColors)), zeros), vColors);
-            auto u8Vec = DemoteTo(du8x4, DemoteTo(di16x4, ConvertTo(di32x4, v32)));
-            Store(u8Vec, du8x4, dst);
+            auto tmpR = (uint16_t) clamp(round(LoadHalf(src[0]) * maxColors), 0.0f, maxColors);
+            auto tmpG = (uint16_t) clamp(round(LoadHalf(src[1]) * maxColors), 0.0f, maxColors);
+            auto tmpB = (uint16_t) clamp(round(LoadHalf(src[2]) * maxColors), 0.0f, maxColors);
+            auto tmpA = (uint16_t) clamp(round(LoadHalf(src[3]) * maxColors), 0.0f, maxColors);
+
+            dst[0] = tmpR;
+            dst[1] = tmpG;
+            dst[2] = tmpB;
+            dst[3] = tmpA;
+
             src += 4;
             dst += 4;
         }

@@ -128,17 +128,16 @@ namespace coder::HWY_NAMESPACE {
             dst += 4 * pixels;
         }
 
-        const FixedTag<float16_t, 4> df16x4;
-        const FixedTag<uint8_t, 4> du8x4;
-        const FixedTag<int32_t, 4> di32x4;
-        using VU8x4 = Vec<decltype(du8x4)>;
-        using VF16x4 = Vec<decltype(df16x4)>;
-
         for (; x < width; ++x) {
-            VU8x4 v8Vec = Load(du8x4, src);
-            VF16x4 v16Vec = DemoteTo(df16x4,
-                                     Mul(ConvertTo(df32x4, PromoteTo(di32x4, v8Vec)), vScale));
-            Store(v16Vec, df16x4, reinterpret_cast<float16_t *>(dst));
+            auto tmpR = (uint16_t) half((float) src[0] * scale).data_;
+            auto tmpG = (uint16_t) half((float) src[1] * scale).data_;
+            auto tmpB = (uint16_t) half((float) src[2] * scale).data_;
+            auto tmpA = (uint16_t) half((float) src[3] * scale).data_;
+
+            dst[0] = tmpR;
+            dst[1] = tmpG;
+            dst[2] = tmpB;
+            dst[3] = tmpA;
 
             src += 4;
             dst += 4;
