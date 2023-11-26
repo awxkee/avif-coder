@@ -293,15 +293,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                       sizeof(bt709), useBitmapHalf16Floats, &stride);
     }
 
-    if (!alphaPremultiplied) {
-        if (!useBitmapHalf16Floats) {
-            libyuv::ARGBAttenuate(reinterpret_cast<uint8_t *>(dstARGB.data()), stride,
-                                  reinterpret_cast<uint8_t *>(dstARGB.data()), stride, imageWidth,
-                                  imageHeight);
-        }
-    }
-
-    std::string imageConfig = useBitmapHalf16Floats ? "RGBA_F16" : "ARGB_8888";
+    string imageConfig = useBitmapHalf16Floats ? "RGBA_F16" : "ARGB_8888";
 
     jobject hwBuffer = nullptr;
 
@@ -314,7 +306,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         return createBitmap(env, ref(dstARGB), imageConfig, stride, imageWidth, imageHeight,
                             useBitmapHalf16Floats, hwBuffer);
     } catch (coder::ReformatBitmapError &err) {
-        std::string exception(err.what());
+        string exception(err.what());
         throwException(env, exception);
         return static_cast<jobject>(nullptr);
     }

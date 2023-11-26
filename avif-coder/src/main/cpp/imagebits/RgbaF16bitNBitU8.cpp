@@ -98,18 +98,14 @@ namespace coder::HWY_NAMESPACE {
     }
 
     void
-    RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, int width,
+    RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, const int width,
                           const float scale,
-                          float maxColors) {
+                          const float maxColors) {
         const FixedTag<uint16_t, 8> du16;
         const FixedTag<uint8_t, 8> du8;
         const FixedTag<float16_t, 4> df16x4;
         const FixedTag<float32_t, 4> df32x4;
-        const FixedTag<int32_t, 4> di32x4;
-        const FixedTag<int16_t, 4> di16x4;
-        const FixedTag<uint8_t, 4> du8x4;
         using VU16 = Vec<decltype(du16)>;
-        using VF16 = Vec<decltype(df16x4)>;
         using VF32 = Vec<decltype(df32x4)>;
         using VU8 = Vec<decltype(du8)>;
 
@@ -118,8 +114,6 @@ namespace coder::HWY_NAMESPACE {
 
         auto src = reinterpret_cast<const uint16_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
-        const VF32 vColors = Set(df32x4, maxColors);
-        const VF32 zeros = Zero(df32x4);
         for (; x + pixels < width; x += pixels) {
             VU16 ru16Row;
             VU16 gu16Row;
@@ -170,7 +164,7 @@ namespace coder::HWY_NAMESPACE {
 
         int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                     height * width / (256 * 256)), 1, 12);
-        std::vector<std::thread> workers;
+        vector<thread> workers;
 
         int segmentHeight = height / threadCount;
 

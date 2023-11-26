@@ -44,8 +44,8 @@ HWY_BEFORE_NAMESPACE();
 namespace coder::HWY_NAMESPACE {
 
     using hwy::HWY_NAMESPACE::ScalableTag;
-    using hwy::HWY_NAMESPACE::Store;
-    using hwy::HWY_NAMESPACE::Load;
+    using hwy::HWY_NAMESPACE::StoreU;
+    using hwy::HWY_NAMESPACE::LoadU;
     using hwy::HWY_NAMESPACE::Vec;
     using hwy::HWY_NAMESPACE::LoadInterleaved4;
     using hwy::HWY_NAMESPACE::StoreInterleaved4;
@@ -146,8 +146,8 @@ namespace coder::HWY_NAMESPACE {
         using VU = Vec<decltype(du)>;
         int pixels = du.MaxLanes();
         for (; x + pixels < width; x += pixels) {
-            VU pixel = Load(du, src);
-            Store(pixel, du, dst);
+            VU pixel = LoadU(du, src);
+            StoreU(pixel, du, dst);
 
             src += pixels;
             dst += pixels;
@@ -167,7 +167,7 @@ namespace coder::HWY_NAMESPACE {
                         int height) {
         int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                     height * width / (356 * 356)), 1, 12);
-        std::vector<std::thread> workers;
+        vector<thread> workers;
         int segmentHeight = height / threadCount;
 
         for (int i = 0; i < threadCount; i++) {

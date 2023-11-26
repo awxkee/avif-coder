@@ -65,7 +65,7 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::ShiftRight;
     using hwy::HWY_NAMESPACE::UpperHalf;
     using hwy::HWY_NAMESPACE::LoadInterleaved4;
-    using hwy::HWY_NAMESPACE::Store;
+    using hwy::HWY_NAMESPACE::StoreU;
     using hwy::HWY_NAMESPACE::Or;
     using hwy::float16_t;
 
@@ -95,7 +95,7 @@ namespace coder::HWY_NAMESPACE {
             auto bdu16Vec = ShiftRight<3>(PromoteLowerTo(du16, bu8Row));
 
             auto result = Or(Or(rdu16Vec, gdu16Vec), bdu16Vec);
-            Store(result, du16, dst);
+            StoreU(result, du16, dst);
 
             rdu16Vec = ShiftLeft<11>(ShiftRight<3>(PromoteUpperTo(du16, ru8Row)));
             gdu16Vec = ShiftLeft<5>(ShiftRight<2>(PromoteUpperTo(du16, gu8Row)));
@@ -218,7 +218,7 @@ namespace coder::HWY_NAMESPACE {
             auto bdu16Vec = ShiftRight<3>(PromoteTo(rdu16, b16Row));
 
             auto result = Or(Or(rdu16Vec, gdu16Vec), bdu16Vec);
-            Store(result, du16, dst);
+            StoreU(result, du16, dst);
 
             src += 4 * pixels;
             dst += pixels;

@@ -46,7 +46,7 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::ScalableTag;
     using hwy::HWY_NAMESPACE::Vec;
     using hwy::HWY_NAMESPACE::Set;
-    using hwy::HWY_NAMESPACE::Load;
+    using hwy::HWY_NAMESPACE::LoadU;
     using hwy::HWY_NAMESPACE::PromoteUpperTo;
     using hwy::HWY_NAMESPACE::PromoteLowerTo;
     using hwy::HWY_NAMESPACE::Mul;
@@ -54,7 +54,7 @@ namespace coder::HWY_NAMESPACE {
     using hwy::HWY_NAMESPACE::FixedTag;
     using hwy::HWY_NAMESPACE::DemoteTo;
     using hwy::HWY_NAMESPACE::ConvertTo;
-    using hwy::HWY_NAMESPACE::Store;
+    using hwy::HWY_NAMESPACE::StoreU;
     using hwy::float16_t;
     using hwy::float32_t;
 
@@ -74,13 +74,13 @@ namespace coder::HWY_NAMESPACE {
         const VF32 vScale = Set(df32, scale);
         for (; x + lanes < width; x += lanes) {
             VU16 ulane;
-            ulane = Load(du16, reinterpret_cast<const uint16_t *>(src));
+            ulane = LoadU(du16, reinterpret_cast<const uint16_t *>(src));
             VF16 lane = Combine(df16,
                                 DemoteTo(df16h,
                                          Mul(ConvertTo(df32, PromoteUpperTo(du32, ulane)), vScale)),
                                 DemoteTo(df16h, Mul(ConvertTo(df32, PromoteLowerTo(du32, ulane)),
                                                     vScale)));
-            Store(lane, df16, reinterpret_cast<float16_t *>(dst));
+            StoreU(lane, df16, reinterpret_cast<float16_t *>(dst));
             src += lanes;
             dst += lanes;
         }
