@@ -196,6 +196,46 @@ namespace coder::HWY_NAMESPACE {
         }
     }
 
+    template<typename D, typename I = Vec<D>>
+    inline __attribute__((flatten)) I
+    AttenuateVecR1010102(D d, I vec, I alpha) {
+        const FixedTag<uint32_t, 4> du32x4;
+        const FixedTag<uint16_t, 8> du16x8;
+        const FixedTag<uint8_t, 8> du8x8;
+        const FixedTag<uint8_t, 4> du8x4;
+        const FixedTag<float, 4> df32x4;
+        using VF32x4 = Vec<decltype(df32x4)>;
+        const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
+
+        auto vecLow = LowerHalf(vec);
+        auto alphaLow = LowerHalf(alpha);
+        auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
+        auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+
+        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
+        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+
+        auto vecHigh = UpperHalf(du8x8, vec);
+        auto alphaHigh = UpperHalf(du8x8, alpha);
+
+        vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
+        mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+
+        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
+        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+        auto low = Combine(du8x8, lowhigh, lowlow);
+        auto high = Combine(du8x8, highhigh, highlow);
+        return Combine(d, high, low);
+    }
+
     template<typename D, typename R, typename T = Vec<D>, typename I = Vec<R>>
     inline __attribute__((flatten)) Vec<D>
     ConvertPixelsTo(D d, R rd, I r, I g, I b, I a, const int *permuteMap) {
@@ -208,11 +248,16 @@ namespace coder::HWY_NAMESPACE {
         T pixelsu3 = Mul(BitCast(d, b), MulBy4Const);
         T pixelsu4 = ShiftRight<8>(Add(Mul(BitCast(d, a), MulBy3Const), O127Const));
 
+        const int permute0Value = permuteMap[0];
+        const int permute1Value = permuteMap[1];
+        const int permute2Value = permuteMap[2];
+        const int permute3Value = permuteMap[3];
+
         T pixelsStore[4] = {pixelsu1, pixelsu2, pixelsu3, pixelsu4};
-        T AV = pixelsStore[permuteMap[0]];
-        T RV = pixelsStore[permuteMap[1]];
-        T GV = pixelsStore[permuteMap[2]];
-        T BV = pixelsStore[permuteMap[3]];
+        T AV = pixelsStore[permute0Value];
+        T RV = pixelsStore[permute1Value];
+        T GV = pixelsStore[permute2Value];
+        T BV = pixelsStore[permute3Value];
         T upper = Or(ShiftLeft<30>(AV), ShiftLeft<20>(RV));
         T lower = Or(ShiftLeft<10>(GV), BV);
         T final = Or(upper, lower);
@@ -222,13 +267,19 @@ namespace coder::HWY_NAMESPACE {
     void
     Rgba8ToRGBA1010102HWYRow(const uint8_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
                              int width,
-                             const int *permuteMap) {
+                             const int *permuteMap,
+                             const bool attenuateAlpha) {
         const FixedTag<uint8_t, 16> du8x16;
         const FixedTag<uint16_t, 8> du16x4;
         const Rebind<int32_t, FixedTag<uint8_t, 4>> di32;
         const FixedTag<uint32_t, 4> du;
         using VU8x16 = Vec<decltype(du8x16)>;
         using VU = Vec<decltype(du)>;
+
+        const int permute0Value = permuteMap[0];
+        const int permute1Value = permuteMap[1];
+        const int permute2Value = permuteMap[2];
+        const int permute3Value = permuteMap[3];
 
         int x = 0;
         auto dst32 = reinterpret_cast<uint32_t *>(dst);
@@ -241,7 +292,15 @@ namespace coder::HWY_NAMESPACE {
             LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(data),
                              upixels1,
                              upixels2,
-                             upixels3, upixels4);
+                             upixels3,
+                             upixels4);
+
+            if (attenuateAlpha) {
+                upixels1 = AttenuateVecR1010102(du8x16, upixels1, upixels4);
+                upixels2 = AttenuateVecR1010102(du8x16, upixels2, upixels4);
+                upixels3 = AttenuateVecR1010102(du8x16, upixels3, upixels4);
+            }
+
             VU final = ConvertPixelsTo(du, di32,
                                        PromoteUpperTo(di32, PromoteUpperTo(du16x4, upixels1)),
                                        PromoteUpperTo(di32, PromoteUpperTo(du16x4, upixels2)),
@@ -279,10 +338,21 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            auto A16 = ((uint32_t) data[permuteMap[0]] * 3 + 127) >> 8;
-            auto R16 = (uint32_t) data[permuteMap[1]] * 4;
-            auto G16 = (uint32_t) data[permuteMap[2]] * 4;
-            auto B16 = (uint32_t) data[permuteMap[3]] * 4;
+            uint8_t alpha = data[permute0Value];
+            uint8_t r = data[permute1Value];
+            uint8_t g = data[permute2Value];
+            uint8_t b = data[permute3Value];
+
+            if (attenuateAlpha) {
+                r = (r * alpha + 127) / 255;
+                g = (g * alpha + 127) / 255;
+                b = (b * alpha + 127) / 255;
+            }
+
+            auto A16 = ((uint32_t) alpha * 3 + 127) >> 8;
+            auto R16 = (uint32_t) r * 4;
+            auto G16 = (uint32_t) g * 4;
+            auto B16 = (uint32_t) b * 4;
 
             dst32[0] = (A16 << 30) | (R16 << 20) | (G16 << 10) | B16;
             data += 4;
@@ -296,7 +366,8 @@ namespace coder::HWY_NAMESPACE {
                           uint8_t *destination,
                           int dstStride,
                           int width,
-                          int height) {
+                          int height,
+                          const bool attenuateAlpha) {
         int permuteMap[4] = {3, 2, 1, 0};
         auto src = reinterpret_cast<const uint8_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
@@ -314,7 +385,7 @@ namespace coder::HWY_NAMESPACE {
                 end = height;
             }
             workers.emplace_back(
-                    [start, end, src, dstStride, permuteMap, srcStride, dst, width]() {
+                    [start, end, src, dstStride, permuteMap, srcStride, dst, width, attenuateAlpha]() {
                         for (int y = start; y < end; ++y) {
                             Rgba8ToRGBA1010102HWYRow(reinterpret_cast<const uint8_t *>(src +
                                                                                        srcStride *
@@ -322,7 +393,7 @@ namespace coder::HWY_NAMESPACE {
                                                      reinterpret_cast<uint32_t *>(dst +
                                                                                   dstStride *
                                                                                   y),
-                                                     width, &permuteMap[0]);
+                                                     width, &permuteMap[0], attenuateAlpha);
                         }
                     });
         }
@@ -753,10 +824,11 @@ namespace coder {
                        uint8_t *destination,
                        int dstStride,
                        int width,
-                       int height) {
+                       int height,
+                       const bool attenuateAlpha) {
         HWY_DYNAMIC_DISPATCH(Rgba8ToRGBA1010102HWY)(source, srcStride, destination, dstStride,
                                                     width,
-                                                    height);
+                                                    height, attenuateAlpha);
     }
 }
 

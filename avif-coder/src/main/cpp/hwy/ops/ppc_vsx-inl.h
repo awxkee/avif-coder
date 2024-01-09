@@ -1033,7 +1033,33 @@ HWY_API VFromD<D> LoadN(D d, const T* HWY_RESTRICT p,
           const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(p)),
           num_of_bytes_to_load)});
 }
+
+template <class D, typename T = TFromD<D>>
+HWY_API VFromD<D> LoadNOr(VFromD<D> no, D d, const T* HWY_RESTRICT p,
+                          size_t max_lanes_to_load) {
+#if HWY_COMPILER_GCC && !HWY_IS_DEBUG_BUILD
+  if (__builtin_constant_p(max_lanes_to_load) && max_lanes_to_load == 0) {
+    return no;
+  }
+
+  if (__builtin_constant_p(max_lanes_to_load >= HWY_MAX_LANES_D(D)) &&
+      max_lanes_to_load >= HWY_MAX_LANES_D(D)) {
+    return LoadU(d, p);
+  }
 #endif
+
+  const size_t num_of_bytes_to_load =
+      HWY_MIN(max_lanes_to_load, HWY_MAX_LANES_D(D)) * sizeof(TFromD<D>);
+  const Repartition<uint8_t, decltype(d)> du8;
+  const VFromD<D> v = BitCast(
+      d,
+      VFromD<decltype(du8)>{vec_xl_len(
+          const_cast<unsigned char*>(reinterpret_cast<const unsigned char*>(p)),
+          num_of_bytes_to_load)});
+  return IfThenElse(FirstN(d, max_lanes_to_load), v, no);
+}
+
+#endif  // HWY_PPC_HAVE_9
 
 // Returns a vector with lane i=[0, N) set to "first" + i.
 namespace detail {
@@ -2910,7 +2936,7 @@ HWY_API VFromD<DI32> SumOfMulQuadAccumulate(DI32 di32,
 
 // Unsigned to signed/unsigned: zero-extend.
 template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
-          HWY_IF_NOT_FLOAT_D(D), HWY_IF_UNSIGNED(FromT)>
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_UNSIGNED(FromT)>
 HWY_API VFromD<D> PromoteTo(D /* d */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   // First pretend the input has twice the lanes - the upper half will be
@@ -2930,7 +2956,7 @@ HWY_API VFromD<D> PromoteTo(D /* d */,
 
 // Signed: replicate sign bit.
 template <class D, typename FromT, HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
-          HWY_IF_NOT_FLOAT_D(D), HWY_IF_SIGNED(FromT)>
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_SIGNED(FromT)>
 HWY_API VFromD<D> PromoteTo(D /* d */,
                             Vec128<FromT, Rebind<FromT, D>().MaxLanes()> v) {
   using Raw = typename detail::Raw128<TFromD<D>>::type;
@@ -2999,6 +3025,153 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<int32_t, D>> v) {
 #else
   return VFromD<D>{vec_doublee(raw_v)};
 #endif
+}
+
+template <class D, HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<uint32_t, D>> v) {
+  const __vector unsigned int raw_v = InterleaveLower(v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
+  const __vector float raw_v = InterleaveLower(v, v).raw;
+  return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
+#else
+  const RebindToFloat<decltype(di64)> df64;
+  return ConvertTo(di64, PromoteTo(df64, v));
+#endif
+}
+
+template <class D, HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D du64, VFromD<Rebind<float, D>> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
+  const __vector float raw_v = InterleaveLower(v, v).raw;
+  return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(raw_v))};
+#else
+  const RebindToFloat<decltype(du64)> df64;
+  return ConvertTo(du64, PromoteTo(df64, v));
+#endif
+}
+
+// ------------------------------ PromoteUpperTo
+
+#ifdef HWY_NATIVE_PROMOTE_UPPER_TO
+#undef HWY_NATIVE_PROMOTE_UPPER_TO
+#else
+#define HWY_NATIVE_PROMOTE_UPPER_TO
+#endif
+
+// Unsigned to signed/unsigned: zero-extend.
+template <class D, typename FromT, HWY_IF_V_SIZE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_UNSIGNED(FromT)>
+HWY_API VFromD<D> PromoteUpperTo(D d, Vec128<FromT> v) {
+  const RebindToUnsigned<D> du;
+  const RepartitionToNarrow<decltype(du)> dn;
+
+#if HWY_IS_LITTLE_ENDIAN
+  return BitCast(d, ZipUpper(du, v, Zero(dn)));
+#else
+  return BitCast(d, ZipUpper(du, Zero(dn), v));
+#endif
+}
+
+// Signed: replicate sign bit.
+template <class D, typename FromT, HWY_IF_V_SIZE_D(D, 16),
+          HWY_IF_T_SIZE_D(D, 2 * sizeof(FromT)),
+          HWY_IF_NOT_FLOAT_NOR_SPECIAL_D(D), HWY_IF_SIGNED(FromT)>
+HWY_API VFromD<D> PromoteUpperTo(D /* d */, Vec128<FromT> v) {
+  using Raw = typename detail::Raw128<TFromD<D>>::type;
+  return VFromD<D>{reinterpret_cast<Raw>(vec_unpackl(v.raw))};
+}
+
+// F16 to F32
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, Vec128<float16_t> v) {
+#if HWY_PPC_HAVE_9
+  (void)df32;
+  return VFromD<D>{vec_extract_fp32_from_shortl(v.raw)};
+#else
+  const Rebind<float16_t, decltype(df32)> dh;
+  return PromoteTo(df32, UpperHalf(dh, v));
+#endif
+}
+
+// BF16 to F32
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D df32, Vec128<bfloat16_t> v) {
+  const Repartition<uint16_t, decltype(df32)> du16;
+  const RebindToSigned<decltype(df32)> di32;
+  return BitCast(df32, ShiftLeft<16>(PromoteUpperTo(di32, BitCast(du16, v))));
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<float> v) {
+  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<int32_t> v) {
+  const __vector signed int raw_v =
+      InterleaveUpper(Full128<int32_t>(), v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D /*tag*/, Vec128<uint32_t> v) {
+  const __vector unsigned int raw_v =
+      InterleaveUpper(Full128<uint32_t>(), v, v).raw;
+#if HWY_IS_LITTLE_ENDIAN
+  return VFromD<D>{vec_doubleo(raw_v)};
+#else
+  return VFromD<D>{vec_doublee(raw_v)};
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D di64, Vec128<float> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspsxds)
+  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  return VFromD<decltype(di64)>{__builtin_vsx_xvcvspsxds(raw_v)};
+#else
+  const RebindToFloat<decltype(di64)> df64;
+  return ConvertTo(di64, PromoteUpperTo(df64, v));
+#endif
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteUpperTo(D du64, Vec128<float> v) {
+#if HWY_COMPILER_GCC_ACTUAL || HWY_HAS_BUILTIN(__builtin_vsx_xvcvspuxds)
+  const __vector float raw_v = InterleaveUpper(Full128<float>(), v, v).raw;
+  return VFromD<decltype(du64)>{reinterpret_cast<__vector unsigned long long>(
+      __builtin_vsx_xvcvspuxds(raw_v))};
+#else
+  const RebindToFloat<decltype(du64)> df64;
+  return ConvertTo(du64, PromoteUpperTo(df64, v));
+#endif
+}
+
+// Generic version for <=64 bit input/output
+template <class D, HWY_IF_V_SIZE_LE_D(D, 8), class V>
+HWY_API VFromD<D> PromoteUpperTo(D d, V v) {
+  const Rebind<TFromV<V>, decltype(d)> dh;
+  return PromoteTo(d, UpperHalf(dh, v));
 }
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
@@ -3250,6 +3423,62 @@ HWY_API Vec64<int32_t> DemoteTo(D /* tag */, Vec128<double> v) {
   return Vec64<int32_t>{vec_pack(vi64.raw, vi64.raw)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_U32_D(D)>
+HWY_API Vec32<uint32_t> DemoteTo(D /* tag */, Vec64<double> v) {
+  return Vec32<uint32_t>{vec_unsignede(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_U32_D(D)>
+HWY_API Vec64<uint32_t> DemoteTo(D /* tag */, Vec128<double> v) {
+#if HWY_IS_LITTLE_ENDIAN
+  const Vec128<uint32_t> f64_to_u32{vec_unsignede(v.raw)};
+#else
+  const Vec128<uint32_t> f64_to_u32{vec_unsignedo(v.raw)};
+#endif
+
+  const Rebind<uint64_t, D> du64;
+  const Vec128<uint64_t> vu64 = BitCast(du64, f64_to_u32);
+  return Vec64<uint32_t>{vec_pack(vu64.raw, vu64.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>
+HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<int64_t> v) {
+  return Vec32<float>{vec_floate(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API Vec64<float> DemoteTo(D d, Vec128<int64_t> v) {
+#if HWY_IS_LITTLE_ENDIAN
+  const Vec128<float> i64_to_f32{vec_floate(v.raw)};
+#else
+  const Vec128<float> i64_to_f32{vec_floato(v.raw)};
+#endif
+
+  const RebindToUnsigned<D> du;
+  const Rebind<uint64_t, D> du64;
+  return Vec64<float>{
+      BitCast(d, TruncateTo(du, BitCast(du64, i64_to_f32))).raw};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 4), HWY_IF_F32_D(D)>
+HWY_API Vec32<float> DemoteTo(D /* tag */, Vec64<uint64_t> v) {
+  return Vec32<float>{vec_floate(v.raw)};
+}
+
+template <class D, HWY_IF_V_SIZE_D(D, 8), HWY_IF_F32_D(D)>
+HWY_API Vec64<float> DemoteTo(D d, Vec128<uint64_t> v) {
+#if HWY_IS_LITTLE_ENDIAN
+  const Vec128<float> u64_to_f32{vec_floate(v.raw)};
+#else
+  const Vec128<float> u64_to_f32{vec_floato(v.raw)};
+#endif
+
+  const RebindToUnsigned<D> du;
+  const Rebind<uint64_t, D> du64;
+  return Vec64<float>{
+      BitCast(d, TruncateTo(du, BitCast(du64, u64_to_f32))).raw};
+}
+
 // For already range-limited input [0, 255].
 template <size_t N>
 HWY_API Vec128<uint8_t, N> U8FromU32(Vec128<uint32_t, N> v) {
@@ -3302,7 +3531,7 @@ HWY_API VFromD<D> ConvertTo(D /* tag */,
 #if HWY_COMPILER_CLANG
   HWY_DIAGNOSTICS_OFF(disable : 5219, ignored "-Wdeprecate-lax-vec-conv-all")
 #endif
-  return VFromD<D>{vec_ctu(v.raw, 0)};
+  return VFromD<D>{vec_ctu(ZeroIfNegative(v).raw, 0)};
   HWY_DIAGNOSTICS(pop)
 }
 
@@ -3981,6 +4210,48 @@ HWY_API intptr_t FindLastTrue(D d, MFromD<D> mask) {
 
 namespace detail {
 
+#if HWY_PPC_HAVE_10
+template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
+  constexpr unsigned kGenPcvmMode =
+      (kIsCompress ? 1u : 0u) | (HWY_IS_LITTLE_ENDIAN ? 2u : 0u);
+
+  // Inline assembly is used instead of the vec_genpcvm intrinsic to work around
+  // compiler bugs on little-endian PPC10
+  typename detail::Raw128<TFromD<D>>::type idx;
+  __asm__("xxgenpcvbm %x0, %1, %2"
+          : "=wa"(idx)
+          : "v"(mask.raw), "i"(kGenPcvmMode));
+  return VFromD<D>{idx};
+}
+template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
+  constexpr unsigned kGenPcvmMode =
+      (kIsCompress ? 1u : 0u) | (HWY_IS_LITTLE_ENDIAN ? 2u : 0u);
+
+  // Inline assembly is used instead of the vec_genpcvm intrinsic to work around
+  // compiler bugs on little-endian PPC10
+  typename detail::Raw128<TFromD<D>>::type idx;
+  __asm__("xxgenpcvhm %x0, %1, %2"
+          : "=wa"(idx)
+          : "v"(mask.raw), "i"(kGenPcvmMode));
+  return VFromD<D>{idx};
+}
+template <bool kIsCompress, class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_INLINE VFromD<D> CompressOrExpandIndicesFromMask(D d, MFromD<D> mask) {
+  constexpr unsigned kGenPcvmMode =
+      (kIsCompress ? 1u : 0u) | (HWY_IS_LITTLE_ENDIAN ? 2u : 0u);
+
+  // Inline assembly is used instead of the vec_genpcvm intrinsic to work around
+  // compiler bugs on little-endian PPC10
+  typename detail::Raw128<TFromD<D>>::type idx;
+  __asm__("xxgenpcvwm %x0, %1, %2"
+          : "=wa"(idx)
+          : "v"(mask.raw), "i"(kGenPcvmMode));
+  return VFromD<D>{idx};
+}
+#endif
+
 // Also works for N < 8 because the first 16 4-tuples only reference bytes 0-6.
 template <class D, HWY_IF_T_SIZE_D(D, 2)>
 HWY_INLINE VFromD<D> IndicesFromBits128(D d, uint64_t mask_bits) {
@@ -4407,6 +4678,22 @@ HWY_API Vec128<T> Compress(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_COMPRESS8
+#undef HWY_NATIVE_COMPRESS8
+#else
+#define HWY_NATIVE_COMPRESS8
+#endif
+
+// General case, 1 byte
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  return TableLookupBytes(
+      v, detail::CompressOrExpandIndicesFromMask<true>(d, mask));
+}
+#endif
+
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> Compress(Vec128<T, N> v, Mask128<T, N> mask) {
@@ -4433,6 +4720,16 @@ HWY_API Vec128<T> CompressNot(Vec128<T> v, Mask128<T> mask) {
   return IfVecThenElse(swap, Shuffle01(v), v);
 }
 
+#if HWY_PPC_HAVE_10
+// General case, 1 byte
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  return TableLookupBytes(
+      v, detail::CompressOrExpandIndicesFromMask<true>(d, Not(mask)));
+}
+#endif
+
 // General case, 2 or 4 bytes
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 2) | (1 << 4))>
 HWY_API Vec128<T, N> CompressNot(Vec128<T, N> v, Mask128<T, N> mask) {
@@ -4450,6 +4747,15 @@ HWY_API Vec128<uint64_t> CompressBlocksNot(Vec128<uint64_t> v,
   return v;
 }
 
+#if HWY_PPC_HAVE_10
+template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
+HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
+                                  const uint8_t* HWY_RESTRICT bits) {
+  const DFromV<decltype(v)> d;
+  return Compress(v, LoadMaskBits(d, bits));
+}
+#endif
+
 template <typename T, size_t N, HWY_IF_NOT_T_SIZE(T, 1)>
 HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
                                   const uint8_t* HWY_RESTRICT bits) {
@@ -4464,6 +4770,18 @@ HWY_API Vec128<T, N> CompressBits(Vec128<T, N> v,
 }
 
 // ------------------------------ CompressStore, CompressBitsStore
+
+#if HWY_PPC_HAVE_10
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
+                             TFromD<D>* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(d, m);
+  const auto indices = detail::CompressOrExpandIndicesFromMask<true>(d, m);
+  const auto compressed = TableLookupBytes(v, indices);
+  StoreU(compressed, d, unaligned);
+  return count;
+}
+#endif
 
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
@@ -4480,6 +4798,18 @@ HWY_API size_t CompressStore(VFromD<D> v, MFromD<D> m, D d,
   return count;
 }
 
+#if HWY_PPC_HAVE_10
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
+                                    TFromD<D>* HWY_RESTRICT unaligned) {
+  const size_t count = CountTrue(d, m);
+  const auto indices = detail::CompressOrExpandIndicesFromMask<true>(d, m);
+  const auto compressed = TableLookupBytes(v, indices);
+  StoreN(compressed, d, unaligned, count);
+  return count;
+}
+#endif
+
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
                                     TFromD<D>* HWY_RESTRICT unaligned) {
@@ -4491,9 +4821,21 @@ HWY_API size_t CompressBlendedStore(VFromD<D> v, MFromD<D> m, D d,
 
   const auto indices = BitCast(du, detail::IndicesFromBits128(d, mask_bits));
   const auto compressed = BitCast(d, TableLookupBytes(BitCast(du, v), indices));
+#if HWY_PPC_HAVE_9
+  StoreN(compressed, d, unaligned, count);
+#else
   BlendedStore(compressed, FirstN(d, count), d, unaligned);
+#endif
   return count;
 }
+
+#if HWY_PPC_HAVE_10
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
+                                 D d, TFromD<D>* HWY_RESTRICT unaligned) {
+  return CompressStore(v, LoadMaskBits(d, bits), d, unaligned);
+}
+#endif
 
 template <class D, HWY_IF_NOT_T_SIZE_D(D, 1)>
 HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
@@ -4515,6 +4857,41 @@ HWY_API size_t CompressBitsStore(VFromD<D> v, const uint8_t* HWY_RESTRICT bits,
 
   return count;
 }
+
+// ------------------------------ Expand
+#if HWY_PPC_HAVE_10
+#ifdef HWY_NATIVE_EXPAND
+#undef HWY_NATIVE_EXPAND
+#else
+#define HWY_NATIVE_EXPAND
+#endif
+
+template <typename T, size_t N,
+          HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2) | (1 << 4))>
+HWY_API Vec128<T, N> Expand(Vec128<T, N> v, Mask128<T, N> mask) {
+  const DFromV<decltype(v)> d;
+  const auto idx = detail::CompressOrExpandIndicesFromMask<false>(d, mask);
+  return IfThenElseZero(mask, TableLookupBytes(v, idx));
+}
+
+template <typename T, HWY_IF_T_SIZE(T, 8)>
+HWY_API Vec128<T> Expand(Vec128<T> v, Mask128<T> mask) {
+  // Same as Compress, just zero out the mask=false lanes.
+  return IfThenElseZero(mask, Compress(v, mask));
+}
+
+// For single-element vectors, this is at least as fast as native.
+template <typename T>
+HWY_API Vec128<T, 1> Expand(Vec128<T, 1> v, Mask128<T, 1> mask) {
+  return IfThenElseZero(mask, v);
+}
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
+HWY_API VFromD<D> LoadExpand(MFromD<D> mask, D d,
+                             const TFromD<D>* HWY_RESTRICT unaligned) {
+  return Expand(LoadU(d, unaligned), mask);
+}
+#endif  // HWY_PPC_HAVE_10
 
 // ------------------------------ StoreInterleaved2/3/4
 

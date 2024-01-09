@@ -48,6 +48,7 @@
 #include "colorspace/HDRTransferAdapter.h"
 #include "imagebits/CopyUnalignedRGBA.h"
 #include "imagebits/RGBAlpha.h"
+#include "imagebits/Rgb565.h"
 
 using namespace std;
 
@@ -170,14 +171,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                  stride, (int) info.width, (int) info.height);
         heif_image_set_premultiplied_alpha(image, false);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
-        libyuv::RGB565ToARGB(sourceData.data(), (int) info.stride, imgData,
-                             stride, (int) info.width, (int) info.height);
-        for (int i = 0; i < stride / 4 * info.height; i += 4) {
-            imgData[i] = imgData[i + 1]; // R
-            imgData[i + 1] = imgData[i + 2]; // G
-            imgData[i + 2] = imgData[i + 3]; // B
-            imgData[i + 3] = imgData[i]; // A
-        }
+        coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
+                                 imgData, stride, (int) info.width, (int) info.height, 8, 255);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         if (heifCompressionFormat == heif_compression_HEVC) {
             RGBA1010102ToU8(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
@@ -190,38 +185,17 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         if (heifCompressionFormat == heif_compression_AV1) {
-            shared_ptr<char> dstARGB(
-                    static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint16_t))),
-                    [](char *f) { free(f); });
-            int dstStride = (int) info.width * 4 * (int) sizeof(uint16_t);
-
             RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
                                 (int) info.stride,
-                                reinterpret_cast<uint16_t *>(dstARGB.get()), dstStride,
+                                reinterpret_cast<uint16_t *>(imgData), stride,
                                 (int) info.width,
                                 (int) info.height, 10);
-            coder::CopyUnalignedRGBA(reinterpret_cast<uint8_t *>(dstARGB.get()), dstStride,
-                                     reinterpret_cast<uint8_t *>(imgData), stride,
-                                     (int) info.width,
-                                     (int) info.height, sizeof(uint16_t));
-
-            dstARGB.reset();
         } else {
-            shared_ptr<char> dstARGB(
-                    static_cast<char *>(malloc(info.width * info.height * 4 * sizeof(uint8_t))),
-                    [](char *f) { free(f); });
-            int dstStride = (int) info.width * 4 * (int) sizeof(uint8_t);
-
             coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
                                       (int) info.stride,
-                                      reinterpret_cast<uint8_t *>(dstARGB.get()), dstStride,
+                                      reinterpret_cast<uint8_t *>(imgData), stride,
                                       (int) info.width,
                                       (int) info.height, 8);
-
-            libyuv::ARGBCopy(reinterpret_cast<uint8_t *>(dstARGB.get()), (int) dstStride,
-                             reinterpret_cast<uint8_t *>(imgData), stride, (int) info.width,
-                             (int) info.height);
-            dstARGB.reset();
         }
     }
 

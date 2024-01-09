@@ -147,6 +147,46 @@ namespace coder::HWY_NAMESPACE {
         }
     }
 
+    template<typename D, typename I = Vec<D>>
+    inline __attribute__((flatten)) I
+    RGBAlphaAttenuate(D d, I vec, I alpha) {
+        const FixedTag<uint32_t, 4> du32x4;
+        const FixedTag<uint16_t, 8> du16x8;
+        const FixedTag<uint8_t, 8> du8x8;
+        const FixedTag<uint8_t, 4> du8x4;
+        const FixedTag<float, 4> df32x4;
+        using VF32x4 = Vec<decltype(df32x4)>;
+        const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
+
+        auto vecLow = LowerHalf(vec);
+        auto alphaLow = LowerHalf(alpha);
+        auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
+        auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+
+        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
+        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+
+        auto vecHigh = UpperHalf(du8x8, vec);
+        auto alphaHigh = UpperHalf(du8x8, alpha);
+
+        vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
+        mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+
+        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
+        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
+        vk = Round(Mul(Mul(vk, mul), mult255));
+        auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+        auto low = Combine(du8x8, lowhigh, lowlow);
+        auto high = Combine(du8x8, highhigh, highlow);
+        return Combine(d, high, low);
+    }
+
     void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                              uint8_t *dst, int dstStride, int width,
                              int height) {
@@ -170,31 +210,9 @@ namespace coder::HWY_NAMESPACE {
                 VU8x16 r8, g8, b8, a8;
                 LoadInterleaved4(du8x16, mSrc, r8, g8, b8, a8);
 
-                VU16x8 aLow = PromoteLowerTo(du16x8, a8);
-                VU16x8 rLow = PromoteLowerTo(du16x8, r8);
-                VU16x8 gLow = PromoteLowerTo(du16x8, g8);
-                VU16x8 bLow = PromoteLowerTo(du16x8, b8);
-                VU16x8 tmp = Add(Mul(rLow, aLow), mult255d2);
-                rLow = RearrangeVec(du16x8, tmp);
-                tmp = Add(Mul(gLow, aLow), mult255d2);
-                gLow = RearrangeVec(du16x8, tmp);
-                tmp = Add(Mul(bLow, aLow), mult255d2);
-                bLow = RearrangeVec(du16x8, tmp);
-
-                VU16x8 aHigh = PromoteUpperTo(du16x8, a8);
-                VU16x8 rHigh = PromoteUpperTo(du16x8, r8);
-                VU16x8 gHigh = PromoteUpperTo(du16x8, g8);
-                VU16x8 bHigh = PromoteUpperTo(du16x8, b8);
-                tmp = Add(Mul(rHigh, aHigh), mult255d2);
-                rHigh = RearrangeVec(du16x8, tmp);
-                tmp = Add(Mul(gHigh, aHigh), mult255d2);
-                gHigh = RearrangeVec(du16x8, tmp);
-                tmp = Add(Mul(bHigh, aHigh), mult255d2);
-                bHigh = RearrangeVec(du16x8, tmp);
-
-                r8 = Combine(du8x16, DemoteTo(du8x8, rHigh), DemoteTo(du8x8, rLow));
-                g8 = Combine(du8x16, DemoteTo(du8x8, gHigh), DemoteTo(du8x8, gLow));
-                b8 = Combine(du8x16, DemoteTo(du8x8, bHigh), DemoteTo(du8x8, bLow));
+                r8 = RGBAlphaAttenuate(du8x16, r8, a8);
+                g8 = RGBAlphaAttenuate(du8x16, g8, a8);
+                b8 = RGBAlphaAttenuate(du8x16, b8, a8);
 
                 StoreInterleaved4(r8, g8, b8, a8, du8x16, mDst);
 

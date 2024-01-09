@@ -84,7 +84,7 @@ namespace coder {
                     vector<uint8_t> rgbaF16Data(dstStride * imageHeight);
                     coder::Rgba8ToF16(imageData.data(), *stride,
                                       reinterpret_cast<uint16_t *>(rgbaF16Data.data()), dstStride,
-                                      imageWidth, imageHeight, depth);
+                                      imageWidth, imageHeight, !alphaPremultiplied);
                     *stride = dstStride;
                     *useFloats = true;
                     imageConfig = "RGBA_F16";
@@ -115,7 +115,8 @@ namespace coder {
                     vector<uint8_t> rgb565Data(dstStride * imageHeight);
                     coder::Rgba8To565(imageData.data(), *stride,
                                       reinterpret_cast<uint16_t *>(rgb565Data.data()), dstStride,
-                                      imageWidth, imageHeight, depth);
+                                      imageWidth, imageHeight,
+                                      !alphaPremultiplied);
                     *stride = dstStride;
                     *useFloats = false;
                     imageConfig = "RGB_565";
@@ -149,7 +150,8 @@ namespace coder {
                                               *stride,
                                               reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
                                               dstStride,
-                                              imageWidth, imageHeight);
+                                              imageWidth, imageHeight,
+                                              !alphaPremultiplied);
                     *stride = dstStride;
                     *useFloats = false;
                     imageConfig = "RGBA_1010102";
@@ -169,6 +171,13 @@ namespace coder {
                 bufferDesc.format = (*useFloats) ? AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT
                                                  : AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
                 bufferDesc.usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+
+                if (!*useFloats && !alphaPremultiplied) {
+                    coder::PremultiplyRGBA(imageData.data(), *stride,
+                                           imageData.data(), *stride,
+                                           imageWidth,
+                                           imageHeight);
+                }
 
                 AHardwareBuffer *hardwareBuffer = nullptr;
 

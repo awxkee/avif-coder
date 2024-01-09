@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.HARDWARE,
                     ScaleMode.RESIZE
                 )
                 binding.imageView5.setImageBitmap(bitmap)
@@ -174,7 +174,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGBA_1010102,
                     ScaleMode.RESIZE
                 )
                 binding.imageView6.setImageBitmap(bitmap)
@@ -190,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width / 3,
                 size.height / 3,
-                PreferredColorConfig.RGBA_F16,
+                PreferredColorConfig.RGBA_8888,
                 ScaleMode.RESIZE
             )
             binding.imageView7.setImageBitmap(bitmap)
@@ -203,9 +203,9 @@ class MainActivity : AppCompatActivity() {
             val executionTime = measureTimeMillis {
                 val bitmap = coder.decodeSampled(
                     buffer,
-                    size.width / 3,
-                    size.height / 3,
-                    PreferredColorConfig.RGBA_F16,
+                    size.width / 4,
+                    size.height / 4,
+                    PreferredColorConfig.RGBA_1010102,
                     ScaleMode.RESIZE
                 )
                 binding.imageView8.setImageBitmap(bitmap)
@@ -214,7 +214,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("alpha_t.avif").source().buffer().readByteArray()
+            val buffer = this.assets.open("happy_colly.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decodeSampled(
+                    buffer,
+                    size.width,
+                    size.height,
+                    PreferredColorConfig.RGBA_8888,
+                    ScaleMode.RESIZE
+                )
+                binding.imageView10.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("blue_lights.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
             val executionTime = measureTimeMillis {
@@ -224,6 +241,20 @@ class MainActivity : AppCompatActivity() {
                     size.height,
                     PreferredColorConfig.RGBA_F16,
                     ScaleMode.RESIZE
+                )
+                binding.imageView11.setImageBitmap(bitmap)
+            }
+            Log.i("AVIF", "execution time $executionTime")
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val buffer = this.assets.open("alpha_t.avif").source().buffer().readByteArray()
+            val size = coder.getSize(buffer)!!
+            assert(size != null)
+            val executionTime = measureTimeMillis {
+                val bitmap = coder.decode(
+                    buffer,
+                    PreferredColorConfig.RGBA_1010102
                 )
                 binding.imageView9.setImageBitmap(bitmap)
             }
@@ -378,12 +409,6 @@ class MainActivity : AppCompatActivity() {
         output.close()
         Log.d("p", bytes.size.toString())
     }
-
-    /**
-     * A native method that is implemented by the 'avif' native library,
-     * which is packaged with this application.
-     */
-    external fun stringFromJNI(): String
 
     companion object {
         // Used to load the 'avif' library on application startup.

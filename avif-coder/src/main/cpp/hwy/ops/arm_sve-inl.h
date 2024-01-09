@@ -1189,37 +1189,43 @@ HWY_API svbool_t IsFinite(const V v) {
 
 // ------------------------------ Load/MaskedLoad/LoadDup128/Store/Stream
 
-#define HWY_SVE_LOAD(BASE, CHAR, BITS, HALF, NAME, OP)     \
-  template <size_t N, int kPow2>                           \
-  HWY_API HWY_SVE_V(BASE, BITS)                            \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,              \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
-    return sv##OP##_##CHAR##BITS(detail::MakeMask(d), p);  \
+#define HWY_SVE_LOAD(BASE, CHAR, BITS, HALF, NAME, OP)           \
+  template <size_t N, int kPow2>                                 \
+  HWY_API HWY_SVE_V(BASE, BITS)                                  \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) d,                    \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {       \
+    using T = detail::NativeLaneType<HWY_SVE_T(BASE, BITS)>;     \
+    return sv##OP##_##CHAR##BITS(detail::MakeMask(d),            \
+                                 reinterpret_cast<const T*>(p)); \
   }
 
-#define HWY_SVE_MASKED_LOAD(BASE, CHAR, BITS, HALF, NAME, OP)   \
-  template <size_t N, int kPow2>                                \
-  HWY_API HWY_SVE_V(BASE, BITS)                                 \
-      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) /* d */, \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {      \
-    return sv##OP##_##CHAR##BITS(m, p);                         \
+#define HWY_SVE_MASKED_LOAD(BASE, CHAR, BITS, HALF, NAME, OP)       \
+  template <size_t N, int kPow2>                                    \
+  HWY_API HWY_SVE_V(BASE, BITS)                                     \
+      NAME(svbool_t m, HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,     \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {          \
+    using T = detail::NativeLaneType<HWY_SVE_T(BASE, BITS)>;        \
+    return sv##OP##_##CHAR##BITS(m, reinterpret_cast<const T*>(p)); \
   }
 
-#define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, HALF, NAME, OP) \
-  template <size_t N, int kPow2>                              \
-  HWY_API HWY_SVE_V(BASE, BITS)                               \
-      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,           \
-           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {    \
-    /* All-true predicate to load all 128 bits. */            \
-    return sv##OP##_##CHAR##BITS(HWY_SVE_PTRUE(8), p);        \
+#define HWY_SVE_LOAD_DUP128(BASE, CHAR, BITS, HALF, NAME, OP)    \
+  template <size_t N, int kPow2>                                 \
+  HWY_API HWY_SVE_V(BASE, BITS)                                  \
+      NAME(HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,              \
+           const HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {       \
+    using T = detail::NativeLaneType<HWY_SVE_T(BASE, BITS)>;     \
+    /* All-true predicate to load all 128 bits. */               \
+    return sv##OP##_##CHAR##BITS(HWY_SVE_PTRUE(8),               \
+                                 reinterpret_cast<const T*>(p)); \
   }
 
-#define HWY_SVE_STORE(BASE, CHAR, BITS, HALF, NAME, OP)       \
-  template <size_t N, int kPow2>                              \
-  HWY_API void NAME(HWY_SVE_V(BASE, BITS) v,                  \
-                    HWY_SVE_D(BASE, BITS, N, kPow2) d,        \
-                    HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) { \
-    sv##OP##_##CHAR##BITS(detail::MakeMask(d), p, v);         \
+#define HWY_SVE_STORE(BASE, CHAR, BITS, HALF, NAME, OP)                     \
+  template <size_t N, int kPow2>                                            \
+  HWY_API void NAME(HWY_SVE_V(BASE, BITS) v,                                \
+                    HWY_SVE_D(BASE, BITS, N, kPow2) d,                      \
+                    HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {               \
+    using T = detail::NativeLaneType<HWY_SVE_T(BASE, BITS)>;                \
+    sv##OP##_##CHAR##BITS(detail::MakeMask(d), reinterpret_cast<T*>(p), v); \
   }
 
 #define HWY_SVE_BLENDED_STORE(BASE, CHAR, BITS, HALF, NAME, OP) \
@@ -1227,7 +1233,8 @@ HWY_API svbool_t IsFinite(const V v) {
   HWY_API void NAME(HWY_SVE_V(BASE, BITS) v, svbool_t m,        \
                     HWY_SVE_D(BASE, BITS, N, kPow2) /* d */,    \
                     HWY_SVE_T(BASE, BITS) * HWY_RESTRICT p) {   \
-    sv##OP##_##CHAR##BITS(m, p, v);                             \
+    using T = detail::NativeLaneType<HWY_SVE_T(BASE, BITS)>;    \
+    sv##OP##_##CHAR##BITS(m, reinterpret_cast<T*>(p), v);       \
   }
 
 HWY_SVE_FOREACH(HWY_SVE_LOAD, Load, ld1)
@@ -1272,7 +1279,7 @@ template <class D>
 HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
   return Load(d, p);
 }
-#else
+#else  // HWY_TARGET != HWY_SVE2_128
 // If D().MaxBytes() <= 16 is true, simply do a Load operation.
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16)>
 HWY_API VFromD<D> LoadDup128(D d, const TFromD<D>* HWY_RESTRICT p) {
@@ -1607,6 +1614,27 @@ HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
                               const svint32_t v) {
   const svint32_t vv = detail::ZipLowerSame(v, v);
   return svcvt_f64_s32_x(detail::PTrue(Simd<int32_t, N, kPow2>()), vv);
+}
+
+template <size_t N, int kPow2>
+HWY_API svfloat64_t PromoteTo(Simd<float64_t, N, kPow2> /* d */,
+                              const svuint32_t v) {
+  const svuint32_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_f64_u32_x(detail::PTrue(Simd<uint32_t, N, kPow2>()), vv);
+}
+
+template <size_t N, int kPow2>
+HWY_API svint64_t PromoteTo(Simd<int64_t, N, kPow2> /* d */,
+                            const svfloat32_t v) {
+  const svfloat32_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_s64_f32_x(detail::PTrue(Simd<float, N, kPow2>()), vv);
+}
+
+template <size_t N, int kPow2>
+HWY_API svuint64_t PromoteTo(Simd<uint64_t, N, kPow2> /* d */,
+                             const svfloat32_t v) {
+  const svfloat32_t vv = detail::ZipLowerSame(v, v);
+  return svcvt_u64_f32_x(detail::PTrue(Simd<float, N, kPow2>()), vv);
 }
 
 // For 16-bit Compress
@@ -2013,6 +2041,27 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
                                 in_even);  // lower half
 }
 
+template <size_t N, int kPow2>
+HWY_API svuint32_t DemoteTo(Simd<uint32_t, N, kPow2> d, const svfloat64_t v) {
+  const svuint32_t in_even = svcvt_u32_f64_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
+template <size_t N, int kPow2>
+HWY_API svfloat32_t DemoteTo(Simd<float, N, kPow2> d, const svint64_t v) {
+  const svfloat32_t in_even = svcvt_f32_s64_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
+template <size_t N, int kPow2>
+HWY_API svfloat32_t DemoteTo(Simd<float, N, kPow2> d, const svuint64_t v) {
+  const svfloat32_t in_even = svcvt_f32_u64_x(detail::PTrue(d), v);
+  return detail::ConcatEvenFull(in_even,
+                                in_even);  // lower half
+}
+
 // ------------------------------ ConvertTo F
 
 #define HWY_SVE_CONVERT(BASE, CHAR, BITS, HALF, NAME, OP)                      \
@@ -2033,6 +2082,12 @@ HWY_API svint32_t DemoteTo(Simd<int32_t, N, kPow2> d, const svfloat64_t v) {
   HWY_API HWY_SVE_V(int, BITS)                                                 \
       NAME(HWY_SVE_D(int, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) {  \
     return sv##OP##_s##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
+  }                                                                            \
+  /* Truncates to unsigned (rounds toward zero). */                            \
+  template <size_t N, int kPow2>                                               \
+  HWY_API HWY_SVE_V(uint, BITS)                                                \
+      NAME(HWY_SVE_D(uint, BITS, N, kPow2) /* d */, HWY_SVE_V(BASE, BITS) v) { \
+    return sv##OP##_u##BITS##_##CHAR##BITS##_x(HWY_SVE_PTRUE(BITS), v);        \
   }
 
 // API only requires f32 but we provide f64 for use by Iota.

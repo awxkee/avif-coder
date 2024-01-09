@@ -49,7 +49,8 @@ namespace coder {
                        uint8_t *destination,
                        int dstStride,
                        int width,
-                       int height);
+                       int height,
+                       const bool attenuateAlpha);
 }
 
 #endif //AVIF_RGB1010102_H

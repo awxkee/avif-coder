@@ -1624,18 +1624,18 @@ HWY_API VFromD<D> Iota(D d, const T2 first) {
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), class M = MFromD<D>>
 HWY_API M FirstN(const D d, size_t n) {
-#if HWY_TARGET <= HWY_AVX3
-  (void)d;
   constexpr size_t kN = MaxLanes(d);
+  // For AVX3, this ensures `num` <= 255 as required by bzhi, which only looks
+  // at the lower 8 bits; for AVX2 and below, this ensures `num` fits in TI.
+  n = HWY_MIN(n, kN);
+
+#if HWY_TARGET <= HWY_AVX3
 #if HWY_ARCH_X86_64
   const uint64_t all = (1ull << kN) - 1;
-  // BZHI only looks at the lower 8 bits of n!
-  return M::FromBits((n > 255) ? all : _bzhi_u64(all, n));
+  return M::FromBits(_bzhi_u64(all, n));
 #else
   const uint32_t all = static_cast<uint32_t>((1ull << kN) - 1);
-  // BZHI only looks at the lower 8 bits of n!
-  return M::FromBits((n > 255) ? all
-                               : _bzhi_u32(all, static_cast<uint32_t>(n)));
+  return M::FromBits(_bzhi_u32(all, static_cast<uint32_t>(n)));
 #endif  // HWY_ARCH_X86_64
 #else
   const RebindToSigned<decltype(d)> di;  // Signed comparisons are cheaper.
@@ -1911,6 +1911,15 @@ HWY_API Vec256<uint64_t> MulEven(Vec256<uint32_t> a, Vec256<uint32_t> b) {
 
 // ------------------------------ ShiftLeft
 
+#if HWY_TARGET <= HWY_AVX3_DL
+namespace detail {
+template <typename T>
+HWY_API Vec256<T> GaloisAffine(Vec256<T> v, Vec256<uint64_t> matrix) {
+  return Vec256<T>{_mm256_gf2p8affine_epi64_epi8(v.raw, matrix.raw, 0)};
+}
+}  // namespace detail
+#endif  // HWY_TARGET <= HWY_AVX3_DL
+
 template <int kBits>
 HWY_API Vec256<uint16_t> ShiftLeft(Vec256<uint16_t> v) {
   return Vec256<uint16_t>{_mm256_slli_epi16(v.raw, kBits)};
@@ -1941,6 +1950,8 @@ HWY_API Vec256<int64_t> ShiftLeft(Vec256<int64_t> v) {
   return Vec256<int64_t>{_mm256_slli_epi64(v.raw, kBits)};
 }
 
+#if HWY_TARGET > HWY_AVX3_DL
+
 template <int kBits, typename T, HWY_IF_T_SIZE(T, 1)>
 HWY_API Vec256<T> ShiftLeft(const Vec256<T> v) {
   const Full256<T> d8;
@@ -1950,6 +1961,8 @@ HWY_API Vec256<T> ShiftLeft(const Vec256<T> v) {
              ? (v + v)
              : (shifted & Set(d8, static_cast<T>((0xFF << kBits) & 0xFF)));
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // ------------------------------ ShiftRight
 
@@ -1969,14 +1982,6 @@ HWY_API Vec256<uint64_t> ShiftRight(Vec256<uint64_t> v) {
 }
 
 template <int kBits>
-HWY_API Vec256<uint8_t> ShiftRight(Vec256<uint8_t> v) {
-  const Full256<uint8_t> d8;
-  // Use raw instead of BitCast to support N=1.
-  const Vec256<uint8_t> shifted{ShiftRight<kBits>(Vec256<uint16_t>{v.raw}).raw};
-  return shifted & Set(d8, 0xFF >> kBits);
-}
-
-template <int kBits>
 HWY_API Vec256<int16_t> ShiftRight(Vec256<int16_t> v) {
   return Vec256<int16_t>{_mm256_srai_epi16(v.raw, kBits)};
 }
@@ -1984,6 +1989,16 @@ HWY_API Vec256<int16_t> ShiftRight(Vec256<int16_t> v) {
 template <int kBits>
 HWY_API Vec256<int32_t> ShiftRight(Vec256<int32_t> v) {
   return Vec256<int32_t>{_mm256_srai_epi32(v.raw, kBits)};
+}
+
+#if HWY_TARGET > HWY_AVX3_DL
+
+template <int kBits>
+HWY_API Vec256<uint8_t> ShiftRight(Vec256<uint8_t> v) {
+  const Full256<uint8_t> d8;
+  // Use raw instead of BitCast to support N=1.
+  const Vec256<uint8_t> shifted{ShiftRight<kBits>(Vec256<uint16_t>{v.raw}).raw};
+  return shifted & Set(d8, 0xFF >> kBits);
 }
 
 template <int kBits>
@@ -1994,6 +2009,8 @@ HWY_API Vec256<int8_t> ShiftRight(Vec256<int8_t> v) {
   const auto shifted_sign = BitCast(di, Set(du, 0x80 >> kBits));
   return (shifted ^ shifted_sign) - shifted_sign;
 }
+
+#endif  // HWY_TARGET > HWY_AVX3_DL
 
 // i64 is implemented after BroadcastSignBit.
 
@@ -3337,14 +3354,16 @@ HWY_API Vec128<T> ExtractBlock(Vec256<T> v) {
 // compiler could decide to optimize out code that relies on this.
 //
 // The newer _mm256_zextsi128_si256 intrinsic fixes this by specifying the
-// zeroing, but it is not available on MSVC until 15.7 nor GCC until 10.1. For
-// older GCC, we can still obtain the desired code thanks to pattern
-// recognition; note that the expensive insert instruction is not actually
+// zeroing, but it is not available on MSVC until 1920 nor GCC until 10.1.
+// Unfortunately as of 2023-08 it still seems to cause internal compiler errors
+// on MSVC, so we consider it unavailable there.
+//
+// Without zext we can still possibly obtain the desired code thanks to pattern
+// recognition; note that the expensive insert instruction might not actually be
 // generated, see https://gcc.godbolt.org/z/1MKGaP.
 
 #if !defined(HWY_HAVE_ZEXT)
-#if (HWY_COMPILER_MSVC && HWY_COMPILER_MSVC >= 1915) ||  \
-    (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 500) || \
+#if (HWY_COMPILER_CLANG && HWY_COMPILER_CLANG >= 500) || \
     (HWY_COMPILER_GCC_ACTUAL && HWY_COMPILER_GCC_ACTUAL >= 1000)
 #define HWY_HAVE_ZEXT 1
 #else
@@ -4067,16 +4086,7 @@ HWY_API VFromD<D> Reverse8(D /* tag */, const VFromD<D> /* v */) {
   HWY_ASSERT(0);  // AVX2 does not have 8 64-bit lanes
 }
 
-// ------------------------------ ReverseBits
-
-#if HWY_TARGET <= HWY_AVX3_DL
-template <class V, HWY_IF_T_SIZE_V(V, 1), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
-HWY_API V ReverseBits(V v) {
-  const Full256<uint64_t> du64;
-  const auto affine_matrix = Set(du64, 0x8040201008040201u);
-  return V{_mm256_gf2p8affine_epi64_epi8(v.raw, affine_matrix.raw, 0)};
-}
-#endif  // HWY_TARGET <= HWY_AVX3_DL
+// ------------------------------ ReverseBits in x86_512
 
 // ------------------------------ InterleaveLower
 
@@ -5385,6 +5395,13 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec128<int32_t> v) {
   return VFromD<D>{_mm256_cvtepi32_pd(v.raw)};
 }
 
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_F64_D(D)>
+HWY_API Vec256<double> PromoteTo(D /* tag */, Vec128<uint32_t> v) {
+  return Vec256<double>{_mm256_cvtepu32_pd(v.raw)};
+}
+#endif
+
 // Unsigned: zero-extend.
 // Note: these have 3 cycle latency; if inputs are already split across the
 // 128 bit blocks (in their upper/lower halves), then Zip* would be faster.
@@ -5441,6 +5458,24 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> PromoteTo(D /* tag */, Vec32<int8_t> v) {
   return VFromD<D>{_mm256_cvtepi8_epi64(v.raw)};
 }
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
+HWY_API VFromD<D> PromoteTo(D di64, VFromD<Rebind<float, D>> v) {
+  const Rebind<float, decltype(di64)> df32;
+  const RebindToFloat<decltype(di64)> df64;
+  const RebindToSigned<decltype(df32)> di32;
+
+  return detail::FixConversionOverflow(
+      di64, BitCast(df64, PromoteTo(di64, BitCast(di32, v))),
+      VFromD<D>{_mm256_cvttps_epi64(v.raw)});
+}
+template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_U64_D(D)>
+HWY_API VFromD<D> PromoteTo(D /* tag */, VFromD<Rebind<float, D>> v) {
+  return VFromD<D>{
+      _mm256_maskz_cvttps_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+}
+#endif  // HWY_TARGET <= HWY_AVX3
 
 // ------------------------------ Demotions (full -> part w/ narrow lanes)
 
@@ -5738,6 +5773,41 @@ HWY_API VFromD<D> DemoteTo(D /* tag */, Vec256<double> v) {
   return VFromD<D>{_mm256_cvttpd_epi32(clamped.raw)};
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_U32_D(D)>
+HWY_API VFromD<D> DemoteTo(D du32, Vec256<double> v) {
+#if HWY_TARGET <= HWY_AVX3
+  (void)du32;
+  return VFromD<D>{
+      _mm256_maskz_cvttpd_epu32(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+#else  // AVX2
+  const Rebind<double, decltype(du32)> df64;
+  const RebindToUnsigned<decltype(df64)> du64;
+
+  // Clamp v[i] to a value between 0 and 4294967295
+  const auto clamped = Min(ZeroIfNegative(v), Set(df64, 4294967295.0));
+
+  const auto k2_31 = Set(df64, 2147483648.0);
+  const auto clamped_is_ge_k2_31 = (clamped >= k2_31);
+  const auto clamped_lo31_f64 =
+      clamped - IfThenElseZero(clamped_is_ge_k2_31, k2_31);
+  const VFromD<D> clamped_lo31_u32{_mm256_cvttpd_epi32(clamped_lo31_f64.raw)};
+  const auto clamped_u32_msb = ShiftLeft<31>(
+      TruncateTo(du32, BitCast(du64, VecFromMask(df64, clamped_is_ge_k2_31))));
+  return Or(clamped_lo31_u32, clamped_u32_msb);
+#endif
+}
+
+#if HWY_TARGET <= HWY_AVX3
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<int64_t, D>> v) {
+  return VFromD<D>{_mm256_cvtepi64_ps(v.raw)};
+}
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F32_D(D)>
+HWY_API VFromD<D> DemoteTo(D /* tag */, VFromD<Rebind<uint64_t, D>> v) {
+  return VFromD<D>{_mm256_cvtepu64_ps(v.raw)};
+}
+#endif
+
 // For already range-limited input [0, 255].
 HWY_API Vec128<uint8_t, 8> U8FromU32(const Vec256<uint32_t> v) {
   const Full256<uint32_t> d32;
@@ -5910,6 +5980,37 @@ template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_I64_D(D)>
 HWY_API VFromD<D> ConvertTo(D di, Vec256<double> v) {
   return detail::FixConversionOverflow(di, v,
                                        VFromD<D>{_mm256_cvttpd_epi64(v.raw)});
+}
+template <class DU, HWY_IF_V_SIZE_D(DU, 32), HWY_IF_U32_D(DU)>
+HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+  return VFromD<DU>{
+      _mm256_maskz_cvttps_epu32(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+}
+template <class DU, HWY_IF_V_SIZE_D(DU, 32), HWY_IF_U64_D(DU)>
+HWY_API VFromD<DU> ConvertTo(DU /*du*/, VFromD<RebindToFloat<DU>> v) {
+  return VFromD<DU>{
+      _mm256_maskz_cvttpd_epu64(_knot_mask8(MaskFromVec(v).raw), v.raw)};
+}
+#else   // AVX2
+template <class DU32, HWY_IF_V_SIZE_D(DU32, 32), HWY_IF_U32_D(DU32)>
+HWY_API VFromD<DU32> ConvertTo(DU32 du32, VFromD<RebindToFloat<DU32>> v) {
+  const RebindToSigned<decltype(du32)> di32;
+  const RebindToFloat<decltype(du32)> df32;
+
+  const auto non_neg_v = ZeroIfNegative(v);
+  const auto exp_diff = Set(di32, int32_t{158}) -
+                        BitCast(di32, ShiftRight<23>(BitCast(du32, non_neg_v)));
+  const auto scale_down_f32_val_mask =
+      BitCast(du32, VecFromMask(di32, Eq(exp_diff, Zero(di32))));
+
+  const auto v_scaled = BitCast(
+      df32, BitCast(du32, non_neg_v) + ShiftLeft<23>(scale_down_f32_val_mask));
+  const VFromD<decltype(du32)> f32_to_u32_result{
+      _mm256_cvttps_epi32(v_scaled.raw)};
+
+  return Or(
+      BitCast(du32, BroadcastSignBit(exp_diff)),
+      f32_to_u32_result + And(f32_to_u32_result, scale_down_f32_val_mask));
 }
 #endif  // HWY_TARGET <= HWY_AVX3
 
@@ -7407,12 +7508,12 @@ HWY_API VFromD<D> MaxOfLanes(D /*d*/, VFromD<D> vHL) {
 // -------------------- LeadingZeroCount, TrailingZeroCount, HighestSetBitIndex
 
 #if HWY_TARGET <= HWY_AVX3
-template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+template <class V, HWY_IF_UI32(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm256_lzcnt_epi32(v.raw)};
 }
 
-template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_D(DFromV<V>, 32)>
+template <class V, HWY_IF_UI64(TFromV<V>), HWY_IF_V_SIZE_V(V, 32)>
 HWY_API V LeadingZeroCount(V v) {
   return V{_mm256_lzcnt_epi64(v.raw)};
 }

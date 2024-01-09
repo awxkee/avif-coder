@@ -69,6 +69,27 @@ using VecArg = V;
 
 namespace detail {
 
+// Primary template: default is no change for all but f16.
+template <typename T>
+struct NativeLaneTypeT {
+  using type = T;
+};
+
+template <>
+struct NativeLaneTypeT<hwy::float16_t> {
+  using type = hwy::float16_t::Raw;
+};
+
+template <>
+struct NativeLaneTypeT<hwy::bfloat16_t> {
+  using type = hwy::bfloat16_t::Raw;
+};
+
+// Evaluates to the type expected by intrinsics given the Highway lane type T.
+// This is usually the same, but differs for our wrapper types [b]float16_t.
+template <typename T>
+using NativeLaneType = typename NativeLaneTypeT<T>::type;
+
 // Returns N * 2^pow2. N is the number of lanes in a full vector and pow2 the
 // desired fraction or multiple of it, see Simd<>. `pow2` is most often in
 // [-3, 3] but can also be lower for user-specified fractions.
@@ -472,10 +493,8 @@ using BlockDFromD =
 #define HWY_IF_UI32_D(D) HWY_IF_UI32(TFromD<D>)
 #define HWY_IF_UI64_D(D) HWY_IF_UI64(TFromD<D>)
 
-#define HWY_IF_BF16_D(D) \
-  hwy::EnableIf<IsSame<TFromD<D>, hwy::bfloat16_t>()>* = nullptr
-#define HWY_IF_F16_D(D) \
-  hwy::EnableIf<IsSame<TFromD<D>, hwy::float16_t>()>* = nullptr
+#define HWY_IF_BF16_D(D) HWY_IF_BF16(TFromD<D>)
+#define HWY_IF_F16_D(D) HWY_IF_F16(TFromD<D>)
 #define HWY_IF_F32_D(D) hwy::EnableIf<IsSame<TFromD<D>, float>()>* = nullptr
 #define HWY_IF_F64_D(D) hwy::EnableIf<IsSame<TFromD<D>, double>()>* = nullptr
 

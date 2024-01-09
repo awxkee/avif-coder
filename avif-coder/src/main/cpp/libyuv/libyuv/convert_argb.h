@@ -67,6 +67,8 @@ LIBYUV_API extern const struct YuvConstants kYvuV2020Constants;  // BT.2020 full
   I210ToAR30Matrix(a, b, e, f, c, d, g, h, i##VU, j, k)
 #define I410ToAB30Matrix(a, b, c, d, e, f, g, h, i, j, k) \
   I410ToAR30Matrix(a, b, e, f, c, d, g, h, i##VU, j, k)
+#define I012ToAB30Matrix(a, b, c, d, e, f, g, h, i, j, k) \
+  I012ToAR30Matrix(a, b, e, f, c, d, g, h, i##VU, j, k)
 #define I420AlphaToABGRMatrix(a, b, c, d, e, f, g, h, i, j, k, l, m, n) \
   I420AlphaToARGBMatrix(a, b, e, f, c, d, g, h, i, j, k##VU, l, m, n)
 #define I422AlphaToABGRMatrix(a, b, c, d, e, f, g, h, i, j, k, l, m, n) \
@@ -403,6 +405,32 @@ int U444ToABGR(const uint8_t* src_y,
                int dst_stride_abgr,
                int width,
                int height);
+
+// Convert I444 to RGB24.
+LIBYUV_API
+int I444ToRGB24(const uint8_t* src_y,
+                int src_stride_y,
+                const uint8_t* src_u,
+                int src_stride_u,
+                const uint8_t* src_v,
+                int src_stride_v,
+                uint8_t* dst_rgb24,
+                int dst_stride_rgb24,
+                int width,
+                int height);
+
+// Convert I444 to RAW.
+LIBYUV_API
+int I444ToRAW(const uint8_t* src_y,
+              int src_stride_y,
+              const uint8_t* src_u,
+              int src_stride_u,
+              const uint8_t* src_v,
+              int src_stride_v,
+              uint8_t* dst_raw,
+              int dst_stride_raw,
+              int width,
+              int height);
 
 // Convert I010 to ARGB.
 LIBYUV_API
@@ -1312,6 +1340,32 @@ int J420ToRAW(const uint8_t* src_y,
               int width,
               int height);
 
+// Convert I422 to RGB24.
+LIBYUV_API
+int I422ToRGB24(const uint8_t* src_y,
+                int src_stride_y,
+                const uint8_t* src_u,
+                int src_stride_u,
+                const uint8_t* src_v,
+                int src_stride_v,
+                uint8_t* dst_rgb24,
+                int dst_stride_rgb24,
+                int width,
+                int height);
+
+// Convert I422 to RAW.
+LIBYUV_API
+int I422ToRAW(const uint8_t* src_y,
+              int src_stride_y,
+              const uint8_t* src_u,
+              int src_stride_u,
+              const uint8_t* src_v,
+              int src_stride_v,
+              uint8_t* dst_raw,
+              int dst_stride_raw,
+              int width,
+              int height);
+
 LIBYUV_API
 int I420ToRGB565(const uint8_t* src_y,
                  int src_stride_y,
@@ -1494,6 +1548,20 @@ int I444ToARGBMatrix(const uint8_t* src_y,
                      const struct YuvConstants* yuvconstants,
                      int width,
                      int height);
+
+// Convert I444 to RGB24 with matrix.
+LIBYUV_API
+int I444ToRGB24Matrix(const uint8_t* src_y,
+                      int src_stride_y,
+                      const uint8_t* src_u,
+                      int src_stride_u,
+                      const uint8_t* src_v,
+                      int src_stride_v,
+                      uint8_t* dst_rgb24,
+                      int dst_stride_rgb24,
+                      const struct YuvConstants* yuvconstants,
+                      int width,
+                      int height);
 
 // Convert 10 bit 420 YUV to ARGB with matrix.
 LIBYUV_API
@@ -1893,9 +1961,37 @@ int I420ToRGB24Matrix(const uint8_t* src_y,
                       int width,
                       int height);
 
+// Convert I422 to RGB24 with matrix.
+LIBYUV_API
+int I422ToRGB24Matrix(const uint8_t* src_y,
+                      int src_stride_y,
+                      const uint8_t* src_u,
+                      int src_stride_u,
+                      const uint8_t* src_v,
+                      int src_stride_v,
+                      uint8_t* dst_rgb24,
+                      int dst_stride_rgb24,
+                      const struct YuvConstants* yuvconstants,
+                      int width,
+                      int height);
+
 // Convert I420 to RGB565 with specified color matrix.
 LIBYUV_API
 int I420ToRGB565Matrix(const uint8_t* src_y,
+                       int src_stride_y,
+                       const uint8_t* src_u,
+                       int src_stride_u,
+                       const uint8_t* src_v,
+                       int src_stride_v,
+                       uint8_t* dst_rgb565,
+                       int dst_stride_rgb565,
+                       const struct YuvConstants* yuvconstants,
+                       int width,
+                       int height);
+
+// Convert I422 to RGB565 with specified color matrix.
+LIBYUV_API
+int I422ToRGB565Matrix(const uint8_t* src_y,
                        int src_stride_y,
                        const uint8_t* src_u,
                        int src_stride_u,
@@ -1960,6 +2056,36 @@ int I422ToARGBMatrixFilter(const uint8_t* src_y,
                            int width,
                            int height,
                            enum FilterMode filter);
+
+// Convert I422 to RGB24 with matrix and UV filter mode.
+LIBYUV_API
+int I422ToRGB24MatrixFilter(const uint8_t* src_y,
+                            int src_stride_y,
+                            const uint8_t* src_u,
+                            int src_stride_u,
+                            const uint8_t* src_v,
+                            int src_stride_v,
+                            uint8_t* dst_rgb24,
+                            int dst_stride_rgb24,
+                            const struct YuvConstants* yuvconstants,
+                            int width,
+                            int height,
+                            enum FilterMode filter);
+
+// Convert I420 to RGB24 with matrix and UV filter mode.
+LIBYUV_API
+int I420ToRGB24MatrixFilter(const uint8_t* src_y,
+                            int src_stride_y,
+                            const uint8_t* src_u,
+                            int src_stride_u,
+                            const uint8_t* src_v,
+                            int src_stride_v,
+                            uint8_t* dst_rgb24,
+                            int dst_stride_rgb24,
+                            const struct YuvConstants* yuvconstants,
+                            int width,
+                            int height,
+                            enum FilterMode filter);
 
 // Convert I010 to AR30 with matrix and UV filter mode.
 LIBYUV_API

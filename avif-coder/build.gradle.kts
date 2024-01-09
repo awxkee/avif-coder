@@ -42,7 +42,7 @@ afterEvaluate {
             create<MavenPublication>("mavenJava") {
                 groupId = "com.github.awxkee"
                 artifactId = "avif-coder"
-                version = "1.5.7"
+                version = "1.5.9"
                 from(components["release"])
 //                artifact("androidSourcesJar")
             }
@@ -63,23 +63,14 @@ android {
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 34
 
         externalNativeBuild {
             cmake {
-                ndkVersion = "25.2.9519653"
+                ndkVersion = "26.1.10909125"
                 cppFlags.addAll(
                     listOf(
-                        "-ffunction-sections",
-                        "-fdata-sections",
-                        "-fvisibility=hidden",
-                        "-std=c++17"
+                        "-std=c++20"
                     )
-                )
-                cFlags(
-                    "-ffunction-sections",
-                    "-fdata-sections",
-                    "-fvisibility=hidden",
                 )
                 abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86")
             }
@@ -118,5 +109,5 @@ android {
     }
 }
 dependencies {
-    implementation("androidx.annotation:annotation-jvm:1.6.0")
+    implementation("androidx.annotation:annotation-jvm:1.7.1")
 }
