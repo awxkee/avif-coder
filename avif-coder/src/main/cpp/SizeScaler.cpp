@@ -152,10 +152,10 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
 
         } else {
             initialData.resize(*stride * imageHeight);
-            coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), *stride,
-                                     reinterpret_cast<uint8_t *>(initialData.data()), *stride,
-                                     imageWidth,
-                                     imageHeight, useFloats ? 2 : 1);
+            coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
+                                 reinterpret_cast<uint8_t *>(initialData.data()), *stride,
+                                 imageWidth * 4,
+                                 imageHeight, useFloats ? 2 : 1);
         }
 
         *imageWidthPtr = imageWidth;
@@ -172,10 +172,10 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
         imageHeight = heif_image_get_height(img.get(), heif_channel_interleaved);
         initialData.resize(*stride * imageHeight);
 
-        coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data), *stride,
-                                 reinterpret_cast<uint8_t *>(initialData.data()), *stride,
-                                 imageWidth,
-                                 imageHeight, useFloats ? 2 : 1);
+        coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
+                             reinterpret_cast<uint8_t *>(initialData.data()), *stride,
+                             imageWidth * 4,
+                             imageHeight, useFloats ? 2 : 1);
 
         *imageWidthPtr = imageWidth;
         *imageHeightPtr = imageHeight;

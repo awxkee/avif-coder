@@ -69,22 +69,24 @@ createBitmap(JNIEnv *env, std::vector<uint8_t> &data, std::string &colorConfig, 
     }
 
     if (colorConfig == "RGB_565") {
-        coder::CopyUnalignedRGB565(reinterpret_cast<const uint8_t *>(data.data()), stride,
-                                   reinterpret_cast<uint8_t *>(addr), (int) info.stride,
-                                   (int) info.width,
-                                   (int) info.height);
+        coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data.data()), stride,
+                             reinterpret_cast<uint8_t *>(addr), (int) info.stride,
+                             (int) info.width,
+                             (int) info.height, 2);
     } else {
+        int copyWidth = (int) info.width * 4;
         int pixelSize = 1;
         if (use16Floats) {
             pixelSize = 2;
         }
         if (colorConfig == "RGBA_1010102") {
             pixelSize = sizeof(uint32_t);
+            copyWidth = (int) info.width;
         }
-        coder::CopyUnalignedRGBA(reinterpret_cast<const uint8_t *>(data.data()), stride,
-                                 reinterpret_cast<uint8_t *>(addr), (int) info.stride,
-                                 (int) info.width,
-                                 (int) info.height, pixelSize);
+        coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data.data()), stride,
+                             reinterpret_cast<uint8_t *>(addr), (int) info.stride,
+                             copyWidth,
+                             (int) info.height, pixelSize);
     }
 
     if (AndroidBitmap_unlockPixels(env, bitmapObj) != 0) {

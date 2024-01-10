@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
                 buffer,
                 size.width * 2,
                 size.height * 2,
-                PreferredColorConfig.RGBA_F16,
+                PreferredColorConfig.RGB_565,
                 ScaleMode.RESIZE
             )
             binding.imageView2.setImageBitmap(bitmap)
@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGB_565,
                     ScaleMode.RESIZE
                 )
                 binding.imageView4.setImageBitmap(bitmap)
@@ -157,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width * 2,
                     size.height * 2,
-                    PreferredColorConfig.HARDWARE,
+                    PreferredColorConfig.RGB_565,
                     ScaleMode.RESIZE
                 )
                 binding.imageView5.setImageBitmap(bitmap)
@@ -239,7 +239,7 @@ class MainActivity : AppCompatActivity() {
                     buffer,
                     size.width,
                     size.height,
-                    PreferredColorConfig.RGBA_F16,
+                    PreferredColorConfig.RGB_565,
                     ScaleMode.RESIZE
                 )
                 binding.imageView11.setImageBitmap(bitmap)
@@ -248,7 +248,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("alpha_t.avif").source().buffer().readByteArray()
+            val buffer = this.assets.open("blue_lights.avif").source().buffer().readByteArray()
             val size = coder.getSize(buffer)!!
             assert(size != null)
             val executionTime = measureTimeMillis {
@@ -261,10 +261,10 @@ class MainActivity : AppCompatActivity() {
             Log.i("AVIF", "execution time $executionTime")
         }
 
-        //https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
-        //https://wh.aimuse.online/preset/federico-beccari.avif
-        // https://wh.aimuse.online/preset/avif10bit.avif
-
+//        https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
+//        https://wh.aimuse.online/preset/federico-beccari.avif
+//         https://wh.aimuse.online/preset/avif10bit.avif
+//
 //        Glide.with(this)
 //            .load("https://wh.aimuse.online/preset/federico-beccari.avif")
 //            .skipMemoryCache(true)

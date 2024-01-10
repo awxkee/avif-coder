@@ -307,7 +307,7 @@ namespace coder::HWY_NAMESPACE {
                                        PromoteUpperTo(di32, PromoteUpperTo(du16x4, upixels3)),
                                        PromoteUpperTo(di32, PromoteUpperTo(du16x4, upixels4)),
                                        permuteMap);
-            Store(final, du, dst32 + 12);
+            StoreU(final, du, dst32 + 12);
 
             final = ConvertPixelsTo(du, di32,
                                     PromoteLowerTo(di32, PromoteUpperTo(du16x4, upixels1)),
@@ -315,7 +315,7 @@ namespace coder::HWY_NAMESPACE {
                                     PromoteLowerTo(di32, PromoteUpperTo(du16x4, upixels3)),
                                     PromoteLowerTo(di32, PromoteUpperTo(du16x4, upixels4)),
                                     permuteMap);
-            Store(final, du, dst32 + 8);
+            StoreU(final, du, dst32 + 8);
 
             final = ConvertPixelsTo(du, di32,
                                     PromoteUpperTo(di32, PromoteLowerTo(du16x4, upixels1)),
@@ -323,7 +323,7 @@ namespace coder::HWY_NAMESPACE {
                                     PromoteUpperTo(di32, PromoteLowerTo(du16x4, upixels3)),
                                     PromoteUpperTo(di32, PromoteLowerTo(du16x4, upixels4)),
                                     permuteMap);
-            Store(final, du, dst32 + 4);
+            StoreU(final, du, dst32 + 4);
 
             final = ConvertPixelsTo(du, di32,
                                     PromoteLowerTo(di32, PromoteLowerTo(du16x4, upixels1)),
@@ -331,7 +331,7 @@ namespace coder::HWY_NAMESPACE {
                                     PromoteLowerTo(di32, PromoteLowerTo(du16x4, upixels3)),
                                     PromoteLowerTo(di32, PromoteLowerTo(du16x4, upixels4)),
                                     permuteMap);
-            Store(final, du, dst32);
+            StoreU(final, du, dst32);
 
             data += pixels * 4;
             dst32 += pixels;

@@ -33,15 +33,11 @@
 
 namespace coder {
     void
-    CopyUnalignedRGBA(const uint8_t *__restrict__ src, int srcStride, uint8_t *__restrict__ dst,
-                      int dstStride, int width,
-                      int height,
-                      int pixelSize);
-
-    void
-    CopyUnalignedRGB565(const uint8_t *__restrict__ src, int srcStride, uint8_t *__restrict__ dst,
-                        int dstStride, int width,
-                        int height);
+    CopyUnaligned(const uint8_t *__restrict__ src, int srcStride, uint8_t *__restrict__ dst,
+                  const int dstStride,
+                  const int width,
+                  const int height,
+                  const int pixelSize);
 }
 
 #endif //AVIF_COPYUNALIGNEDRGBA_H

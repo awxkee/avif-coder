@@ -170,6 +170,7 @@ namespace coder {
                 bufferDesc.layers = 1;
                 bufferDesc.format = (*useFloats) ? AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT
                                                  : AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+
                 bufferDesc.usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
 
                 if (!*useFloats && !alphaPremultiplied) {
@@ -187,7 +188,7 @@ namespace coder {
                     throw ReformatBitmapError(err);
                 }
                 ARect rect = {0, 0, imageWidth, imageHeight};
-                uint8_t *buffer;
+                uint8_t *buffer = nullptr;
 
                 status = AHardwareBuffer_lock_compat(hardwareBuffer,
                                                      AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1,
@@ -201,9 +202,9 @@ namespace coder {
                 AHardwareBuffer_describe_compat(hardwareBuffer, &bufferDesc);
 
                 int pixelSize = (*useFloats) ? sizeof(uint16_t) : sizeof(uint8_t);
-                CopyUnalignedRGBA(imageData.data(), *stride, buffer,
+                CopyUnaligned(imageData.data(), *stride, buffer,
                                   (int) bufferDesc.stride * 4 * pixelSize,
-                                  (int) bufferDesc.width,
+                                  (int) bufferDesc.width * 4,
                                   (int) bufferDesc.height,
                                   pixelSize);
 
