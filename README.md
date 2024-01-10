@@ -9,7 +9,7 @@ Extremly fast in decoding large HDR images or just large images.
 The most features AVIF, HEIF library in android.
 Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
 
-Image processing speed up by [libhwy](https://github.com/google/highway)
+Image processing speeded up by [libhwy](https://github.com/google/highway)
 
 If `context` is provided to the coder HDR images tone mapping is done on [Vulkan](https://developer.android.com/ndk/guides/graphics/getting-started). If you prefer not to use GPU to do tone mapping set context to null
 
@@ -41,13 +41,13 @@ repositories {
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.5.8' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.5.9' // or any version above picker from release tags
 
 // Glide avif plugin if you need one
-implementation 'com.github.awxkee:avif-coder-glide:1.5.8' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-glide:1.5.9' // or any version above picker from release tags
 
 // Coil avif plugin if you need one
-implementation 'com.github.awxkee:avif-coder-coil:1.5.8' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-coil:1.5.9' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
