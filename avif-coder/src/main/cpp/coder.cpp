@@ -46,7 +46,6 @@
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
 #include "colorspace/HDRTransferAdapter.h"
-#include "imagebits/CopyUnalignedRGBA.h"
 #include "imagebits/RGBAlpha.h"
 #include "imagebits/Rgb565.h"
 
@@ -195,7 +194,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                       (int) info.stride,
                                       reinterpret_cast<uint8_t *>(imgData), stride,
                                       (int) info.width,
-                                      (int) info.height, 8);
+                                      (int) info.height, 8, true);
         }
     }
 

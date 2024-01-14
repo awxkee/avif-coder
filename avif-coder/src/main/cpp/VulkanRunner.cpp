@@ -35,6 +35,7 @@
 std::mutex vulkanMutex;
 
 VulkanComputeRunnerFunc VulkanRunner;
+VulkanComputeRunnerWithDataFunc VulkanRunnerWithData;
 
 bool vulkanRunnerLoaded = false;
 
@@ -58,6 +59,12 @@ bool loadVulkanRunner() {
     VulkanRunner = (VulkanComputeRunnerFunc) dlsym(hhl,
                                                    "ComputeKernel");
     if (VulkanRunner == nullptr) {
+        return false;
+    }
+
+    VulkanRunnerWithData = (VulkanComputeRunnerWithDataFunc) dlsym(hhl,
+                                                                   "ComputeKernelWithData");
+    if (VulkanRunnerWithData == nullptr) {
         return false;
     }
     return true;

@@ -1,10 +1,10 @@
 /*
  * MIT License
  *
- * Copyright (c) 2023 Radzivon Bartoshyk
+ * Copyright (c) 2024 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 15/9/2023
+ * Created by Radzivon Bartoshyk on 14/1/2024
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,24 +26,11 @@
  *
  */
 
-#ifndef AVIF_SUPPORT_H
-#define AVIF_SUPPORT_H
+package com.radzivon.bartoshyk.avif.coder
 
-#include <jni.h>
-#include "SizeScaler.h"
-#include "HDRTransferAdapter.h"
+import androidx.annotation.Keep
 
-enum PreferredColorConfig {
-    Default = 1,
-    Rgba_8888 = 2,
-    Rgba_F16 = 3,
-    Rgb_565 = 4,
-    Rgba_1010102 = 5,
-    Hardware = 6
-};
-
-bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorConfig *config,
-                              jint javaScaleMode, ScaleMode *scaleMode, jint javaToneMapper,
-                              CurveToneMapper *toneMapper);
-
-#endif //AVIF_SUPPORT_H
+@Keep
+enum class ToneMapper(val value: Int) {
+    REC2408(1), LOGARITHMIC(2)
+}

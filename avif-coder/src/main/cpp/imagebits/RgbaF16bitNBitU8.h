@@ -34,7 +34,7 @@
 namespace coder {
     void RGBAF16BitToNBitU8(const uint16_t *sourceData, int srcStride,
                             uint8_t *dst, int dstStride, int width,
-                            int height, int bitDepth);
+                            int height, int bitDepth, const bool attenuateAlpha);
 }
 
 #endif //AVIF_RGBAF16BITNBITU8_H

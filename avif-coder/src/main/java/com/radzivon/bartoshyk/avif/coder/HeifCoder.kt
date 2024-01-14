@@ -34,14 +34,16 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.AssetManager
 import android.graphics.Bitmap
-import android.hardware.HardwareBuffer
 import android.os.Build
 import android.util.Size
 import androidx.annotation.Keep
 import java.nio.ByteBuffer
 
 @Keep
-class HeifCoder(private val context: Context? = null) {
+class HeifCoder(
+    private val context: Context? = null,
+    private val toneMapper: ToneMapper = ToneMapper.LOGARITHMIC
+) {
 
     fun isAvif(byteArray: ByteArray): Boolean {
         return isAvifImageImpl(byteArray)
@@ -73,7 +75,8 @@ class HeifCoder(private val context: Context? = null) {
             0,
             0,
             preferredColorConfig.value,
-            ScaleMode.FIT.value
+            ScaleMode.FIT.value,
+            toneMapper.value,
         )
     }
 
@@ -91,6 +94,7 @@ class HeifCoder(private val context: Context? = null) {
             scaledHeight,
             preferredColorConfig.value,
             scaleMode.value,
+            toneMapper.value,
         )
     }
 
@@ -108,6 +112,7 @@ class HeifCoder(private val context: Context? = null) {
             scaledHeight,
             preferredColorConfig.value,
             scaleMode.value,
+            toneMapper.value,
         )
     }
 
@@ -137,6 +142,7 @@ class HeifCoder(private val context: Context? = null) {
         scaledHeight: Int,
         clrConfig: Int,
         scaleMode: Int,
+        toneMapper: Int,
     ): Bitmap
 
     private external fun decodeByteBufferImpl(
@@ -146,6 +152,7 @@ class HeifCoder(private val context: Context? = null) {
         scaledHeight: Int,
         clrConfig: Int,
         scaleMode: Int,
+        toneMapper: Int,
     ): Bitmap
 
     private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int): ByteArray

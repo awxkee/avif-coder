@@ -33,15 +33,18 @@
 void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
                   std::shared_ptr<heif_image> &image,
                   std::vector<uint8_t> &iccProfile,
-                  std::string &colorSpaceName) {
+                  std::string &colorSpaceName,
+                  heif_color_profile_nclx **nclx,
+                  bool* hasNclx) {
 
-    heif_color_profile_nclx *colorProfileNclx = nullptr;
     auto type = heif_image_get_color_profile_type(image.get());
 
     auto nclxColorProfile = heif_image_handle_get_nclx_color_profile(handle.get(),
-                                                                     &colorProfileNclx);
+                                                                     nclx);
 
     if (nclxColorProfile.code == heif_error_Ok) {
+        *hasNclx = true;
+        auto colorProfileNclx = *nclx;
         if (colorProfileNclx && colorProfileNclx->color_primaries != 0 &&
             colorProfileNclx->transfer_characteristics != 0) {
             auto transfer = colorProfileNclx->transfer_characteristics;
@@ -64,8 +67,7 @@ void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
                 std::copy(&linearExtendedBT2020[0],
                           &linearExtendedBT2020[0] + sizeof(linearExtendedBT2020),
                           iccProfile.begin());
-            } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_2020_2_and_2100_0 &&
-                       (transfer == heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
+            } else if ((transfer == heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
                         transfer == heif_transfer_characteristic_ITU_R_BT_2020_2_12bit)) {
                 colorSpaceName = "BT2020";
             } else if (colorPrimaries == heif_color_primaries_SMPTE_EG_432_1 &&
@@ -79,6 +81,12 @@ void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
                 colorSpaceName = "DISPLAY_P3";
             } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_2020_2_and_2100_0) {
                 colorSpaceName = "BT2020";
+            } else if (transfer == heif_transfer_characteristic_SMPTE_ST_428_1) {
+                colorSpaceName = "SMPTE_428";
+            } else if (transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
+                colorSpaceName = "BT2020_PQ";
+            } else if (transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
+                colorSpaceName = "BT2020_HLG";
             }
         }
     } else if (type == heif_color_profile_type_prof || type == heif_color_profile_type_rICC) {

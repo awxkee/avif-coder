@@ -30,22 +30,38 @@
 #define AVIF_HDRTRANSFERADAPTER_H
 
 #include <cstdint>
+#include "ColorSpaceProfile.h"
 
-enum PQGammaCorrection {
-    Rec2020, DCIP3
+enum GammaCurve {
+    Rec2020, DCIP3, GAMMA, Rec709, sRGB, NONE
 };
 
 enum HDRTransferFunction {
-    PQ, HLG
+    PQ, HLG, SMPTE428
+};
+
+enum CurveToneMapper {
+    REC2408 = 1, LOGARITHMIC = 2
 };
 
 class HDRTransferAdapter {
 public:
-    HDRTransferAdapter(uint8_t *rgbaData, int stride, int width, int height, bool U16,
-                       bool halfFloats, int bitDepth, PQGammaCorrection gammaCorrection,
-                       HDRTransferFunction function): function(function), gammaCorrection(gammaCorrection),
-                       bitDepth(bitDepth), halfFloats(halfFloats), rgbaData(rgbaData), stride(stride),
-                       width(width), height(height), U16(U16) {
+    HDRTransferAdapter(uint8_t *rgbaData, int stride, int width, int height,
+                       bool halfFloats, int bitDepth, GammaCurve gammaCorrection,
+                       HDRTransferFunction function, CurveToneMapper toneMapper,
+                       ColorSpaceProfile *srcProfile, ColorSpaceProfile *dstProfile, float gamma)
+            : function(
+            function), gammaCorrection(gammaCorrection), bitDepth(bitDepth), halfFloats(halfFloats),
+              rgbaData(
+                      rgbaData),
+              stride(stride),
+              width(width),
+              height(height),
+              toneMapper(
+                      toneMapper),
+              srcProfile(srcProfile),
+              dstProfile(dstProfile),
+              gamma(gamma) {
     }
 
     void transfer();
@@ -58,10 +74,12 @@ private:
     const int height;
     const HDRTransferFunction function;
     uint8_t *rgbaData;
-    const PQGammaCorrection gammaCorrection;
-    const bool U16;
+    const GammaCurve gammaCorrection;
+    const CurveToneMapper toneMapper;
+    ColorSpaceProfile *srcProfile;
+    ColorSpaceProfile *dstProfile;
+    const float gamma;
 protected:
 };
-
 
 #endif //AVIF_HDRTRANSFERADAPTER_H

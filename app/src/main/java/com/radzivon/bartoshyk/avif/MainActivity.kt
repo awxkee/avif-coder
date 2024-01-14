@@ -44,19 +44,42 @@ import com.github.awxkee.avifcoil.HeifDecoder
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
+import com.radzivon.bartoshyk.avif.coder.ToneMapper
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
+import com.radzivon.bartoshyk.avif.databinding.BindingImageViewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import okio.FileNotFoundException
 import okio.buffer
 import okio.sink
 import okio.source
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import kotlin.system.measureTimeMillis
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
+    fun getAllFilesFromAssets(): List<String> {
+        val assetManager = assets
+        val fileList: MutableList<String> = mutableListOf()
+
+        try {
+            // List all files in the "assets" folder
+            val files = assetManager.list("") ?: arrayOf()
+
+            // Add each file to the list
+            for (file in files) {
+                fileList.add(file)
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+
+        return fileList
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,194 +94,34 @@ class MainActivity : AppCompatActivity() {
 2023-11-05 20:23:51.574 24181-24181 AVIF                    com.radzivon.bartoshyk.avif          I  execution time 821
 2023-11-05 20:23:52.341 24181-24181 AVIF                    com.radzivon.bartoshyk.avif          I  execution time 767
          */
-        val coder = HeifCoder()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/castle-hdr.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGBA_F16,
-                ScaleMode.RESIZE
-            )
-            binding.imageView.setImageBitmap(bitmap)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/future city.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width,
-                    size.height,
-                    PreferredColorConfig.RGBA_F16,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView1.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/Sea of Umbrellas at Shibuya Crossing-hdr.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width * 2,
-                size.height * 2,
-                PreferredColorConfig.RGB_565,
-                ScaleMode.RESIZE
-            )
-            binding.imageView2.setImageBitmap(bitmap)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/Elevate-hdr.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width * 2,
-                    size.height * 2,
-                    PreferredColorConfig.RGBA_F16,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView3.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/house on lake.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width * 2,
-                    size.height * 2,
-                    PreferredColorConfig.RGB_565,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView4.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
+        // HDR EXAMPLES - https://us.zonerama.com/williamskeaguidingphotography/Photo/1000120226/1004888131
+        val coder = HeifCoder(this, toneMapper = ToneMapper.LOGARITHMIC)
+        val allFiles = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+        for (file in allFiles) {
+            try {
+                val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
+                val buffer = this.assets.open(file).source().buffer()
+                    .readByteArray()
+                val size = coder.getSize(buffer)
+                if (size != null) {
+                    val bitmap = coder.decodeSampled(
+                        buffer,
+                        size.width / 2,
+                        size.height / 2,
+                        PreferredColorConfig.HARDWARE,
+                        ScaleMode.RESIZE
+                    )
+                    imageView.root.setImageBitmap(bitmap)
+                    binding.scrollViewContainer.addView(imageView.root)
+                }
+            } catch (e: Exception) {
+                if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/Triad-hdr.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width * 2,
-                    size.height * 2,
-                    PreferredColorConfig.RGB_565,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView5.setImageBitmap(bitmap)
+                } else {
+                    throw e
+                }
             }
-            Log.i("AVIF", "execution time $executionTime")
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("hdr/GUM Mall Lights-hdr.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width * 2,
-                    size.height * 2,
-                    PreferredColorConfig.RGBA_1010102,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView6.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("bt_2020_pq.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val bitmap = coder.decodeSampled(
-                buffer,
-                size.width / 3,
-                size.height / 3,
-                PreferredColorConfig.RGBA_8888,
-                ScaleMode.RESIZE
-            )
-            binding.imageView7.setImageBitmap(bitmap)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("federico-beccari.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width / 4,
-                    size.height / 4,
-                    PreferredColorConfig.RGBA_1010102,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView8.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("happy_colly.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width,
-                    size.height,
-                    PreferredColorConfig.RGBA_8888,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView10.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("blue_lights.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decodeSampled(
-                    buffer,
-                    size.width,
-                    size.height,
-                    PreferredColorConfig.RGB_565,
-                    ScaleMode.RESIZE
-                )
-                binding.imageView11.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val buffer = this.assets.open("blue_lights.avif").source().buffer().readByteArray()
-            val size = coder.getSize(buffer)!!
-            assert(size != null)
-            val executionTime = measureTimeMillis {
-                val bitmap = coder.decode(
-                    buffer,
-                    PreferredColorConfig.RGBA_1010102
-                )
-                binding.imageView9.setImageBitmap(bitmap)
-            }
-            Log.i("AVIF", "execution time $executionTime")
         }
 
 //        https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif

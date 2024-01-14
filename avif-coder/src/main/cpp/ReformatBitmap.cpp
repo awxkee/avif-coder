@@ -58,20 +58,19 @@ namespace coder {
                     vector<uint8_t> rgba8888Data(dstStride * imageHeight);
                     coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(imageData.data()),
                                               *stride, rgba8888Data.data(), dstStride, imageWidth,
-                                              imageHeight, 8);
+                                              imageHeight, 8, !alphaPremultiplied);
                     *stride = dstStride;
                     *useFloats = false;
                     imageConfig = "ARGB_8888";
                     imageData = rgba8888Data;
+                } else {
+                    if (!alphaPremultiplied) {
+                        coder::PremultiplyRGBA(imageData.data(), *stride,
+                                               imageData.data(), *stride,
+                                               imageWidth,
+                                               imageHeight);
+                    }
                 }
-
-                if (!alphaPremultiplied) {
-                    coder::PremultiplyRGBA(imageData.data(), *stride,
-                                           imageData.data(), *stride,
-                                           imageWidth,
-                                           imageHeight);
-                }
-
                 break;
             case Rgba_F16:
                 if (*useFloats) {

@@ -41,6 +41,13 @@ enum PixelFormat {
     Rgba1010102 = 5,
 };
 
+struct ShaderEotfData {
+    float colorMatrix[3][4] = {};
+    float lumaPrimaries[3] = {};
+    int toneMapper; // Rec2408 - 1, Logarithmic - 2
+    int oetfCurve; // curve 1 - Rec2020, 2 - P3, 3 - SRGB
+} ;
+
 bool loadVulkanRunner();
 
 typedef int (*VulkanComputeRunnerFunc)(
@@ -49,6 +56,13 @@ typedef int (*VulkanComputeRunnerFunc)(
         int stride, PixelFormat pixelFormat
 );
 
+typedef int (*VulkanComputeRunnerWithDataFunc)(
+        std::string &kernelName, AAssetManager *assetManager, uint8_t *srcBuffer, int width,
+        int height,
+        int stride, PixelFormat pixelFormat, void *data, uint32_t dataSize
+);
+
+extern VulkanComputeRunnerWithDataFunc VulkanRunnerWithData;
 extern VulkanComputeRunnerFunc VulkanRunner;
 
 #endif //AVIF_VULKANRUNNER_H

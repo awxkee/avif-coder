@@ -348,11 +348,19 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            uint16_t red565 = ((uint16_t) round(LoadHalf(src[0]) * maxColors) >> 3) << 11;
-            uint16_t green565 = ((uint16_t) round(LoadHalf(src[1]) * maxColors) >> 2) << 5;
-            uint16_t blue565 = (uint16_t) round(LoadHalf(src[2]) * maxColors) >> 3;
+            uint8_t r = static_cast<uint8_t >(roundf(clamp(LoadHalf(src[0]), 0.0f, 1.0f) * maxColors));
+            uint8_t g = static_cast<uint8_t >(roundf(clamp(LoadHalf(src[1]), 0.0f, 1.0f) * maxColors));
+            uint8_t b = static_cast<uint8_t >(roundf(clamp(LoadHalf(src[2]), 0.0f, 1.0f) * maxColors));
 
-            auto result = static_cast<uint16_t>(red565 | green565 | blue565);
+            r = clamp(r, (uint8_t) 0, (uint8_t) maxColors);
+            g = clamp(g, (uint8_t) 0, (uint8_t) maxColors);
+            b = clamp(b, (uint8_t) 0, (uint8_t) maxColors);
+
+            uint16_t red565 = (r >> 3) << 11;
+            uint16_t green565 = (g >> 2) << 5;
+            uint16_t blue565 = b >> 3;
+
+            uint16_t result = static_cast<uint16_t>(red565 | green565 | blue565);
             dst[0] = result;
 
             src += 4;

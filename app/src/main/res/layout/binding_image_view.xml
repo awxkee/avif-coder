@@ -1,8 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
   ~ MIT License
   ~
-  ~ Copyright (c) 2023 Radzivon Bartoshyk
+  ~ Copyright (c) 2024 Radzivon Bartoshyk
+  ~ avif-coder [https://github.com/awxkee/avif-coder]
+  ~
+  ~ Created by Radzivon Bartoshyk on 14/1/2024
   ~
   ~ Permission is hereby granted, free of charge, to any person obtaining a copy
   ~ of this software and associated documentation files (the "Software"), to deal
@@ -24,31 +26,7 @@
   ~
   -->
 
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
-
-    <ScrollView
-        android:id="@+id/sample_text"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" >
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:orientation="vertical"
-            android:id="@+id/scrollViewContainer"
-            android:layout_height="wrap_content">
-
-        </LinearLayout>
-
-    </ScrollView>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+    android:layout_height="wrap_content"
+    android:scaleType="fitCenter" />

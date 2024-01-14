@@ -21,7 +21,7 @@ add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
         HardwareBuffersCompat.cpp VulkanRunner.cpp imagebits/half.cpp
         imagebits/half.hpp imagebits/RgbaU16toHF.cpp
-        imagebits/RGBAlpha.cpp)
+        imagebits/RGBAlpha.cpp colorspace/CoderCms.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -50,6 +50,8 @@ include(CheckCXXCompilerFlag)
 if (ANDROID_ABI STREQUAL arm64-v8a)
     add_definitions("-DHAVE_NEON=1")
 endif ()
+
+#add_definitions(-DHWY_COMPILE_ONLY_STATIC)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DHWY_COMPILE_ONLY_STATIC)

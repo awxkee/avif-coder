@@ -32,7 +32,8 @@
 #include "SizeScaler.h"
 
 bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorConfig *config,
-                              jint javaScaleMode, ScaleMode *scaleMode) {
+                              jint javaScaleMode, ScaleMode *scaleMode, jint javaToneMapper,
+                              CurveToneMapper *toneMapper) {
     auto preferredColorConfig = static_cast<PreferredColorConfig>(javaColorspace);
     if (!preferredColorConfig) {
         std::string errorString =
@@ -75,7 +76,16 @@ bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorCo
         return false;
     }
 
+    auto mToneMapper = static_cast<CurveToneMapper>(javaToneMapper);
+    if (!mScaleMode) {
+        std::string errorString =
+                "Invalid Tone mapper was requestedd";
+        throwException(env, errorString);
+        return false;
+    }
+
     *scaleMode = mScaleMode;
     *config = preferredColorConfig;
+    *toneMapper = mToneMapper;
     return true;
 }
