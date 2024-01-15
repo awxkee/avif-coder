@@ -27,7 +27,7 @@
  */
 
 /**
-    Applies PQ EOTF function with BT 2020 Primaries
+    Applies HLG EOTF function with BT 2020 Primaries
 **/
 
 #version 450
@@ -59,20 +59,24 @@ float Rec2020LinearToRGB(float value) {
     return (0 <= betaRec2020 && value < betaRec2020) ? (4.5f * value) : (alphaRec2020 * pow(float(value), 0.45f) - (alphaRec2020 - 1));
 }
 
+float SMPTE428Eotf(const float value) {
+    if (value < 0.0f) {
+        return 0.0f;
+    }
+    float scale = 52.37f / 48.0f;
+    return pow(value, 2.6f) * scale;
+}
+
 void main() {
     vec2 coord = vec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y);
     vec4 pixel = texture(inputImage, coord);
     vec4 color = vec4(pixel.rgb, 0.0f);
-    vec4 lumaVec = vec4(constant.lumaPrimaries.x, constant.lumaPrimaries.y, constant.lumaPrimaries.y, 0.0f);
 
-    float m1 = (2610.0 / 4096.0) / 4.0;
-    float m2 = (2523.0 / 4096.0) * 128.0;
-    float c1 = 3424.0 / 4096.0;
-    float c2 = (2413.0 / 4096.0) * 32.0;
-    float c3 = (2392.0 / 4096.0) * 32.0;
-    vec4 p = pow(max(color, vec4(0.0)), vec4(1.0 / m2));
-    vec4 denom = pow(max(p - c1, 0.0) / (c2 - c3 * p), vec4(1.0 / m1));
-    color = vec4(vec3(denom * 10000.0 / 203.0f), 1.0);
+    color.r = SMPTE428Eotf(color.r);
+    color.g = SMPTE428Eotf(color.g);
+    color.b = SMPTE428Eotf(color.b);
+
+    vec4 lumaVec = vec4(constant.lumaPrimaries.x, constant.lumaPrimaries.y, constant.lumaPrimaries.y, 0.0f);
     float Lin = dot(color, lumaVec);
 
     if (constant.toneMapper == 1) {

@@ -130,6 +130,10 @@ namespace coder::HWY_NAMESPACE {
                 r = SMPTE428Eotf(r);
                 g = SMPTE428Eotf(g);
                 b = SMPTE428Eotf(b);
+            case GAMMA_TRANSFER:
+                r = pow(r, gamma);
+                g = pow(g, gamma);
+                b = pow(b, gamma);
                 break;
         }
 
@@ -192,6 +196,10 @@ namespace coder::HWY_NAMESPACE {
                 r = SMPTE428Eotf(r);
                 g = SMPTE428Eotf(g);
                 b = SMPTE428Eotf(b);
+            case GAMMA_TRANSFER:
+                r = pow(r, gamma);
+                g = pow(g, gamma);
+                b = pow(b, gamma);
                 break;
         }
 
@@ -302,29 +310,42 @@ namespace coder::HWY_NAMESPACE {
             VF32 pqHighB;
 
             switch (function) {
-                case PQ:
+                case PQ: {
                     pqLowR = ToLinearPQ(df32, rLow32, sdrReferencePoint);
                     pqLowG = ToLinearPQ(df32, gLow32, sdrReferencePoint);
                     pqLowB = ToLinearPQ(df32, bLow32, sdrReferencePoint);
                     pqHighR = ToLinearPQ(df32, rHigh32, sdrReferencePoint);
                     pqHighG = ToLinearPQ(df32, gHigh32, sdrReferencePoint);
                     pqHighB = ToLinearPQ(df32, bHigh32, sdrReferencePoint);
+                }
                     break;
-                case HLG:
+                case HLG: {
                     pqLowR = HLGEotf(df32, rLow32);
                     pqLowG = HLGEotf(df32, gLow32);
                     pqLowB = HLGEotf(df32, bLow32);
                     pqHighR = HLGEotf(df32, rHigh32);
                     pqHighG = HLGEotf(df32, gHigh32);
                     pqHighB = HLGEotf(df32, bHigh32);
+                }
                     break;
-                case SMPTE428:
+                case SMPTE428: {
                     pqLowR = SMPTE428Eotf(df32, rLow32);
                     pqLowG = SMPTE428Eotf(df32, gLow32);
                     pqLowB = SMPTE428Eotf(df32, bLow32);
                     pqHighR = SMPTE428Eotf(df32, rHigh32);
                     pqHighG = SMPTE428Eotf(df32, gHigh32);
                     pqHighB = SMPTE428Eotf(df32, bHigh32);
+                }
+                    break;
+                case GAMMA_TRANSFER: {
+                    const auto level = Set(df32, gamma);
+                    pqLowR = coder::HWY_NAMESPACE::Pow(df32, rLow32, level);
+                    pqLowG = coder::HWY_NAMESPACE::Pow(df32, gLow32, level);
+                    pqLowB = coder::HWY_NAMESPACE::Pow(df32, bLow32, level);
+                    pqHighR = coder::HWY_NAMESPACE::Pow(df32, rHigh32, level);
+                    pqHighG = coder::HWY_NAMESPACE::Pow(df32, gHigh32, level);
+                    pqHighB = coder::HWY_NAMESPACE::Pow(df32, bHigh32, level);
+                }
                     break;
                 default:
                     pqLowR = rLow32;
@@ -427,20 +448,30 @@ namespace coder::HWY_NAMESPACE {
         T pqB;
 
         switch (function) {
-            case PQ:
+            case PQ: {
                 pqR = ToLinearPQ(df32, R, sdrReferencePoint);
                 pqG = ToLinearPQ(df32, G, sdrReferencePoint);
                 pqB = ToLinearPQ(df32, B, sdrReferencePoint);
+            }
                 break;
-            case HLG:
+            case HLG: {
                 pqR = HLGEotf(df32, R);
                 pqG = HLGEotf(df32, G);
                 pqB = HLGEotf(df32, B);
+            }
                 break;
-            case SMPTE428:
+            case SMPTE428: {
                 pqR = SMPTE428Eotf(df32, R);
                 pqG = SMPTE428Eotf(df32, G);
                 pqB = SMPTE428Eotf(df32, B);
+            }
+                break;
+            case GAMMA_TRANSFER: {
+                const auto level = Set(df32, gamma);
+                pqR = coder::HWY_NAMESPACE::Pow(df32, R, level);
+                pqG = coder::HWY_NAMESPACE::Pow(df32, G, level);
+                pqB = coder::HWY_NAMESPACE::Pow(df32, B, level);
+            }
                 break;
             default:
                 pqR = R;

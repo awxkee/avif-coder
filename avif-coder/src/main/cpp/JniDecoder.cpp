@@ -174,25 +174,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, profile.data(),
                       profile.size(),
                       useBitmapHalf16Floats, &stride);
-    } else if (colorProfile == "SMPTE_428" && hasNCLX) {
-        float primaries[3][2] = {{static_cast<float>(nclx->color_primary_red_x),
-                                         static_cast<float>(nclx->color_primary_red_y)},
-                                 {static_cast<float>(nclx->color_primary_green_x),
-                                         static_cast<float>(nclx->color_primary_green_y)},
-                                 {static_cast<float>(nclx->color_primary_blue_x),
-                                         static_cast<float>(nclx->color_primary_blue_y)}};
-        float whitePoint[2] = {static_cast<float>(nclx->color_primary_white_x),
-                               static_cast<float>(nclx->color_primary_white_y)};
-        ColorSpaceProfile srcProfile(primaries, whitePoint, Rec2020LumaPrimaries,
-                                     DisplayP3WhitePointNits);
-        HDRTransferAdapter hdrTransferAdapter(
-                reinterpret_cast<uint8_t *>(dstARGB.data()),
-                stride, imageWidth, imageHeight, useBitmapHalf16Floats,
-                useBitmapHalf16Floats ? 16 : 8, Rec709, SMPTE428, toneMapper, &srcProfile,
-                rec709Profile, 2.2f);
-        hdrTransferAdapter.transfer();
-    } else if (colorProfile == "BT2020_PQ" || colorProfile == "DISPLAY_P3_PQ" ||
-               colorProfile == "BT2020_HLG" || colorProfile == "DISPLAY_P3_HLG") {
+    } else if ((colorProfile == "BT2020_PQ" || colorProfile == "DISPLAY_P3_PQ" ||
+                colorProfile == "BT2020_HLG" || colorProfile == "DISPLAY_P3_HLG" ||
+                colorProfile.find("SMPTE_428") != std::string::npos) && hasNCLX && (nclx)) {
         bool isVulkanLoaded = loadVulkanRunner();
         bool vulkanWorkerDone = false;
         if (assetManager != nullptr && isVulkanLoaded) {
@@ -200,6 +184,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
             if (colorProfile.find("HLG") != std::string::npos) {
                 kernel = "HLG.comp.spv";
+            } else if (colorProfile.find("SMPTE_428") != std::string::npos) {
+                kernel = "SMPTE428.comp.spv";
             }
 
             float primaries[3][2] = {{static_cast<float>(nclx->color_primary_red_x),
@@ -214,13 +200,13 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             float lumaPrimaries[3];
 
             if (colorProfile.find("BT2020") != std::string::npos) {
-                memcpy(lumaPrimaries, Rec2020LumaPrimaries, sizeof (float) * 3);
+                memcpy(lumaPrimaries, Rec2020LumaPrimaries, sizeof(float) * 3);
             } else {
-                memcpy(lumaPrimaries, DisplayP3LumaPrimaries, sizeof (float) * 3);
+                memcpy(lumaPrimaries, DisplayP3LumaPrimaries, sizeof(float) * 3);
             }
 
             ColorSpaceProfile srcProfile(primaries, whitePoint, Rec2020LumaPrimaries,
-                                         DisplayP3WhitePointNits);
+                                         Rec2020WhitePointNits);
             CmsMatrix dstMatrix = CmsMatrix(rec709Profile->primaries, rec709Profile->illuminant);
             CmsMatrix srcMatrix = CmsMatrix(srcProfile.primaries, srcProfile.illuminant);
             CmsMatrix trns = dstMatrix.inverted() * srcMatrix;
@@ -230,9 +216,10 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                     .oetfCurve = 1,
             };
 
-            memcpy(shaderData.lumaPrimaries, lumaPrimaries, sizeof (float) * 3);
+            memcpy(shaderData.lumaPrimaries, lumaPrimaries, sizeof(float) * 3);
 
-            if (colorProfile == "DISPLAY_P3_PQ" || colorProfile == "DISPLAY_P3_HLG") {
+            if (colorProfile == "DISPLAY_P3_PQ" || colorProfile == "DISPLAY_P3_HLG" ||
+                colorProfile.find("BT2020") != std::string::npos) {
                 shaderData.oetfCurve = 2;
             }
 
@@ -262,6 +249,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
             if (colorProfile.find("HLG") != std::string::npos) {
                 function = HLG;
+            } else if (colorProfile.find("SMPTE_428") != std::string::npos) {
+                function = SMPTE428;
+                gammaCurve = DCIP3;
             }
             HDRTransferAdapter hdrTransferAdapter(
                     reinterpret_cast<uint8_t *>(dstARGB.data()),
@@ -270,20 +260,76 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                     rec709Profile, 2.2f);
             hdrTransferAdapter.transfer();
         }
-    } else if (colorProfile == "BT2020") {
-        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt2020[0],
-                      sizeof(bt2020),
-                      useBitmapHalf16Floats, &stride);
-    } else if (colorProfile == "DISPLAY_P3") {
-        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &displayP3[0],
-                      sizeof(displayP3),
-                      useBitmapHalf16Floats, &stride);
+    } else if (colorProfile == "BT2020" || colorProfile == "BT709" ||
+               colorProfile == "DISPLAY_P3") {
+        bool isVulkanLoaded = loadVulkanRunner();
+        bool vulkanWorkerDone = false;
+
+        ColorSpaceProfile *srcProfile = rec2020Profile;
+        if (colorProfile == "BT709") {
+            srcProfile = rec709Profile;
+        }
+        CmsMatrix dstMatrix = CmsMatrix(rec709Profile->primaries, rec709Profile->illuminant);
+        CmsMatrix srcMatrix = CmsMatrix(srcProfile->primaries, srcProfile->illuminant);
+        CmsMatrix trns = dstMatrix.inverted() * srcMatrix;
+
+        float lumaPrimaries[3];
+
+        if (colorProfile.find("BT2020") != std::string::npos) {
+            memcpy(lumaPrimaries, Rec2020LumaPrimaries, sizeof(float) * 3);
+        } else if (colorProfile.find("BT709") != std::string::npos) {
+            memcpy(lumaPrimaries, Rec709LumaPrimaries, sizeof(float) * 3);
+        } else {
+            memcpy(lumaPrimaries, DisplayP3LumaPrimaries, sizeof(float) * 3);
+        }
+
+        if (isVulkanLoaded) {
+            ShaderGammaData shaderData = {
+                    .oetfCurve = 3,
+                    .gamma = 2.4,
+            };
+
+            if (colorProfile.find("P3") != std::string::npos) {
+                shaderData.gamma = 2.6f;
+            } else if (colorProfile.find("709") != std::string::npos) {
+                shaderData.gamma = 2.0f;
+            }
+
+            memcpy(shaderData.lumaPrimaries, lumaPrimaries, sizeof(float) * 3);
+
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    shaderData.colorMatrix[i][j] = trns.getMatrix()[i * 3 + j];
+                }
+            }
+            string kernel = "GammaOetf.comp.spv";
+            vulkanWorkerDone = VulkanRunnerWithData(kernel, assetManager,
+                                                    reinterpret_cast<uint8_t *>(dstARGB.data()),
+                                                    imageWidth,
+                                                    imageHeight, stride,
+                                                    useBitmapHalf16Floats ? RgbaF16 : RgbaU8,
+                                                    reinterpret_cast<void *>(&shaderData),
+                                                    sizeof(ShaderGammaData));
+        }
+        if (!vulkanWorkerDone) {
+            HDRTransferFunction function = GAMMA_TRANSFER;
+            float gamma = 2.4f;
+            if (colorProfile.find("P3") != std::string::npos) {
+                gamma = 2.6f;
+            } else if (colorProfile.find("709") != std::string::npos) {
+                gamma = 2.0f;
+            }
+
+            HDRTransferAdapter hdrTransferAdapter(
+                    reinterpret_cast<uint8_t *>(dstARGB.data()),
+                    stride, imageWidth, imageHeight, useBitmapHalf16Floats,
+                    useBitmapHalf16Floats ? 16 : 8, sRGB, function, toneMapper, srcProfile,
+                    rec709Profile, gamma);
+            hdrTransferAdapter.transfer();
+        }
     } else if (colorProfile == "LINEAR_SRGB") {
         convertUseICC(dstARGB, stride, imageWidth, imageHeight, &linearSRGB[0],
                       sizeof(linearSRGB), useBitmapHalf16Floats, &stride);
-    } else if (colorProfile == "BT709") {
-        convertUseICC(dstARGB, stride, imageWidth, imageHeight, &bt709[0],
-                      sizeof(bt709), useBitmapHalf16Floats, &stride);
     }
 
     string imageConfig = useBitmapHalf16Floats ? "RGBA_F16" : "ARGB_8888";

@@ -48,6 +48,13 @@ struct ShaderEotfData {
     int oetfCurve; // curve 1 - Rec2020, 2 - P3, 3 - SRGB
 } ;
 
+struct ShaderGammaData {
+    float colorMatrix[3][4] = {};
+    float lumaPrimaries[3] = {};
+    int oetfCurve; // curve 1 - Rec2020, 2 - P3, 3 - SRGB
+    float gamma;
+} ;
+
 bool loadVulkanRunner();
 
 typedef int (*VulkanComputeRunnerFunc)(

@@ -37,7 +37,7 @@ enum GammaCurve {
 };
 
 enum HDRTransferFunction {
-    PQ, HLG, SMPTE428
+    PQ, HLG, SMPTE428, GAMMA_TRANSFER, NO_TRANSFER
 };
 
 enum CurveToneMapper {
@@ -49,7 +49,8 @@ public:
     HDRTransferAdapter(uint8_t *rgbaData, int stride, int width, int height,
                        bool halfFloats, int bitDepth, GammaCurve gammaCorrection,
                        HDRTransferFunction function, CurveToneMapper toneMapper,
-                       ColorSpaceProfile *srcProfile, ColorSpaceProfile *dstProfile, float gamma)
+                       ColorSpaceProfile *srcProfile, ColorSpaceProfile *dstProfile,
+                       float gamma)
             : function(
             function), gammaCorrection(gammaCorrection), bitDepth(bitDepth), halfFloats(halfFloats),
               rgbaData(

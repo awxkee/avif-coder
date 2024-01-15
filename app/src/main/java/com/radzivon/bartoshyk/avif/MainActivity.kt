@@ -27,28 +27,17 @@ package com.radzivon.bartoshyk.avif
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.os.Build
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
-import androidx.core.graphics.scale
-import androidx.lifecycle.lifecycleScope
-import coil.ImageLoader
-import coil.load
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.github.awxkee.avifcoil.HeifDecoder
+import androidx.appcompat.app.AppCompatActivity
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
 import com.radzivon.bartoshyk.avif.coder.ToneMapper
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import com.radzivon.bartoshyk.avif.databinding.BindingImageViewBinding
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import okio.FileNotFoundException
 import okio.buffer
 import okio.sink
@@ -56,23 +45,26 @@ import okio.source
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import kotlin.system.measureTimeMillis
+
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
-    fun getAllFilesFromAssets(): List<String> {
+    fun getAllFilesFromAssets(path: String = ""): List<String> {
         val assetManager = assets
         val fileList: MutableList<String> = mutableListOf()
 
         try {
             // List all files in the "assets" folder
-            val files = assetManager.list("") ?: arrayOf()
-
+            val files = assetManager.list(path) ?: arrayOf()
             // Add each file to the list
             for (file in files) {
-                fileList.add(file)
+                if (path.isEmpty()) {
+                    fileList.add(file)
+                } else {
+                    fileList.add("${path}/${file}")
+                }
             }
         } catch (e: IOException) {
             e.printStackTrace()
@@ -97,7 +89,11 @@ class MainActivity : AppCompatActivity() {
 
         // HDR EXAMPLES - https://us.zonerama.com/williamskeaguidingphotography/Photo/1000120226/1004888131
         val coder = HeifCoder(this, toneMapper = ToneMapper.LOGARITHMIC)
-        val allFiles = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+        val allFiles1 = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+        val allFiles2 = getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
+        val allFiles = mutableListOf<String>()
+        allFiles.addAll(allFiles2)
+        allFiles.addAll(allFiles1)
         for (file in allFiles) {
             try {
                 val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
@@ -107,8 +103,8 @@ class MainActivity : AppCompatActivity() {
                 if (size != null) {
                     val bitmap = coder.decodeSampled(
                         buffer,
-                        size.width / 2,
-                        size.height / 2,
+                        if (size.width > 1800 || size.height > 1800) size.width / 2 else size.width,
+                        if (size.width > 1800 || size.height > 1800) size.height / 2 else size.height,
                         PreferredColorConfig.HARDWARE,
                         ScaleMode.RESIZE
                     )
