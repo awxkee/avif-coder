@@ -6,7 +6,7 @@ Very fast and convinient to use AVIF in android apps with api version 24+. Based
 Correctly handles ICC, and color profiles and HDR images.
 Fully supports HDR images, 10, 12 bit. Preprocess image in tile to increase speed.
 Extremly fast in decoding large HDR images or just large images.
-The most features AVIF, HEIF library in android.
+The most featured AVIF, HEIF library in android.
 Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
 
 Image processing speeded up by [libhwy](https://github.com/google/highway)
