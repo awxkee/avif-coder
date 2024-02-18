@@ -19,11 +19,12 @@ add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         colorspace/HDRTransferAdapter.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
-        HardwareBuffersCompat.cpp VulkanRunner.cpp imagebits/half.cpp
+        HardwareBuffersCompat.cpp imagebits/half.cpp
         imagebits/half.hpp imagebits/RgbaU16toHF.cpp
-        imagebits/RGBAlpha.cpp colorspace/CoderCms.cpp
+        imagebits/RGBAlpha.cpp
         hwy/aligned_allocator.cc hwy/nanobenchmark.cc hwy/per_target.cc hwy/print.cc hwy/targets.cc
-        hwy/timer.cc)
+        hwy/timer.cc
+        algo/sleef-hwy.cpp)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)

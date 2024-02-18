@@ -26,18 +26,21 @@
  *
  */
 
+
 #ifndef AVIF_HDRTRANSFERADAPTER_H
 #define AVIF_HDRTRANSFERADAPTER_H
 
 #include <cstdint>
 #include "ColorSpaceProfile.h"
+#include "Eigen/Eigen"
 
 enum GammaCurve {
     Rec2020, DCIP3, GAMMA, Rec709, sRGB, NONE
 };
 
-enum HDRTransferFunction {
-    PQ, HLG, SMPTE428, GAMMA_TRANSFER, NO_TRANSFER
+enum GamutTransferFunction {
+    SKIP, PQ, HLG, SMPTE428, Gamma2p2, Gamma2p8, EOTF_BT601, EOTF_BT709, EOTF_SMPTE240,
+    EOTF_LOG100, EOTF_LOG100SRT10, EOTF_IEC_61966, EOTF_BT1361
 };
 
 enum CurveToneMapper {
@@ -48,21 +51,20 @@ class HDRTransferAdapter {
 public:
     HDRTransferAdapter(uint8_t *rgbaData, int stride, int width, int height,
                        bool halfFloats, int bitDepth, GammaCurve gammaCorrection,
-                       HDRTransferFunction function, CurveToneMapper toneMapper,
-                       ColorSpaceProfile *srcProfile, ColorSpaceProfile *dstProfile,
-                       float gamma)
-            : function(
-            function), gammaCorrection(gammaCorrection), bitDepth(bitDepth), halfFloats(halfFloats),
-              rgbaData(
-                      rgbaData),
+                       GamutTransferFunction function, CurveToneMapper toneMapper,
+                       Eigen::Matrix3f *conversion,
+                       float gamma,
+                       bool useChromaticAdaptation)
+            : function(function),
+              gammaCorrection(gammaCorrection), bitDepth(bitDepth), halfFloats(halfFloats),
+              rgbaData(rgbaData),
               stride(stride),
               width(width),
               height(height),
-              toneMapper(
-                      toneMapper),
-              srcProfile(srcProfile),
-              dstProfile(dstProfile),
-              gamma(gamma) {
+              toneMapper(toneMapper),
+              mColorProfileConversion(conversion),
+              gamma(gamma),
+              useChromaticAdaptation(useChromaticAdaptation) {
     }
 
     void transfer();
@@ -73,14 +75,15 @@ private:
     const int bitDepth;
     const int width;
     const int height;
-    const HDRTransferFunction function;
+    const GamutTransferFunction function;
     uint8_t *rgbaData;
     const GammaCurve gammaCorrection;
     const CurveToneMapper toneMapper;
-    ColorSpaceProfile *srcProfile;
-    ColorSpaceProfile *dstProfile;
+    Eigen::Matrix3f *mColorProfileConversion;
     const float gamma;
+    bool useChromaticAdaptation;
 protected:
 };
+
 
 #endif //AVIF_HDRTRANSFERADAPTER_H

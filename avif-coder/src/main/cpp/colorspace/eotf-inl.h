@@ -41,9 +41,8 @@ namespace coder::HWY_NAMESPACE {
     static const float betaRec2020 = 0.018053968510807f;
     static const float alphaRec2020 = 1.09929682680944f;
 
-    using hwy::EnableIf;
-    using hwy::HWY_NAMESPACE::MulSub;
-    using hwy::IsFloat;
+    using namespace hwy;
+    using namespace hwy::HWY_NAMESPACE;
 
     HWY_FAST_MATH_INLINE float bt2020GammaCorrection(float linear) {
         if (0 <= betaRec2020 && linear < betaRec2020) {
@@ -140,6 +139,49 @@ namespace coder::HWY_NAMESPACE {
         return IfThenElse(value < minCurve, minLane, maxLane);
     }
 
+    HWY_FAST_MATH_INLINE float SRGBToLinear(float v) {
+        if (v <= 0.045f) {
+            return v / 12.92f;
+        } else {
+            return std::pow((v + 0.055f) / 1.055f, 2.4f);
+        }
+    }
+
+    HWY_FAST_MATH_INLINE float Rec709Eotf(float v) {
+        if (v < 0.f) {
+            return 0.f;
+        } else if (v < 4.5f * 0.018053968510807f) {
+            return v / 4.5f;
+        } else if (v < 1.f) {
+            return std::pow((v + 0.09929682680944f) / 1.09929682680944f, 1.f / 0.45f);
+        }
+        return 1.f;
+    }
+
+    HWY_FAST_MATH_INLINE float FromLinear709(float linear) {
+        if (linear < 0.f) {
+            return 0.f;
+        } else if (linear < 0.018053968510807f) {
+            return linear * 4.5f;
+        } else if (linear < 1.f) {
+            return 1.09929682680944f * std::pow(linear, 0.45f) - 0.09929682680944f;
+        }
+        return 1.f;
+    }
+
+    template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D>>
+    HWY_FAST_MATH_INLINE V SRGBToLinear(D d, V v) {
+        const auto lowerValueThreshold = Set(d, T(0.045f));
+        const auto lowValueDivider = ApproximateReciprocal(Set(d, T(12.92f)));
+        const auto lowMask = v <= lowerValueThreshold;
+        const auto lowValue = Mul(v, lowValueDivider);
+        const auto powerStatic = Set(d, T(2.4f));
+        const auto addStatic = Set(d, T(0.055f));
+        const auto scaleStatic = ApproximateReciprocal(Set(d, T(1.055f)));
+        const auto highValue = Pow(d, Mul(Add(v, addStatic), scaleStatic), powerStatic);
+        return IfThenElse(lowMask, lowValue, highValue);
+    }
+
     HWY_FAST_MATH_INLINE float LinearSRGBTosRGB(const float linear) {
         if (linear <= 0.0031308f) {
             return 12.92f * linear;
@@ -171,23 +213,14 @@ namespace coder::HWY_NAMESPACE {
 
     template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
     HWY_FAST_MATH_INLINE V SMPTE428Eotf(const D df, V value) {
-        const auto zeros = Zero(df);
-        const auto ones = Set(df, static_cast<TFromD<D>>(1.0f));
-        const auto scale = Set(df, static_cast<TFromD<D>>(52.37f / 48.0f));
-        auto mask = value < zeros;
-        auto result = IfThenElse(mask, ones, value);
+        const auto scale = Set(df, static_cast<const TFromD<D>>(1.f / 0.91655527974030934f));
         const auto twoPoint6 = Set(df, static_cast<TFromD<D>>(2.6f));
-        result = Mul(coder::HWY_NAMESPACE::Pow(df, value, twoPoint6), scale);
-        result = IfThenElse(mask, zeros, result);
-        return result;
+        const auto zeros = Zero(df);
+        return Mul(coder::HWY_NAMESPACE::Pow(df, Max(value, zeros), twoPoint6), scale);
     }
 
     HWY_FAST_MATH_INLINE float SMPTE428Eotf(const float value) {
-        if (value < 0.0f) {
-            return 0.0f;
-        }
-        constexpr float scale = 52.37f / 48.0f;
-        return pow(value, 2.6f) * scale;
+        return std::pow(std::max(value, 0.f), 2.6f) / 0.91655527974030934f;
     }
 
     HWY_FAST_MATH_INLINE float HLGEotf(float v) {
@@ -209,25 +242,246 @@ namespace coder::HWY_NAMESPACE {
     }
 
     template<class D, typename T = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
-    HWY_FAST_MATH_INLINE T gammaEotf(const D d, T color, TFromD<D> gamma) {
-        const auto pw = Set(d, 1 / gamma);
+    HWY_FAST_MATH_INLINE T gammaOtf(const D d, T color, TFromD<D> gamma) {
+        const auto pw = Set(d, gamma);
         return coder::HWY_NAMESPACE::Pow(d, color, pw);
     }
 
     HWY_FAST_MATH_INLINE float dciP3PQGammaCorrection(float linear) {
-        return powf(linear, 1 / 2.6f);
+        return std::pow(linear, 1 / 2.6f);
     }
 
-    HWY_FAST_MATH_INLINE float gammaEotf(float linear, const float gamma) {
-        return powf(linear, 1 / gamma);
+    HWY_FAST_MATH_INLINE float gammaOtf(float linear, const float gamma) {
+        return std::pow(linear, gamma);
     }
 
-    using hwy::HWY_NAMESPACE::TFromD;
-    using hwy::HWY_NAMESPACE::ApproximateReciprocal;
-    using hwy::HWY_NAMESPACE::Set;
-    using hwy::HWY_NAMESPACE::Abs;
-    using hwy::HWY_NAMESPACE::Zero;
-    using hwy::HWY_NAMESPACE::IfThenElse;
+    HWY_FAST_MATH_INLINE float Rec601Oetf(float intensity) {
+        if (intensity < 0.018f) {
+            return intensity * 4.5f;
+        } else {
+            return 1.099 * std::pow(intensity, 0.45f) - 0.099f;
+        }
+    }
+
+    template<class D, typename T = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
+    HWY_FAST_MATH_INLINE T Rec601Eotf(const D d, T intensity) {
+        const auto topValue = Set(d, 0.081f);
+        const auto fourAnd5 = Set(d, 4.5f);
+        const auto lowMask = intensity < topValue;
+        const auto lowValues = Div(intensity, fourAnd5);
+
+        const auto addComp = Set(d, 0.099f);
+        const auto div1099 = Set(d, 1.099f);
+        const auto pwScale = Set(d, 1.0f / 0.45f);
+
+        const auto high = coder::HWY_NAMESPACE::Pow(d, Div(Add(intensity, addComp), div1099),
+                                                    pwScale);
+        return IfThenElse(lowMask, lowValues, high);
+    }
+
+    HWY_FAST_MATH_INLINE float Rec601Eotf(float intensity) {
+        if (intensity < 0.081f) {
+            return intensity / 4.5f;
+        } else {
+            return std::pow((intensity + 0.099f) / 1.099f, 1.0f / 0.45f);
+        }
+    }
+
+    HWY_FAST_MATH_INLINE float Smpte240Eotf(float gamma) {
+        if (gamma < 0.f) {
+            return 0.f;
+        } else if (gamma < 4.f * 0.022821585529445f) {
+            return gamma / 4.f;
+        } else if (gamma < 1.f) {
+            return std::pow((gamma + 0.111572195921731f) / 1.111572195921731f, 1.f / 0.45f);
+        }
+        return 1.f;
+    }
+
+    template<class D, typename T = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
+    HWY_FAST_MATH_INLINE T Smpte240Eotf(const D d, T intensity) {
+        const auto topValue = Set(d, 4.f * 0.022821585529445f);
+        const auto lowValueDivider = Set(d, 4.f);
+        const auto lowMask = intensity < topValue;
+        const auto lowValues = Div(intensity, lowValueDivider);
+
+        const auto addComp = Set(d, 0.111572195921731f);
+        const auto div1099 = Set(d, 1.111572195921731f);
+        const auto pwScale = Set(d, 1.0f / 0.45f);
+
+        const auto high = coder::HWY_NAMESPACE::Pow(d, Div(Add(intensity, addComp), div1099),
+                                                    pwScale);
+        return IfThenElse(lowMask, lowValues, high);
+    }
+
+    HWY_FAST_MATH_INLINE float Smpte240Oetf(float linear) {
+        if (linear < 0.f) {
+            return 0.f;
+        } else if (linear < 0.022821585529445f) {
+            return linear * 4.f;
+        } else if (linear < 1.f) {
+            return 1.111572195921731f * std::pow(linear, 0.45f) - 0.111572195921731f;
+        }
+        return 1.f;
+    }
+
+    template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D>>
+    HWY_FAST_MATH_INLINE V Rec709Eotf(D d, V v) {
+        return Rec601Eotf(d, v);
+    }
+
+    HWY_FAST_MATH_INLINE float Log100Eotf(float gamma) {
+        // The function is non-bijective so choose the middle of [0, 0.01].
+        const float mid_interval = 0.01f / 2.f;
+        return (gamma <= 0.0f) ? mid_interval
+                               : std::pow(10.0f, 2.f * (std::min(gamma, 1.f) - 1.0f));
+    }
+
+    template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D>>
+    HWY_FAST_MATH_INLINE V Log100Eotf(D d, V v) {
+        // The function is non-bijective so choose the middle of [0, 0.01].
+        const auto midInterval = Set(d, 0.01f / 2.f);
+        const auto zeros = Zero(d);
+        const auto zerosMask = v > zeros;
+        const auto ones = Set(d, 1.f);
+        const auto twos = Set(d, 2.f);
+        const auto tens = Set(d, 10.f);
+        const auto highPart = coder::HWY_NAMESPACE::Pow(d, tens,
+                                                        Add(twos, Sub(Min(v, ones), ones)));
+        return IfThenElseZero(zerosMask, highPart);
+    }
+
+    HWY_FAST_MATH_INLINE float Log100Oetf(float linear) {
+        return (linear < 0.01f) ? 0.0f : 1.0f + std::log10(std::min(linear, 1.f)) / 2.0f;
+    }
+
+    HWY_FAST_MATH_INLINE float Log100Sqrt10Eotf(float gamma) {
+        // The function is non-bijective so choose the middle of [0, 0.00316227766f[.
+        const float mid_interval = 0.00316227766f / 2.f;
+        return (gamma <= 0.0f) ? mid_interval
+                               : std::pow(10.0f, 2.5f * (std::min(gamma, 1.f) - 1.0f));
+    }
+
+    template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D>>
+    HWY_FAST_MATH_INLINE V Log100Sqrt10Eotf(D d, V v) {
+        // The function is non-bijective so choose the middle of [0, 0.01].
+        const auto midInterval = Set(d, 0.00316227766f / 2.f);
+        const auto zeros = Zero(d);
+        const auto zerosMask = v > zeros;
+        const auto ones = Set(d, 1.f);
+        const auto twos = Set(d, 2.5f);
+        const auto tens = Set(d, 10.f);
+        const auto highPart = coder::HWY_NAMESPACE::Pow(d, tens,
+                                                        Add(twos, Sub(Min(v, ones), ones)));
+        return IfThenElseZero(zerosMask, highPart);
+    }
+
+    HWY_FAST_MATH_INLINE float Log100Sqrt10Oetf(float linear) {
+        return (linear < 0.00316227766f) ? 0.0f
+                                         : 1.0f + std::log10(std::min(linear, 1.f)) / 2.5f;
+    }
+
+    HWY_FAST_MATH_INLINE float Iec61966Eotf(float gamma) {
+        if (gamma <= -4.5f * 0.018053968510807f) {
+            return std::pow((-gamma + 0.09929682680944f) / -1.09929682680944f, 1.f / 0.45f);
+        } else if (gamma < 4.5f * 0.018053968510807f) {
+            return gamma / 4.5f;
+        }
+        return std::pow((gamma + 0.09929682680944f) / 1.09929682680944f, 1.f / 0.45f);
+    }
+
+    template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D>>
+    HWY_FAST_MATH_INLINE V Iec61966Eotf(D d, V v) {
+        // The function is non-bijective so choose the middle of [0, 0.01].
+        const auto lowerLimit = Set(d, 4.5f * 0.018053968510807f);
+        const auto theLowestLimit = Neg(lowerLimit);
+        const auto additionToLinear = Set(d, 0.09929682680944f);
+        const auto sPower = Set(d, 1.f / 0.45f);
+        const auto defScale = Set(d, 1.f / 4.5f);
+        const auto linearDivider = ApproximateReciprocal(Set(d, 1.09929682680944f));
+
+        const auto lowest = coder::HWY_NAMESPACE::Pow(d, Mul(Add(Neg(v), additionToLinear),
+                                                             Neg(linearDivider)), sPower);
+        const auto intmd = Mul(v, defScale);
+
+        const auto highest = coder::HWY_NAMESPACE::Pow(d,
+                                                       Mul(Add(v, additionToLinear), linearDivider),
+                                                       sPower);
+        const auto lowestMask = v <= theLowestLimit;
+        const auto upperMask = v >= lowerLimit;
+
+        auto x = IfThenElse(lowestMask, lowest, v);
+        x = IfThenElse(And(v > theLowestLimit, v < lowerLimit), Mul(v, defScale), x);
+        x = IfThenElse(v > lowerLimit, highest, x);
+        return x;
+    }
+
+    HWY_FAST_MATH_INLINE float Iec61966Oetf(float linear) {
+        if (linear <= -0.018053968510807f) {
+            return -1.09929682680944f * std::pow(-linear, 0.45f) + 0.09929682680944f;
+        } else if (linear < 0.018053968510807f) {
+            return linear * 4.5f;
+        }
+        return 1.09929682680944f * std::pow(linear, 0.45f) - 0.09929682680944f;
+    }
+
+    HWY_FAST_MATH_INLINE float Bt1361Eotf(float gamma) {
+        if (gamma < -0.25f) {
+            return -0.25f;
+        } else if (gamma < 0.f) {
+            return std::pow((gamma - 0.02482420670236f) / -0.27482420670236f, 1.f / 0.45f) /
+                   -4.f;
+        } else if (gamma < 4.5f * 0.018053968510807f) {
+            return gamma / 4.5f;
+        } else if (gamma < 1.f) {
+            return std::pow((gamma + 0.09929682680944f) / 1.09929682680944f, 1.f / 0.45f);
+        }
+        return 1.f;
+    }
+
+    template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D>>
+    HWY_FAST_MATH_INLINE V Bt1361Eotf(D d, V v) {
+        // The function is non-bijective so choose the middle of [0, 0.01].
+        const auto lowestPart = Set(d, -0.25f);
+        const auto zeros = Zero(d);
+        const auto zeroIntensityMod = Set(d, 0.09929682680944f);
+        const auto dividerIntensity = Set(d, 1.09929682680944f);
+        const auto dividerZeroIntensity = Set(d, -0.27482420670236f);
+        const auto sPower = Set(d, 1.f / 0.45f);
+
+        const auto imdScale = Set(d, 1.f / 4.5f);
+
+        const auto imdThreshold = Set(d, 4.5f * 0.018053968510807f);
+
+        const auto lowest = Div(coder::HWY_NAMESPACE::Pow(d, Div(Sub(v, dividerZeroIntensity),
+                                                                 dividerZeroIntensity), sPower),
+                                Set(d, -4.f));
+
+        const auto highest = coder::HWY_NAMESPACE::Pow(d, Div(Add(v, zeroIntensityMod),
+                                                              zeroIntensityMod), sPower);
+
+        const auto ones = Set(d, 1.f);
+
+        auto x = IfThenElse(v >= ones, ones, v);
+        x = IfThenElse(v >= imdThreshold, highest, x);
+        x = IfThenElse(And(v < imdThreshold, v >= zeros), Div(v, imdThreshold), x);
+        x = IfThenElse(And(v >= lowestPart, v < zeros), lowest, x);
+        x = IfThenElse(v < lowestPart, lowestPart, x);
+        return x;
+    }
+
+    HWY_FAST_MATH_INLINE float Bt1361Oetf(float linear) {
+        if (linear < -0.25f) {
+            return -0.25f;
+        } else if (linear < 0.f) {
+            return -0.27482420670236f * std::pow(-4.f * linear, 0.45f) + 0.02482420670236f;
+        } else if (linear < 0.018053968510807f) {
+            return linear * 4.5f;
+        } else if (linear < 1.f) {
+            return 1.09929682680944f * std::pow(linear, 0.45f) - 0.09929682680944f;
+        }
+        return 1.f;
+    }
 
     template<typename D>
     class ToneMapper {
@@ -313,7 +567,7 @@ namespace coder::HWY_NAMESPACE {
         Rec2408PQToneMapper(const TFromD<D> contentMaxBrightness,
                             const TFromD<D> displayMaxBrightness,
                             const TFromD<D> whitePoint,
-                            const TFromD<D> lumaCoefficients[3]): ToneMapper<D>() {
+                            const TFromD<D> lumaCoefficients[3]) : ToneMapper<D>() {
             this->Ld = contentMaxBrightness / whitePoint;
             this->a = (displayMaxBrightness / whitePoint) / (Ld * Ld);
             this->b = 1.0f / (displayMaxBrightness / whitePoint);

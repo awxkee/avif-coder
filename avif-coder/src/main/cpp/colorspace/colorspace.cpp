@@ -334,25 +334,12 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     auto mInputBuffer = srcVector.data();
     auto mTransform = ptrTransform.get();
 
-    for (int i = 0; i < threadCount; i++) {
-        int start = i * segmentHeight;
-        int end = (i + 1) * segmentHeight;
-        if (i == threadCount - 1) {
-            end = height;
-        }
-        workers.emplace_back(
-                [start, end, stride, mOutputBuffer, mInputBuffer, dstStride, width, mTransform]() {
-                    for (int y = start; y < end; ++y) {
-                        cmsDoTransformLineStride(mTransform,
-                                                 mInputBuffer + stride * y,
-                                                 mOutputBuffer + dstStride * y, width, 1,
-                                                 stride, stride, 0, 0);
-                    }
-                });
-    }
-
-    for (std::thread &thread: workers) {
-        thread.join();
+#pragma omp parallel for num_threads(6) schedule(dynamic)
+    for (int y = 0; y < height; ++y) {
+        cmsDoTransformLineStride(mTransform,
+                                 mInputBuffer + stride * y,
+                                 mOutputBuffer + dstStride * y, width, 1,
+                                 stride, stride, 0, 0);
     }
 
     srcVector = iccARGB;

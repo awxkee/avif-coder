@@ -32,12 +32,15 @@ import android.os.Bundle
 import android.util.Log
 import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
 import com.radzivon.bartoshyk.avif.coder.ToneMapper
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import com.radzivon.bartoshyk.avif.databinding.BindingImageViewBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okio.FileNotFoundException
 import okio.buffer
 import okio.sink
@@ -88,34 +91,39 @@ class MainActivity : AppCompatActivity() {
          */
 
         // HDR EXAMPLES - https://us.zonerama.com/williamskeaguidingphotography/Photo/1000120226/1004888131
-        val coder = HeifCoder(this, toneMapper = ToneMapper.LOGARITHMIC)
-        val allFiles1 = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
-        val allFiles2 = getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
-        val allFiles = mutableListOf<String>()
-        allFiles.addAll(allFiles2)
-        allFiles.addAll(allFiles1)
-        for (file in allFiles) {
-            try {
-                val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
-                val buffer = this.assets.open(file).source().buffer()
-                    .readByteArray()
-                val size = coder.getSize(buffer)
-                if (size != null) {
-                    val bitmap = coder.decodeSampled(
-                        buffer,
-                        if (size.width > 1800 || size.height > 1800) size.width / 2 else size.width,
-                        if (size.width > 1800 || size.height > 1800) size.height / 2 else size.height,
-                        PreferredColorConfig.HARDWARE,
-                        ScaleMode.RESIZE
-                    )
-                    imageView.root.setImageBitmap(bitmap)
-                    binding.scrollViewContainer.addView(imageView.root)
-                }
-            } catch (e: Exception) {
-                if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val coder = HeifCoder(this@MainActivity, toneMapper = ToneMapper.LOGARITHMIC)
+            val allFiles1 = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+            val allFiles2 = getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
+            var allFiles = mutableListOf<String>()
+            allFiles.addAll(allFiles2)
+            allFiles.addAll(allFiles1)
+//            allFiles = allFiles.filter { it.contains("test_avif.avif") }.toMutableList()
+            for (file in allFiles) {
+                try {
+                    val buffer = this@MainActivity.assets.open(file).source().buffer()
+                            .readByteArray()
+                    val size = coder.getSize(buffer)
+                    if (size != null) {
+                        val bitmap = coder.decodeSampled(
+                                buffer,
+                                if (size.width > 1800 || size.height > 1800) size.width / 2 else size.width,
+                                if (size.width > 1800 || size.height > 1800) size.height / 2 else size.height,
+                                PreferredColorConfig.HARDWARE,
+                                ScaleMode.RESIZE
+                        )
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
+                            imageView.root.setImageBitmap(bitmap)
+                            binding.scrollViewContainer.addView(imageView.root)
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
 
-                } else {
-                    throw e
+                    } else {
+                        throw e
+                    }
                 }
             }
         }

@@ -7,238 +7,139 @@
 
 #include <memory>
 #include <vector>
-#include "CmsMath.hpp"
+#include "Eigen/Eigen"
 
 using namespace std;
 
 static const float Rec709Primaries[3][2] = {{0.640, 0.330},
                                             {0.300, 0.600},
                                             {0.150, 0.060}};
+
+static Eigen::Matrix<float, 3, 2> getRec709Primaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.640, 0.330, 0.300, 0.600, 0.150, 0.060;
+    return xf;
+}
+
 static const float Rec2020Primaries[3][2] = {{0.708, 0.292},
                                              {0.170, 0.797},
                                              {0.131, 0.046}};
+
+static Eigen::Matrix<float, 3, 2> getRec2020Primaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.708, 0.292, 0.170, 0.797, 0.131, 0.046;
+    return xf;
+}
+
+static const Eigen::Matrix3f getBradfordAdaptation() {
+    Eigen::Matrix3f M;
+    M << 0.8951, 0.2664, -0.1614,
+            -0.7502, 1.7135, 0.0367,
+            0.0389, -0.0685, 1.0296;
+
+    return M;
+}
+
+static const Eigen::Matrix3f getVanKriesAdaptation() {
+    Eigen::Matrix3f M;
+    M << 0.4002400, 0.7076000, -0.0808100,
+            -0.2263000, 1.1653200, 0.0457000,
+            0.0000000, 0.0000000, 0.9182200;
+
+    return M;
+}
+
 static const float DisplayP3Primaries[3][2] = {{0.740, 0.270},
                                                {0.220, 0.780},
                                                {0.090, -0.090}};
 
-static const float Rec2020LumaPrimaries[3] = {0.2627f, 0.6780f, 0.0593f};
-static const float Rec709LumaPrimaries[3] = {0.2126f, 0.7152f, 0.0722f};
-static const float DisplayP3LumaPrimaries[3] = {0.299f, 0.587f, 0.114f};
-static const float DisplayP3WhitePointNits = 80;
-static const float Rec709WhitePointNits = 100;
-static const float Rec2020WhitePointNits = 203;
+static Eigen::Matrix<float, 3, 2> getDisplayP3Primaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.68, 0.32, 0.265, 0.69, 0.15, 0.06;
+    return xf;
+}
 
-static const float IlluminantD65[2] = {0.3127, 0.3290};
+static Eigen::Matrix<float, 3, 2> getDCIP3Primaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.680f, 0.320f, 0.265f, 0.690f, 0.150f, 0.060f;
+    return xf;
+}
 
-class ColorSpaceProfile {
-public:
-    ColorSpaceProfile(const float primaries [3][2], const float illuminant[2], const float lumaCoefficients[3], const float whitePointNits): whitePointNits(whitePointNits) {
-        memcpy(this->primaries, primaries, sizeof(float)*3*2);
-        memcpy(this->illuminant, illuminant, sizeof(float)*2);
-        memcpy(this->lumaCoefficients, lumaCoefficients, sizeof(float)*3);
-    }
+static Eigen::Matrix<float, 3, 2> getBT601_525Primaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.630, 0.340, 0.310, 0.595, 0.155, 0.070;
+    return xf;
+}
 
-    float primaries[3][2];
-    float illuminant[2];
-    float lumaCoefficients[3];
-    float whitePointNits;
-protected:
+static Eigen::Matrix<float, 3, 2> getBT601_625Primaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.640, 0.330, 0.290, 0.600, 0.150, 0.060;
+    return xf;
+}
 
-};
+static Eigen::Matrix<float, 3, 2> getAdobeRGBPrimaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.6400, 0.3300, 0.2100, 0.7100, 0.1500, 0.0600;
+    return xf;
+}
 
-class CmsMatrix {
-public:
-    CmsMatrix(const vector<vector<float>> primariesXy, const vector<float> whitePoint) {
-        vector<vector<float>> mt = GamutRgbToXYZ(primariesXy, whitePoint);
-        matrix.resize(9);
-        SetVector(mt);
-    }
+static Eigen::Matrix<float, 3, 2> getBT470MPrimaries() {
+    Eigen::Matrix<float, 3, 2> xf;
+    xf << 0.67, 0.33, 0.21, 0.71, 0.14, 0.08;
+    return xf;
+}
 
-    CmsMatrix(const float primariesXy[3][2], const float whitePoint[2]) {
-        vector<vector<float>> mt = GamutRgbToXYZ(primariesXy, whitePoint);
-        matrix.resize(9);
-        SetVector(mt);
-    }
+static Eigen::Vector2f getIlluminantD65() {
+    Eigen::Vector2f xf = {0.3127, 0.3290};
+    return xf;
+}
 
-    CmsMatrix(const vector<vector<float>> source) {
-        matrix.resize(9);
-        SetVector(source);
-    }
+static Eigen::Vector2f getIlluminantDCI() {
+    return {0.3140, 0.3510};
+}
 
-    ~CmsMatrix() {
+static Eigen::Vector2f getIlluminantC() {
+    return {0.310, 0.316};
+}
 
-    }
+static Eigen::Matrix<float, 3, 2> getSRGBPrimaries() {
+    Eigen::Matrix<float, 3, 2> m;
+    m << 0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f;
+    return m;
+}
 
-    CmsMatrix operator*(const CmsMatrix &other) {
-        vector<vector<float>> resultMatrix(3, vector<float>(3, 0.0f));
+static Eigen::Vector3f XyToXYZ(const float x, const float y) {
+    Eigen::Vector3f ret(0.f, 0.f, 0.f);
+    ret[0] = x / y;
+    ret[1] = 1.0f;
+    ret[2] = (1.0 - x - y) / y;
+    return ret;
+}
 
-        for (size_t i = 0; i < 3; ++i) {
-            for (size_t j = 0; j < 3; ++j) {
-                for (size_t k = 0; k < 3; ++k) {
-                    resultMatrix[i][j] += matrix[i * 3 + k] * other.matrix[k * 3 + j];
-                }
-            }
-        }
+static const Eigen::Matrix3f getPrimariesXYZ(const Eigen::Matrix<float, 3, 2> primariesXy) {
+    Eigen::Matrix3f ret;
+    ret << XyToXYZ(primariesXy(0, 0), primariesXy(0, 1)),
+            XyToXYZ(primariesXy(1, 0), primariesXy(1, 1)),
+            XyToXYZ(primariesXy(2, 0), primariesXy(2, 1));
+    return ret;
+}
 
-        return CmsMatrix(resultMatrix);
-    }
+static const Eigen::Vector3f getWhitePoint(const Eigen::Vector2f whitePoint) {
+    return XyToXYZ(whitePoint[0], whitePoint[1]);
+}
 
-    void inverse() {
-        vector<vector<float>> ret(3, std::vector<float>(3, 0.0f));
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                ret[i][j] = matrix[i * 3 + j];
-            }
-        }
-        ret = inverseVector(ret);
-        SetVector(ret);
-    }
-
-    CmsMatrix inverted() {
-        vector<vector<float>> ret(3, std::vector<float>(3, 0.0f));
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                ret[i][j] = matrix[i * 3 + j];
-            }
-        }
-        ret = inverseVector(ret);
-        return CmsMatrix(ret);
-    }
-
-    vector<float> XyToXYZ(const float x, const float y) {
-        vector<float> ret(3, 0.0f);
-
-        ret[0] = x / y;
-        ret[1] = 1.0;
-        ret[2] = (1.0 - x - y) / y;
-
-        return ret;
-    }
-
-    const vector<float> getWhitePoint(const float whitePoint[2]) {
-        return XyToXYZ(whitePoint[0], whitePoint[1]);
-    }
-
-    const vector<float> getWhitePoint(const vector<float> whitePoint) {
-        return XyToXYZ(whitePoint[0], whitePoint[1]);
-    }
-
-    vector<vector<float>>
-    GamutRgbToXYZ(const vector<vector<float>> primariesXy, const vector<float> whitePoint) {
-        const vector<vector<float>> xyZMatrix = getPrimariesXYZ(primariesXy);
-        const vector<float> whiteXyz = getWhitePoint(whitePoint);
-        const vector<float> s = mul(inverseVector(xyZMatrix), whiteXyz);
-        const vector<vector<float>> m = {mul(xyZMatrix[0], s), mul(xyZMatrix[1], s),
-                                         mul(xyZMatrix[2], s)};
-        return m;
-    }
-
-    vector<vector<float>>
-    GamutRgbToXYZ(const float primariesXy[3][2], const float whitePoint[2]) {
-        const vector<vector<float>> xyZMatrix = getPrimariesXYZ(primariesXy);
-        const vector<float> whiteXyz = getWhitePoint(whitePoint);
-        const vector<float> s = mul(inverseVector(xyZMatrix), whiteXyz);
-        const vector<vector<float>> m = {mul(xyZMatrix[0], s), mul(xyZMatrix[1], s),
-                                         mul(xyZMatrix[2], s)};
-        return m;
-    }
-
-    vector<float> getMatrix() {
-        return matrix;
-    }
-
-private:
-    std::vector<float> matrix;
-
-    void SetVector(const vector<vector<float>> m) {
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                matrix[i * 3 + j] = m[i][j];
-            }
-        }
-
-    }
-
-    const vector<vector<float>> inverseVector(const vector<vector<float>> m) {
-        vector<vector<float>> ret(3, std::vector<float>(3, 0.0f));
-        const float det = determinant(m);
-        ret[0][0] = det2(m[1][1], m[1][2], m[2][1], m[2][2]) / det;
-        ret[0][1] = det2(m[0][2], m[0][1], m[2][2], m[2][1]) / det;
-        ret[0][2] = det2(m[0][1], m[0][2], m[1][1], m[1][2]) / det;
-        ret[1][0] = det2(m[1][2], m[1][0], m[2][2], m[2][0]) / det;
-        ret[1][1] = det2(m[0][0], m[0][2], m[2][0], m[2][2]) / det;
-        ret[1][2] = det2(m[0][2], m[0][0], m[1][2], m[1][0]) / det;
-        ret[2][0] = det2(m[1][0], m[1][1], m[2][0], m[2][1]) / det;
-        ret[2][1] = det2(m[0][1], m[0][0], m[2][1], m[2][0]) / det;
-        ret[2][2] = det2(m[0][0], m[0][1], m[1][0], m[1][1]) / det;
-        return ret;
-    }
-
-    const vector<vector<float>> getPrimariesXYZ(const float primaries_xy[3][2]) {
-        // Columns: R G B
-        // Rows: X Y Z
-        vector<vector<float>> ret(3, std::vector<float>(3, 0.0f));
-
-        ret[0] = XyToXYZ(primaries_xy[0][0], primaries_xy[0][1]);
-        ret[1] = XyToXYZ(primaries_xy[1][0], primaries_xy[1][1]);
-        ret[2] = XyToXYZ(primaries_xy[2][0], primaries_xy[2][1]);
-
-        return transpose(ret);
-    }
-
-    const vector<vector<float>> getPrimariesXYZ(const vector<vector<float>> primaries_xy) {
-        // Columns: R G B
-        // Rows: X Y Z
-        vector<vector<float>> ret(3, std::vector<float>(3, 0.0f));
-
-        ret[0] = XyToXYZ(primaries_xy[0][0], primaries_xy[0][1]);
-        ret[1] = XyToXYZ(primaries_xy[1][0], primaries_xy[1][1]);
-        ret[2] = XyToXYZ(primaries_xy[2][0], primaries_xy[2][1]);
-
-        return transpose(ret);
-    }
-
-    const float det2(const float a00, const float a01, const float a10, const float a11) {
-        return a00 * a11 - a01 * a10;
-    }
-
-    const float determinant(const vector<vector<float>> m) {
-        float det = 0;
-
-        det += m[0][0] * det2(m[1][1], m[1][2], m[2][1], m[2][2]);
-        det -= m[0][1] * det2(m[1][0], m[1][2], m[2][0], m[2][2]);
-        det += m[0][2] * det2(m[1][0], m[1][1], m[2][0], m[2][1]);
-
-        return det;
-    }
-
-    std::vector<std::vector<float>> transpose(const std::vector<std::vector<float>> &matrix) {
-        if (matrix.size() != 3 || matrix[0].size() != 3) {
-            throw std::invalid_argument("Input matrix must be 3x3");
-        }
-
-        std::vector<std::vector<float>> result(3, std::vector<float>(3, 0.0f));
-
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                result[i][j] = matrix[j][i];
-            }
-        }
-
-        return result;
-    }
-
-};
-
-static ColorSpaceProfile *rec2020Profile = new ColorSpaceProfile(Rec2020Primaries, IlluminantD65,
-                                                                 Rec2020LumaPrimaries,
-                                                                 Rec2020WhitePointNits);
-static ColorSpaceProfile *rec709Profile = new ColorSpaceProfile(Rec709Primaries, IlluminantD65,
-                                                                Rec709LumaPrimaries,
-                                                                Rec709WhitePointNits);
-static ColorSpaceProfile *displayP3Profile = new ColorSpaceProfile(DisplayP3Primaries,
-                                                                   IlluminantD65,
-                                                                   DisplayP3LumaPrimaries,
-                                                                   DisplayP3WhitePointNits);
+static Eigen::Matrix3f
+GamutRgbToXYZ(const Eigen::Matrix<float, 3, 2> primariesXy, const Eigen::Vector2f whitePoint) {
+    Eigen::Matrix3f xyZMatrix = getPrimariesXYZ(primariesXy);
+    const Eigen::Vector3f whiteXyz = getWhitePoint(whitePoint);
+    const Eigen::Matrix3f inverted = xyZMatrix.inverse();
+    const Eigen::Vector3f s = inverted * whiteXyz;
+    Eigen::Matrix3f transposed = xyZMatrix;
+    auto row1 = transposed.row(0) * s;
+    auto row2 = transposed.row(1) * s;
+    auto row3 = transposed.row(2) * s;
+    Eigen::Matrix3f conversion = xyZMatrix.array().rowwise() * s.transpose().array();
+    return conversion;
+}
 
 #endif //JXLCODER_COLORSPACEPROFILE_H
