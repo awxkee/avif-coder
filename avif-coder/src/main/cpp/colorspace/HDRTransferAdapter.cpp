@@ -867,16 +867,16 @@ namespace coder::HWY_NAMESPACE {
 
         if (halfFloats) {
             auto ptr16 = reinterpret_cast<uint16_t *>(data + y * stride);
-            HWY_DYNAMIC_DISPATCH(ProcessF16Row)(reinterpret_cast<uint16_t *>(ptr16), width,
-                                                gammaCorrection, function, curveToneMapper,
-                                                conversion, gamma, useChromaticAdaptation);
+            ProcessF16Row(reinterpret_cast<uint16_t *>(ptr16), width,
+                          gammaCorrection, function, curveToneMapper,
+                          conversion, gamma, useChromaticAdaptation);
         } else {
             auto ptr16 = reinterpret_cast<uint8_t *>(data + y * stride);
-            HWY_DYNAMIC_DISPATCH(ProcessUSRow)(reinterpret_cast<uint8_t *>(ptr16),
-                                               width,
-                                               (float) maxColors, gammaCorrection, function,
-                                               curveToneMapper, conversion, gamma,
-                                               useChromaticAdaptation);
+            ProcessUSRow(reinterpret_cast<uint8_t *>(ptr16),
+                         width,
+                         (float) maxColors, gammaCorrection, function,
+                         curveToneMapper, conversion, gamma,
+                         useChromaticAdaptation);
         }
     }
 
