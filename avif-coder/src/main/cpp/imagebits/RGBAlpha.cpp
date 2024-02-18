@@ -90,6 +90,7 @@ namespace coder::HWY_NAMESPACE {
 
         VU16x8 mult255 = Set(du16x8, 255);
 
+#pragma omp parallel for num_threads(4) schedule(dynamic)
         for (int y = 0; y < height; ++y) {
             auto mSrc = reinterpret_cast<const uint8_t *>(src + y * srcStride);
             auto mDst = reinterpret_cast<uint8_t *>(dst + y * dstStride);
@@ -199,7 +200,7 @@ namespace coder::HWY_NAMESPACE {
 
         VU16x8 mult255d2 = Set(du16x8, 255 / 2);
 
-#pragma omp parallel for num_threads(3) schedule(dynamic)
+#pragma omp parallel for num_threads(4) schedule(dynamic)
         for (int y = 0; y < height; ++y) {
             auto mSrc = reinterpret_cast<const uint8_t *>(src + y * srcStride);
             auto mDst = reinterpret_cast<uint8_t *>(dst + y * dstStride);

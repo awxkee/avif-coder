@@ -80,6 +80,7 @@ libyuv, de265, x265, aom, sharpyuv(webp):
 - ninja
 - cmake
 - nasm
+- yasm
 
 libheif:
 - ndk

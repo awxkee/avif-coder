@@ -46,19 +46,38 @@ for abi in ${ABI_LIST}; do
   rm -rf "build-${abi}"
   mkdir "build-${abi}"
   cd "build-${abi}"
-  cmake .. \
-    -G Ninja \
-    -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
-    -DANDROID_PLATFORM=android-24 \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DENABLE_DOCS=0 \
-    -DENABLE_EXAMPLES=0 \
-    -DENABLE_TESTDATA=0 \
-    -DENABLE_TESTS=0 \
-    -DENABLE_TOOLS=0 \
-    -DANDROID_ABI=${abi}
+
+  if [ "$abi" == "x86_64" ] || [ "$abi" == "x86" ]; then
+        cmake .. \
+          -G Ninja \
+          -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
+          -DANDROID_PLATFORM=android-24 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DENABLE_DOCS=0 \
+          -DENABLE_EXAMPLES=0 \
+          -DENABLE_TESTDATA=0 \
+          -DENABLE_TESTS=0 \
+          -DENABLE_TOOLS=0 \
+          -DANDROID_ABI=${abi} \
+          -DCMAKE_ASM_NASM_COMPILER=yasm
+  else
+    cmake .. \
+      -G Ninja \
+      -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
+      -DANDROID_PLATFORM=android-24 \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DENABLE_DOCS=0 \
+      -DENABLE_EXAMPLES=0 \
+      -DENABLE_TESTDATA=0 \
+      -DENABLE_TESTS=0 \
+      -DENABLE_TOOLS=0 \
+      -DANDROID_ABI=${abi} \
+      -DCMAKE_ASM_COMPILER=nasm
+  fi
   ninja
 
   # shellcheck disable=SC2116
