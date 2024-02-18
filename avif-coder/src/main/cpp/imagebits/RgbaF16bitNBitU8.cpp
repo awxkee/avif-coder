@@ -175,31 +175,12 @@ namespace coder::HWY_NAMESPACE {
 
         const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-        int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
-                                    height * width / (256 * 256)), 1, 12);
-        vector<thread> workers;
-
-        int segmentHeight = height / threadCount;
-
-        for (int i = 0; i < threadCount; i++) {
-            int start = i * segmentHeight;
-            int end = (i + 1) * segmentHeight;
-            if (i == threadCount - 1) {
-                end = height;
-            }
-            workers.emplace_back(
-                    [start, end, mSrc, dstStride, mDst, maxColors, srcStride, width, scale, attenuateAlpha]() {
-                        for (int y = start; y < end; ++y) {
-                            RGBAF16BitToNBitRowU8(
-                                    reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
-                                    reinterpret_cast<uint8_t *>(mDst + y * dstStride), width, scale,
-                                    maxColors, attenuateAlpha);
-                        }
-                    });
-        }
-
-        for (std::thread &thread: workers) {
-            thread.join();
+#pragma omp parallel for num_threads(4) schedule(dynamic)
+        for (int y = 0; y < height; ++y) {
+            RGBAF16BitToNBitRowU8(
+                    reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
+                    reinterpret_cast<uint8_t *>(mDst + y * dstStride), width, scale,
+                    maxColors, attenuateAlpha);
         }
     }
 }

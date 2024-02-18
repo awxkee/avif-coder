@@ -21,7 +21,9 @@ add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
         HardwareBuffersCompat.cpp VulkanRunner.cpp imagebits/half.cpp
         imagebits/half.hpp imagebits/RgbaU16toHF.cpp
-        imagebits/RGBAlpha.cpp colorspace/CoderCms.cpp)
+        imagebits/RGBAlpha.cpp colorspace/CoderCms.cpp
+        hwy/aligned_allocator.cc hwy/nanobenchmark.cc hwy/per_target.cc hwy/print.cc hwy/targets.cc
+        hwy/timer.cc)
 
 add_library(libaom STATIC IMPORTED)
 add_library(libx265 STATIC IMPORTED)
@@ -29,7 +31,6 @@ add_library(libheif STATIC IMPORTED)
 add_library(libyuv STATIC IMPORTED)
 add_library(libde265 STATIC IMPORTED)
 add_library(libdav1d STATIC IMPORTED)
-add_library(libhwy STATIC IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
 
 set_target_properties(libaom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.a)
@@ -38,7 +39,6 @@ set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/l
 set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libyuv.a)
 set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.a)
 set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.a)
-set_target_properties(libhwy PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libhwy.a)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
@@ -80,8 +80,6 @@ include_directories(icc)
 
 target_link_libraries( # Specifies the target library.
         coder
-
-        # Links the target library to the log library
-        # included in the NDK.
+        -static-openmp
         ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics
-        libde265 libdav1d libhwy libsharpyuv ${android-lib})
+        libde265 libdav1d libsharpyuv ${android-lib})

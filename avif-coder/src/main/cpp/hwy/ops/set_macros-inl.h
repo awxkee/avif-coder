@@ -131,8 +131,20 @@
 #if HWY_COMPILER_CLANG
 #define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",power10-vector"
 #else
-#define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10"
+// See #1707 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=102059#c35.
+// When the baseline is PPC 8 or 9, inlining functions such as PreventElision
+// into PPC10 code fails because PPC10 defaults to no-htm and is thus worse than
+// the baseline, which has htm. We cannot have pragma target on functions
+// outside HWY_NAMESPACE such as those in base.h. It would be possible for users
+// to set -mno-htm globally, but we can also work around this at the library
+// level by claiming that PPC10 still has HTM, thus avoiding the mismatch. This
+// seems to be safe because HTM uses builtins rather than modifying codegen, see
+// https://gcc.gnu.org/legacy-ml/gcc-patches/2013-07/msg00167.html.
+#define HWY_TARGET_STR_PPC10 HWY_TARGET_STR_PPC9 ",cpu=power10,htm"
 #endif
+
+#define HWY_TARGET_STR_Z14 "arch=z14"
+#define HWY_TARGET_STR_Z15 "arch=z15"
 
 // Before include guard so we redefine HWY_TARGET_STR on each include,
 // governed by the current HWY_TARGET.
@@ -233,7 +245,10 @@
 
 #define HWY_HAVE_SCALABLE 0
 #define HWY_HAVE_INTEGER64 1
-#if (HWY_TARGET == HWY_AVX3_SPR) && 0  // TODO(janwas): enable after testing
+#if HWY_TARGET == HWY_AVX3_SPR && HWY_COMPILER_GCC_ACTUAL && \
+    HWY_HAVE_SCALAR_F16_TYPE
+// TODO: enable F16 for AVX3_SPR target with Clang once compilation issues are
+// fixed
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
@@ -305,6 +320,37 @@
 #else
 #error "Logic error"
 #endif  // HWY_TARGET == HWY_PPC10
+
+//-----------------------------------------------------------------------------
+// Z14, Z15
+#elif HWY_TARGET == HWY_Z14 || HWY_TARGET == HWY_Z15
+
+#define HWY_ALIGN alignas(16)
+#define HWY_MAX_BYTES 16
+#define HWY_LANES(T) (16 / sizeof(T))
+
+#define HWY_HAVE_SCALABLE 0
+#define HWY_HAVE_INTEGER64 1
+#define HWY_HAVE_FLOAT16 0
+#define HWY_HAVE_FLOAT64 1
+#define HWY_MEM_OPS_MIGHT_FAULT 1
+#define HWY_NATIVE_FMA 1
+#define HWY_CAP_GE256 0
+#define HWY_CAP_GE512 0
+
+#if HWY_TARGET == HWY_Z14
+
+#define HWY_NAMESPACE N_Z14
+#define HWY_TARGET_STR HWY_TARGET_STR_Z14
+
+#elif HWY_TARGET == HWY_Z15
+
+#define HWY_NAMESPACE N_Z15
+#define HWY_TARGET_STR HWY_TARGET_STR_Z15
+
+#else
+#error "Logic error"
+#endif  // HWY_TARGET == HWY_Z15
 
 //-----------------------------------------------------------------------------
 // NEON
@@ -382,7 +428,7 @@
 #define HWY_LANES(T) ((HWY_MAX_BYTES) / sizeof(T))
 
 #define HWY_HAVE_INTEGER64 1
-#define HWY_HAVE_FLOAT16 0
+#define HWY_HAVE_FLOAT16 1
 #define HWY_HAVE_FLOAT64 1
 #define HWY_MEM_OPS_MIGHT_FAULT 0
 #define HWY_NATIVE_FMA 1
@@ -410,11 +456,17 @@
 // Can use pragmas instead of -march compiler flag
 #if HWY_HAVE_RUNTIME_DISPATCH
 #if HWY_TARGET == HWY_SVE2 || HWY_TARGET == HWY_SVE2_128
+// Static dispatch with -march=armv8-a+sve2+aes, or no baseline, hence dynamic
+// dispatch, which checks for AES support at runtime.
+#if defined(__ARM_FEATURE_SVE2_AES) || (HWY_BASELINE_SVE2 == 0)
 #define HWY_TARGET_STR "+sve2-aes"
-#else
+#else  // SVE2 without AES
+#define HWY_TARGET_STR "+sve2"
+#endif
+#else  // not SVE2 target
 #define HWY_TARGET_STR "+sve"
 #endif
-#else
+#else  // !HWY_HAVE_RUNTIME_DISPATCH
 // HWY_TARGET_STR remains undefined
 #endif
 
@@ -483,7 +535,7 @@
 #define HWY_CAP_GE256 0
 #define HWY_CAP_GE512 0
 
-#if defined(__riscv_zvfh)
+#if HWY_RVV_HAVE_F16_VEC
 #define HWY_HAVE_FLOAT16 1
 #else
 #define HWY_HAVE_FLOAT16 0
@@ -539,6 +591,14 @@
 #else
 #pragma message("HWY_TARGET does not match any known target")
 #endif  // HWY_TARGET
+
+//-----------------------------------------------------------------------------
+
+// Sanity check: if we have f16 vector support, then base.h should also be
+// using a built-in type for f16 scalars.
+#if HWY_HAVE_FLOAT16 && !HWY_HAVE_SCALAR_F16_TYPE
+#error "Logic error: f16 vectors but no scalars"
+#endif
 
 // Override this to 1 in asan/msan builds, which will still fault.
 #if HWY_IS_ASAN || HWY_IS_MSAN

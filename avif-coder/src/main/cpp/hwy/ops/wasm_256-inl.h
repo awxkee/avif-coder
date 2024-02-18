@@ -43,6 +43,9 @@ class Vec256 {
   HWY_INLINE Vec256& operator-=(const Vec256 other) {
     return *this = (*this - other);
   }
+  HWY_INLINE Vec256& operator%=(const Vec256 other) {
+    return *this = (*this % other);
+  }
   HWY_INLINE Vec256& operator&=(const Vec256 other) {
     return *this = (*this & other);
   }
@@ -122,6 +125,50 @@ HWY_API VFromD<D> Set(D d, const T2 t) {
 
 // Undefined, Iota defined in wasm_128.
 
+// ------------------------------ Dup128VecFromValues
+template <class D, HWY_IF_T_SIZE_D(D, 1), HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = ret.v1 = Dup128VecFromValues(dh, t0, t1, t2, t3, t4, t5, t6, t7, t8,
+                                        t9, t10, t11, t12, t13, t14, t15);
+  return ret;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2), HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = ret.v1 = Dup128VecFromValues(dh, t0, t1, t2, t3, t4, t5, t6, t7);
+  return ret;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4), HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = ret.v1 = Dup128VecFromValues(dh, t0, t1, t2, t3);
+  return ret;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8), HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> Dup128VecFromValues(D d, TFromD<D> t0, TFromD<D> t1) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = ret.v1 = Dup128VecFromValues(dh, t0, t1);
+  return ret;
+}
+
 // ================================================== ARITHMETIC
 
 template <typename T>
@@ -141,6 +188,13 @@ HWY_API Vec256<T> operator-(Vec256<T> a, const Vec256<T> b) {
 // ------------------------------ SumsOf8
 HWY_API Vec256<uint64_t> SumsOf8(const Vec256<uint8_t> v) {
   Vec256<uint64_t> ret;
+  ret.v0 = SumsOf8(v.v0);
+  ret.v1 = SumsOf8(v.v1);
+  return ret;
+}
+
+HWY_API Vec256<int64_t> SumsOf8(const Vec256<int8_t> v) {
+  Vec256<int64_t> ret;
   ret.v0 = SumsOf8(v.v0);
   ret.v1 = SumsOf8(v.v1);
   return ret;
@@ -300,7 +354,8 @@ HWY_API Vec256<T> AbsDiff(const Vec256<T> a, const Vec256<T> b) {
 }
 
 // ------------------------------ Floating-point division
-template <typename T>
+// generic_ops takes care of integer T.
+template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Vec256<T> operator/(Vec256<T> a, const Vec256<T> b) {
   a.v0 /= b.v0;
   a.v1 /= b.v1;
@@ -399,10 +454,10 @@ HWY_API Mask256<T> IsNaN(const Vec256<T> v) {
 template <typename T, HWY_IF_FLOAT(T)>
 HWY_API Mask256<T> IsInf(const Vec256<T> v) {
   const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
+  const RebindToUnsigned<decltype(d)> du;
+  const VFromD<decltype(du)> vu = BitCast(du, v);
   // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
+  return RebindMask(d, Eq(Add(vu, vu), Set(du, hwy::MaxExponentTimes2<T>())));
 }
 
 // Returns whether normal/subnormal/zero.
@@ -1177,6 +1232,26 @@ HWY_API Vec256<T> InterleaveUpper(D d, Vec256<T> a, Vec256<T> b) {
   return a;
 }
 
+// ------------------------------ InterleaveWholeLower
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> InterleaveWholeLower(D d, VFromD<D> a, VFromD<D> b) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = InterleaveLower(a.v0, b.v0);
+  ret.v1 = InterleaveUpper(dh, a.v0, b.v0);
+  return ret;
+}
+
+// ------------------------------ InterleaveWholeUpper
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API VFromD<D> InterleaveWholeUpper(D d, VFromD<D> a, VFromD<D> b) {
+  const Half<decltype(d)> dh;
+  VFromD<D> ret;
+  ret.v0 = InterleaveLower(a.v1, b.v1);
+  ret.v1 = InterleaveUpper(dh, a.v1, b.v1);
+  return ret;
+}
+
 // ------------------------------ ZipLower/ZipUpper defined in wasm_128
 
 // ================================================== COMBINE
@@ -1927,6 +2002,14 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
   return ret;
 }
 
+template <class D, HWY_IF_V_SIZE_D(D, 32)>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  const Half<decltype(d)> dh;
+  MFromD<D> ret;
+  ret.m0 = ret.m1 = Dup128MaskFromMaskBits(dh, mask_bits);
+  return ret;
+}
+
 // ------------------------------ Mask
 
 // `p` points to at least 8 writable bytes.
@@ -2302,34 +2385,7 @@ HWY_API Vec256<TW> RearrangeToOddPlusEven(Vec256<TW> sum0, Vec256<TW> sum1) {
   return sum0;
 }
 
-// ------------------------------ Reductions
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> SumOfLanes(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  const Vec128<T> lo = SumOfLanes(dh, Add(v.v0, v.v1));
-  return Combine(d, lo, lo);
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API T ReduceSum(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  return ReduceSum(dh, Add(v.v0, v.v1));
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MinOfLanes(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  const Vec128<T> lo = MinOfLanes(dh, Min(v.v0, v.v1));
-  return Combine(d, lo, lo);
-}
-
-template <class D, typename T = TFromD<D>>
-HWY_API Vec256<T> MaxOfLanes(D d, const Vec256<T> v) {
-  const Half<decltype(d)> dh;
-  const Vec128<T> lo = MaxOfLanes(dh, Max(v.v0, v.v1));
-  return Combine(d, lo, lo);
-}
+// ------------------------------ Reductions in generic_ops
 
 // ------------------------------ Lt128
 

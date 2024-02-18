@@ -42,7 +42,7 @@ afterEvaluate {
             create<MavenPublication>("mavenJava") {
                 groupId = "com.github.awxkee"
                 artifactId = "avif-coder"
-                version = "1.5.12"
+                version = "1.6.0"
                 from(components["release"])
 //                artifact("androidSourcesJar")
             }
@@ -69,7 +69,9 @@ android {
                 ndkVersion = "26.1.10909125"
                 cppFlags.addAll(
                     listOf(
-                        "-std=c++20"
+                        "-std=c++20",
+                        "-fopenmp",
+                        "-static-openmp"
                     )
                 )
                 abiFilters += setOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86")

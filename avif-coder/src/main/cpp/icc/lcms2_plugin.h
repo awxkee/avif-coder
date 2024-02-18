@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------------
 //
 //  Little Color Management System
-//  Copyright (c) 1998-2023 Marti Maria Saguer
+//  Copyright (c) 1998-2024 Marti Maria Saguer
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the "Software"),
@@ -603,9 +603,9 @@ typedef void     (* _cmsTransformFn)(struct _cmstransform_struct *CMMcargo,   //
 typedef void     (*_cmsTransform2Fn)(struct _cmstransform_struct *CMMcargo,
                                      const void* InputBuffer,
                                      void* OutputBuffer,
-                                     cmsUInt32Number PixelsPerLine,     
-                                     cmsUInt32Number LineCount,          
-                                     const cmsStride* Stride);  
+                                     cmsUInt32Number PixelsPerLine,
+                                     cmsUInt32Number LineCount,      
+                                     const cmsStride* Stride); 
 
 typedef cmsBool  (* _cmsTransformFactory)(_cmsTransformFn* xform,
                                          void** UserData,
@@ -648,7 +648,7 @@ typedef struct {
 }  cmsPluginTransform;
 
 //----------------------------------------------------------------------------------------------------------
-// Mutex 
+// Mutex
 
 typedef void*    (* _cmsCreateMutexFnPtrType)(cmsContext ContextID);
 typedef void     (* _cmsDestroyMutexFnPtrType)(cmsContext ContextID, void* mtx);

@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------------
 //
 //  Little Color Management System
-//  Copyright (c) 1998-2023 Marti Maria Saguer
+//  Copyright (c) 1998-2024 Marti Maria Saguer
 //
 // Permission is hereby granted, free of charge, to any person obtaining
 // a copy of this software and associated documentation files (the "Software"),
@@ -300,6 +300,10 @@ cmsToneCurve* AllocateToneCurveStruct(cmsContext ContextID, cmsUInt32Number nEnt
         return p;
 
 Error:
+    for (i=0; i < nSegments; i++) {
+        if (p ->Segments && p ->Segments[i].SampledPoints) _cmsFree(ContextID, p ->Segments[i].SampledPoints);
+        if (p ->SegInterp && p ->SegInterp[i]) _cmsFree(ContextID, p ->SegInterp[i]);
+    }
     if (p -> SegInterp) _cmsFree(ContextID, p -> SegInterp);
     if (p -> Segments) _cmsFree(ContextID, p -> Segments);
     if (p -> Evals) _cmsFree(ContextID, p -> Evals);

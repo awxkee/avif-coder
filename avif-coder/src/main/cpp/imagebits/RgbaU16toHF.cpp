@@ -99,6 +99,8 @@ namespace coder::HWY_NAMESPACE {
                         uint16_t *dst, const int dstStride, const int width,
                         const int height, const int bitDepth) {
         const float scale = 1.0f / (pow(2.0f, static_cast<float>(bitDepth)) - 1.0f);
+
+#pragma omp parallel for num_threads(4) schedule(dynamic)
         for (int y = 0; y < height; ++y) {
             RgbaU16ToFHWYRow(
                     reinterpret_cast<const uint16_t *>(reinterpret_cast<const uint8_t *>(src) +

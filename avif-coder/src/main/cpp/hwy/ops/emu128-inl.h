@@ -16,7 +16,10 @@
 // Single-element vectors and operations.
 // External include guard in highway.h - see comment there.
 
-#include <cmath>  // std::abs, std::isnan
+#include "hwy/base.h"
+#ifndef HWY_NO_LIBCXX
+#include <math.h>  // sqrtf
+#endif
 
 #include "hwy/ops/shared-inl.h"
 
@@ -48,6 +51,9 @@ struct Vec128 {
   }
   HWY_INLINE Vec128& operator-=(const Vec128 other) {
     return *this = (*this - other);
+  }
+  HWY_INLINE Vec128& operator%=(const Vec128 other) {
+    return *this = (*this % other);
   }
   HWY_INLINE Vec128& operator&=(const Vec128 other) {
     return *this = (*this & other);
@@ -105,7 +111,7 @@ using VFromD = decltype(Zero(D()));
 template <class D, class VFrom>
 HWY_API VFromD<D> BitCast(D /* tag */, VFrom v) {
   VFromD<D> to;
-  CopySameSize(&v, &to);
+  CopySameSize(&v.raw, &to.raw);
   return to;
 }
 
@@ -122,7 +128,7 @@ HWY_API VFromD<D> ResizeBitCast(D d, VFrom v) {
   constexpr size_t kCopyByteLen = HWY_MIN(kFromByteLen, kToByteLen);
 
   VFromD<D> to = Zero(d);
-  CopyBytes<kCopyByteLen>(&v, &to);
+  CopyBytes<kCopyByteLen>(&v.raw, &to.raw);
   return to;
 }
 
@@ -145,7 +151,7 @@ template <class D, typename T2>
 HWY_API VFromD<D> Set(D d, const T2 t) {
   VFromD<D> v;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] = static_cast<TFromD<D>>(t);
+    v.raw[i] = ConvertScalarTo<TFromD<D>>(t);
   }
   return v;
 }
@@ -156,14 +162,79 @@ HWY_API VFromD<D> Undefined(D d) {
   return Zero(d);
 }
 
+// ------------------------------ Dup128VecFromValues
+
+template <class D, HWY_IF_T_SIZE_D(D, 1)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6, TFromD<D> t7,
+                                      TFromD<D> t8, TFromD<D> t9, TFromD<D> t10,
+                                      TFromD<D> t11, TFromD<D> t12,
+                                      TFromD<D> t13, TFromD<D> t14,
+                                      TFromD<D> t15) {
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  result.raw[2] = t2;
+  result.raw[3] = t3;
+  result.raw[4] = t4;
+  result.raw[5] = t5;
+  result.raw[6] = t6;
+  result.raw[7] = t7;
+  result.raw[8] = t8;
+  result.raw[9] = t9;
+  result.raw[10] = t10;
+  result.raw[11] = t11;
+  result.raw[12] = t12;
+  result.raw[13] = t13;
+  result.raw[14] = t14;
+  result.raw[15] = t15;
+  return result;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 2)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3, TFromD<D> t4,
+                                      TFromD<D> t5, TFromD<D> t6,
+                                      TFromD<D> t7) {
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  result.raw[2] = t2;
+  result.raw[3] = t3;
+  result.raw[4] = t4;
+  result.raw[5] = t5;
+  result.raw[6] = t6;
+  result.raw[7] = t7;
+  return result;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 4)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1,
+                                      TFromD<D> t2, TFromD<D> t3) {
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  result.raw[2] = t2;
+  result.raw[3] = t3;
+  return result;
+}
+
+template <class D, HWY_IF_T_SIZE_D(D, 8)>
+HWY_API VFromD<D> Dup128VecFromValues(D /*d*/, TFromD<D> t0, TFromD<D> t1) {
+  VFromD<D> result;
+  result.raw[0] = t0;
+  result.raw[1] = t1;
+  return result;
+}
+
 // ------------------------------ Iota
 
 template <class D, typename T = TFromD<D>, typename T2>
 HWY_API VFromD<D> Iota(D d, T2 first) {
   VFromD<D> v;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
-    v.raw[i] =
-        AddWithWraparound(hwy::IsFloatTag<T>(), static_cast<T>(first), i);
+    v.raw[i] = AddWithWraparound(static_cast<T>(first), i);
   }
   return v;
 }
@@ -286,7 +357,7 @@ template <typename T, size_t N>
 HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
   // This is used inside ShiftRight, so we cannot implement in terms of it.
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = v.raw[i] < 0 ? T(-1) : T(0);
+    v.raw[i] = static_cast<T>(v.raw[i] < 0 ? -1 : 0);
   }
   return v;
 }
@@ -297,7 +368,7 @@ HWY_API Vec128<T, N> BroadcastSignBit(Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Mask128<T, N> MaskFromVec(Vec128<T, N> v) {
   Mask128<T, N> mask;
-  CopySameSize(&v, &mask);
+  CopySameSize(&v.raw, &mask.bits);
   return mask;
 }
 
@@ -307,14 +378,14 @@ using MFromD = decltype(MaskFromVec(VFromD<D>()));
 template <class DTo, class MFrom>
 HWY_API MFromD<DTo> RebindMask(DTo /* tag */, MFrom mask) {
   MFromD<DTo> to;
-  CopySameSize(&mask, &to);
+  CopySameSize(&mask.bits, &to.bits);
   return to;
 }
 
 template <typename T, size_t N>
 Vec128<T, N> VecFromMask(Mask128<T, N> mask) {
   Vec128<T, N> v;
-  CopySameSize(&mask, &v);
+  CopySameSize(&mask.bits, &v.raw);
   return v;
 }
 
@@ -614,6 +685,15 @@ HWY_API Vec128<uint64_t, (N + 7) / 8> SumsOf8(Vec128<uint8_t, N> v) {
   return sums;
 }
 
+template <size_t N>
+HWY_API Vec128<int64_t, (N + 7) / 8> SumsOf8(Vec128<int8_t, N> v) {
+  Vec128<int64_t, (N + 7) / 8> sums;
+  for (size_t i = 0; i < N; ++i) {
+    sums.raw[i / 8] += v.raw[i];
+  }
+  return sums;
+}
+
 // ------------------------------ SaturatedAdd
 template <typename T, size_t N, HWY_IF_T_SIZE_ONE_OF(T, (1 << 1) | (1 << 2)),
           HWY_IF_NOT_FLOAT_NOR_SPECIAL(T)>
@@ -652,32 +732,12 @@ HWY_API Vec128<T, N> AverageRound(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Abs
 
-// Tag dispatch instead of SFINAE for MSVC 2017 compatibility
-namespace detail {
-
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Abs(SignedTag /*tag*/, Vec128<T, N> a) {
-  for (size_t i = 0; i < N; ++i) {
-    const T s = a.raw[i];
-    const T min = hwy::LimitsMin<T>();
-    a.raw[i] = static_cast<T>((s >= 0 || s == min) ? a.raw[i] : -s);
-  }
-  return a;
-}
-
-template <typename T, size_t N>
-HWY_INLINE Vec128<T, N> Abs(hwy::FloatTag /*tag*/, Vec128<T, N> v) {
-  for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = std::abs(v.raw[i]);
-  }
-  return v;
-}
-
-}  // namespace detail
-
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Abs(Vec128<T, N> a) {
-  return detail::Abs(hwy::TypeTag<T>(), a);
+  for (size_t i = 0; i < N; ++i) {
+    a.raw[i] = ScalarAbs(a.raw[i]);
+  }
+  return a;
 }
 
 // ------------------------------ Min/Max
@@ -706,9 +766,9 @@ template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Min(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    if (std::isnan(a.raw[i])) {
+    if (ScalarIsNaN(a.raw[i])) {
       a.raw[i] = b.raw[i];
-    } else if (std::isnan(b.raw[i])) {
+    } else if (ScalarIsNaN(b.raw[i])) {
       // no change
     } else {
       a.raw[i] = HWY_MIN(a.raw[i], b.raw[i]);
@@ -720,9 +780,9 @@ template <typename T, size_t N>
 HWY_INLINE Vec128<T, N> Max(hwy::FloatTag /*tag*/, Vec128<T, N> a,
                             Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
-    if (std::isnan(a.raw[i])) {
+    if (ScalarIsNaN(a.raw[i])) {
       a.raw[i] = b.raw[i];
-    } else if (std::isnan(b.raw[i])) {
+    } else if (ScalarIsNaN(b.raw[i])) {
       // no change
     } else {
       a.raw[i] = HWY_MAX(a.raw[i], b.raw[i]);
@@ -825,7 +885,7 @@ HWY_API Vec128<T, N> operator*(Vec128<T, N> a, Vec128<T, N> b) {
   return detail::Mul(hwy::TypeTag<T>(), a, b);
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> operator/(Vec128<T, N> a, Vec128<T, N> b) {
   for (size_t i = 0; i < N; ++i) {
     a.raw[i] = (b.raw[i] == T{0}) ? 0 : a.raw[i] / b.raw[i];
@@ -900,7 +960,7 @@ HWY_API Vec128<float, N> ApproximateReciprocal(Vec128<float, N> v) {
     // Zero inputs are allowed, but callers are responsible for replacing the
     // return value with something else (typically using IfThenElse). This check
     // avoids a ubsan error. The result is arbitrary.
-    v.raw[i] = (std::abs(v.raw[i]) == 0.0f) ? 0.0f : 1.0f / v.raw[i];
+    v.raw[i] = (ScalarAbs(v.raw[i]) == 0.0f) ? 0.0f : 1.0f / v.raw[i];
   }
   return v;
 }
@@ -913,25 +973,25 @@ HWY_API Vec128<T, N> AbsDiff(Vec128<T, N> a, Vec128<T, N> b) {
 
 // ------------------------------ Floating-point multiply-add variants
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> MulAdd(Vec128<T, N> mul, Vec128<T, N> x,
                             Vec128<T, N> add) {
   return mul * x + add;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> NegMulAdd(Vec128<T, N> mul, Vec128<T, N> x,
                                Vec128<T, N> add) {
   return add - mul * x;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> MulSub(Vec128<T, N> mul, Vec128<T, N> x,
                             Vec128<T, N> sub) {
   return mul * x - sub;
 }
 
-template <typename T, size_t N>
+template <typename T, size_t N, HWY_IF_FLOAT(T)>
 HWY_API Vec128<T, N> NegMulSub(Vec128<T, N> mul, Vec128<T, N> x,
                                Vec128<T, N> sub) {
   return Neg(mul) * x - sub;
@@ -943,21 +1003,52 @@ template <size_t N>
 HWY_API Vec128<float, N> ApproximateReciprocalSqrt(Vec128<float, N> v) {
   for (size_t i = 0; i < N; ++i) {
     const float half = v.raw[i] * 0.5f;
-    uint32_t bits;
-    CopySameSize(&v.raw[i], &bits);
     // Initial guess based on log2(f)
-    bits = 0x5F3759DF - (bits >> 1);
-    CopySameSize(&bits, &v.raw[i]);
+    v.raw[i] = BitCastScalar<float>(static_cast<uint32_t>(
+        0x5F3759DF - (BitCastScalar<uint32_t>(v.raw[i]) >> 1)));
     // One Newton-Raphson iteration
     v.raw[i] = v.raw[i] * (1.5f - (half * v.raw[i] * v.raw[i]));
   }
   return v;
 }
 
+namespace detail {
+
+static HWY_INLINE float ScalarSqrt(float v) {
+#if defined(HWY_NO_LIBCXX)
+#if HWY_COMPILER_GCC_ACTUAL
+  return __builtin_sqrt(v);
+#else
+  uint32_t bits = BitCastScalar<uint32_t>(v);
+  // Coarse approximation, letting the exponent LSB leak into the mantissa
+  bits = (1 << 29) + (bits >> 1) - (1 << 22);
+  return BitCastScalar<float>(bits);
+#endif  // !HWY_COMPILER_GCC_ACTUAL
+#else
+  return sqrtf(v);
+#endif  // !HWY_NO_LIBCXX
+}
+static HWY_INLINE double ScalarSqrt(double v) {
+#if defined(HWY_NO_LIBCXX)
+#if HWY_COMPILER_GCC_ACTUAL
+  return __builtin_sqrt(v);
+#else
+  uint64_t bits = BitCastScalar<uint64_t>(v);
+  // Coarse approximation, letting the exponent LSB leak into the mantissa
+  bits = (1ULL << 61) + (bits >> 1) - (1ULL << 51);
+  return BitCastScalar<double>(bits);
+#endif  // !HWY_COMPILER_GCC_ACTUAL
+#else
+  return sqrt(v);
+#endif  // HWY_NO_LIBCXX
+}
+
+}  // namespace detail
+
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Sqrt(Vec128<T, N> v) {
   for (size_t i = 0; i < N; ++i) {
-    v.raw[i] = std::sqrt(v.raw[i]);
+    v.raw[i] = detail::ScalarSqrt(v.raw[i]);
   }
   return v;
 }
@@ -967,21 +1058,23 @@ HWY_API Vec128<T, N> Sqrt(Vec128<T, N> v) {
 template <typename T, size_t N>
 HWY_API Vec128<T, N> Round(Vec128<T, N> v) {
   using TI = MakeSigned<T>;
+  const T k0 = ConvertScalarTo<T>(0);
   const Vec128<T, N> a = Abs(v);
   for (size_t i = 0; i < N; ++i) {
     if (!(a.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
       continue;
     }
-    const T bias = v.raw[i] < T(0.0) ? T(-0.5) : T(0.5);
-    const TI rounded = static_cast<TI>(v.raw[i] + bias);
+    const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
+    const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
     if (rounded == 0) {
-      v.raw[i] = v.raw[i] < 0 ? T{-0} : T{0};
+      v.raw[i] = v.raw[i] < 0 ? ConvertScalarTo<T>(-0) : k0;
       continue;
     }
-    const T rounded_f = static_cast<T>(rounded);
+    const T rounded_f = ConvertScalarTo<T>(rounded);
     // Round to even
-    if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
-      v.raw[i] = static_cast<T>(rounded - (v.raw[i] < T(0) ? -1 : 1));
+    if ((rounded & 1) &&
+        ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
+      v.raw[i] = ConvertScalarTo<T>(rounded - (v.raw[i] < k0 ? -1 : 1));
       continue;
     }
     v.raw[i] = rounded_f;
@@ -994,30 +1087,32 @@ template <size_t N>
 HWY_API Vec128<int32_t, N> NearestInt(Vec128<float, N> v) {
   using T = float;
   using TI = int32_t;
+  const T k0 = ConvertScalarTo<T>(0);
 
   const Vec128<float, N> abs = Abs(v);
   Vec128<int32_t, N> ret;
   for (size_t i = 0; i < N; ++i) {
-    const bool signbit = std::signbit(v.raw[i]);
+    const bool signbit = ScalarSignBit(v.raw[i]);
 
     if (!(abs.raw[i] < MantissaEnd<T>())) {  // Huge or NaN
       // Check if too large to cast or NaN
-      if (!(abs.raw[i] <= static_cast<T>(LimitsMax<TI>()))) {
+      if (!(abs.raw[i] <= ConvertScalarTo<T>(LimitsMax<TI>()))) {
         ret.raw[i] = signbit ? LimitsMin<TI>() : LimitsMax<TI>();
         continue;
       }
       ret.raw[i] = static_cast<TI>(v.raw[i]);
       continue;
     }
-    const T bias = v.raw[i] < T(0.0) ? T(-0.5) : T(0.5);
-    const TI rounded = static_cast<TI>(v.raw[i] + bias);
+    const T bias = ConvertScalarTo<T>(v.raw[i] < k0 ? -0.5 : 0.5);
+    const TI rounded = ConvertScalarTo<TI>(v.raw[i] + bias);
     if (rounded == 0) {
       ret.raw[i] = 0;
       continue;
     }
-    const T rounded_f = static_cast<T>(rounded);
+    const T rounded_f = ConvertScalarTo<T>(rounded);
     // Round to even
-    if ((rounded & 1) && std::abs(rounded_f - v.raw[i]) == T(0.5)) {
+    if ((rounded & 1) &&
+        ScalarAbs(rounded_f - v.raw[i]) == ConvertScalarTo<T>(0.5)) {
       ret.raw[i] = rounded - (signbit ? -1 : 1);
       continue;
     }
@@ -1056,8 +1151,7 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
   for (size_t i = 0; i < N; ++i) {
     const bool positive = v.raw[i] > Float(0.0);
 
-    Bits bits;
-    CopySameSize(&v.raw[i], &bits);
+    Bits bits = BitCastScalar<Bits>(v.raw[i]);
 
     const int exponent =
         static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
@@ -1077,7 +1171,7 @@ Vec128<Float, N> Ceil(Vec128<Float, N> v) {
     if (positive) bits += (kMantissaMask + 1) >> exponent;
     bits &= ~mantissa_mask;
 
-    CopySameSize(&bits, &v.raw[i]);
+    v.raw[i] = BitCastScalar<Float>(bits);
   }
   return v;
 }
@@ -1094,8 +1188,7 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
   for (size_t i = 0; i < N; ++i) {
     const bool negative = v.raw[i] < Float(0.0);
 
-    Bits bits;
-    CopySameSize(&v.raw[i], &bits);
+    Bits bits = BitCastScalar<Bits>(v.raw[i]);
 
     const int exponent =
         static_cast<int>(((bits >> kMantissaBits) & kExponentMask) - kBias);
@@ -1115,7 +1208,7 @@ Vec128<Float, N> Floor(Vec128<Float, N> v) {
     if (negative) bits += (kMantissaMask + 1) >> exponent;
     bits &= ~mantissa_mask;
 
-    CopySameSize(&bits, &v.raw[i]);
+    v.raw[i] = BitCastScalar<Float>(bits);
   }
   return v;
 }
@@ -1127,42 +1220,9 @@ HWY_API Mask128<T, N> IsNaN(Vec128<T, N> v) {
   Mask128<T, N> ret;
   for (size_t i = 0; i < N; ++i) {
     // std::isnan returns false for 0x7F..FF in clang AVX3 builds, so DIY.
-    MakeUnsigned<T> bits;
-    CopySameSize(&v.raw[i], &bits);
-    bits += bits;
-    bits >>= 1;  // clear sign bit
-    // NaN if all exponent bits are set and the mantissa is not zero.
-    ret.bits[i] = Mask128<T, N>::FromBool(bits > ExponentMask<T>());
+    ret.bits[i] = Mask128<T, N>::FromBool(ScalarIsNaN(v.raw[i]));
   }
   return ret;
-}
-
-template <typename T, size_t N>
-HWY_API Mask128<T, N> IsInf(Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToSigned<decltype(d)> di;
-  const VFromD<decltype(di)> vi = BitCast(di, v);
-  // 'Shift left' to clear the sign bit, check for exponent=max and mantissa=0.
-  return RebindMask(d, Eq(Add(vi, vi), Set(di, hwy::MaxExponentTimes2<T>())));
-}
-
-// Returns whether normal/subnormal/zero.
-template <typename T, size_t N>
-HWY_API Mask128<T, N> IsFinite(Vec128<T, N> v) {
-  static_assert(IsFloat<T>(), "Only for float");
-  const DFromV<decltype(v)> d;
-  const RebindToUnsigned<decltype(d)> du;
-  const RebindToSigned<decltype(d)> di;  // cheaper than unsigned comparison
-  using VI = VFromD<decltype(di)>;
-  using VU = VFromD<decltype(du)>;
-  const VU vu = BitCast(du, v);
-  // 'Shift left' to clear the sign bit, then right so we can compare with the
-  // max exponent (cannot compare with MaxExponentTimes2 directly because it is
-  // negative and non-negative floats would be greater).
-  const VI exp =
-      BitCast(di, ShiftRight<hwy::MantissaBits<T>() + 1>(Add(vu, vu)));
-  return RebindMask(d, Lt(exp, Set(di, hwy::MaxExponentField<T>())));
 }
 
 // ================================================== COMPARE
@@ -1510,52 +1570,42 @@ HWY_API void Stream(VFromD<D> v, D d, TFromD<D>* HWY_RESTRICT aligned) {
 namespace detail {
 
 template <class ToT, class FromT>
-HWY_INLINE ToT CastValueForF2IConv(hwy::UnsignedTag /* to_type_tag */,
-                                   FromT val) {
+HWY_INLINE ToT CastValueForF2IConv(FromT val) {
   // Prevent ubsan errors when converting float to narrower integer
 
-  // If LimitsMax<ToT>() can be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>().
+  using FromTU = MakeUnsigned<FromT>;
+  using ToTU = MakeUnsigned<ToT>;
 
-  // Otherwise, if LimitsMax<ToT>() cannot be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>() + 1, which can
-  // be exactly represented in FromT.
-  constexpr FromT kSmallestOutOfToTRangePosVal =
-      (sizeof(ToT) * 8 <= static_cast<size_t>(MantissaBits<FromT>()) + 1)
-          ? static_cast<FromT>(LimitsMax<ToT>())
-          : static_cast<FromT>(
-                static_cast<FromT>(ToT{1} << (sizeof(ToT) * 8 - 1)) * FromT(2));
+  constexpr unsigned kMaxExpField =
+      static_cast<unsigned>(MaxExponentField<FromT>());
+  constexpr unsigned kExpBias = kMaxExpField >> 1;
+  constexpr unsigned kMinOutOfRangeExpField = static_cast<unsigned>(HWY_MIN(
+      kExpBias + sizeof(ToT) * 8 - static_cast<unsigned>(IsSigned<ToT>()),
+      kMaxExpField));
 
-  if (std::signbit(val)) {
-    return ToT{0};
-  } else if (std::isinf(val) || val >= kSmallestOutOfToTRangePosVal) {
-    return LimitsMax<ToT>();
-  } else {
-    return static_cast<ToT>(val);
-  }
-}
+  // If ToT is signed, compare only the exponent bits of val against
+  // kMinOutOfRangeExpField.
+  //
+  // Otherwise, if ToT is unsigned, compare the sign bit plus exponent bits of
+  // val against kMinOutOfRangeExpField as a negative value is outside of the
+  // range of an unsigned integer type.
+  const FromT val_to_compare =
+      static_cast<FromT>(IsSigned<ToT>() ? ScalarAbs(val) : val);
 
-template <class ToT, class FromT>
-HWY_INLINE ToT CastValueForF2IConv(hwy::SignedTag /* to_type_tag */,
-                                   FromT val) {
-  // Prevent ubsan errors when converting float to narrower integer
+  // val is within the range of ToT if
+  // (BitCastScalar<FromTU>(val_to_compare) >> MantissaBits<FromT>()) is less
+  // than kMinOutOfRangeExpField
+  //
+  // Otherwise, val is either outside of the range of ToT or equal to
+  // LimitsMin<ToT>() if
+  // (BitCastScalar<FromTU>(val_to_compare) >> MantissaBits<FromT>()) is greater
+  // than or equal to kMinOutOfRangeExpField.
 
-  // If LimitsMax<ToT>() can be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to LimitsMax<ToT>().
-
-  // Otherwise, if LimitsMax<ToT>() cannot be exactly represented in FromT,
-  // kSmallestOutOfToTRangePosVal is equal to -LimitsMin<ToT>(), which can
-  // be exactly represented in FromT.
-  constexpr FromT kSmallestOutOfToTRangePosVal =
-      (sizeof(ToT) * 8 <= static_cast<size_t>(MantissaBits<FromT>()) + 2)
-          ? static_cast<FromT>(LimitsMax<ToT>())
-          : static_cast<FromT>(-static_cast<FromT>(LimitsMin<ToT>()));
-
-  if (std::isinf(val) || std::fabs(val) >= kSmallestOutOfToTRangePosVal) {
-    return std::signbit(val) ? LimitsMin<ToT>() : LimitsMax<ToT>();
-  } else {
-    return static_cast<ToT>(val);
-  }
+  return (static_cast<unsigned>(BitCastScalar<FromTU>(val_to_compare) >>
+                                MantissaBits<FromT>()) < kMinOutOfRangeExpField)
+             ? static_cast<ToT>(val)
+             : static_cast<ToT>(static_cast<ToTU>(LimitsMax<ToT>()) +
+                                static_cast<ToTU>(ScalarSignBit(val)));
 }
 
 template <class ToT, class ToTypeTag, class FromT>
@@ -1564,13 +1614,15 @@ HWY_INLINE ToT CastValueForPromoteTo(ToTypeTag /* to_type_tag */, FromT val) {
 }
 
 template <class ToT>
-HWY_INLINE ToT CastValueForPromoteTo(hwy::SignedTag to_type_tag, float val) {
-  return CastValueForF2IConv<ToT>(to_type_tag, val);
+HWY_INLINE ToT CastValueForPromoteTo(hwy::SignedTag /*to_type_tag*/,
+                                     float val) {
+  return CastValueForF2IConv<ToT>(val);
 }
 
 template <class ToT>
-HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag to_type_tag, float val) {
-  return CastValueForF2IConv<ToT>(to_type_tag, val);
+HWY_INLINE ToT CastValueForPromoteTo(hwy::UnsignedTag /*to_type_tag*/,
+                                     float val) {
+  return CastValueForF2IConv<ToT>(val);
 }
 
 }  // namespace detail
@@ -1594,10 +1646,10 @@ HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<double, D>> from) {
   VFromD<D> ret;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     // Prevent ubsan errors when converting float to narrower integer/float
-    if (std::isinf(from.raw[i]) ||
-        std::fabs(from.raw[i]) > static_cast<double>(HighestValue<float>())) {
-      ret.raw[i] = std::signbit(from.raw[i]) ? LowestValue<float>()
-                                             : HighestValue<float>();
+    if (ScalarIsInf(from.raw[i]) ||
+        ScalarAbs(from.raw[i]) > static_cast<double>(HighestValue<float>())) {
+      ret.raw[i] = ScalarSignBit(from.raw[i]) ? LowestValue<float>()
+                                              : HighestValue<float>();
       continue;
     }
     ret.raw[i] = static_cast<float>(from.raw[i]);
@@ -1609,8 +1661,7 @@ HWY_API VFromD<D> DemoteTo(D d, VFromD<Rebind<double, D>> from) {
   VFromD<D> ret;
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     // Prevent ubsan errors when converting double to narrower integer/int32_t
-    ret.raw[i] = detail::CastValueForF2IConv<TFromD<D>>(
-        hwy::TypeTag<TFromD<D>>(), from.raw[i]);
+    ret.raw[i] = detail::CastValueForF2IConv<TFromD<D>>(from.raw[i]);
   }
   return ret;
 }
@@ -1715,23 +1766,20 @@ HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
   return ReorderDemote2To(dn, a, b);
 }
 
-template <class DN, HWY_IF_BF16_D(DN), class V, HWY_IF_F32_D(DFromV<V>),
+template <class DN, HWY_IF_SPECIAL_FLOAT_D(DN), class V,
+          HWY_IF_F32_D(DFromV<V>),
           HWY_IF_LANES_D(DN, HWY_MAX_LANES_D(DFromV<V>) * 2)>
 HWY_API VFromD<DN> OrderedDemote2To(DN dn, V a, V b) {
-  const RebindToUnsigned<DFromV<decltype(a)>> du32;
-  const size_t NW = Lanes(du32);
-  VFromD<Repartition<uint16_t, DN>> ret;
-
-  const auto a_bits = BitCast(du32, a);
-  const auto b_bits = BitCast(du32, b);
-
+  const size_t NW = Lanes(dn) / 2;
+  using TN = TFromD<DN>;
+  VFromD<DN> ret;
   for (size_t i = 0; i < NW; ++i) {
-    ret.raw[i] = static_cast<uint16_t>(a_bits.raw[i] >> 16);
+    ret.raw[i] = ConvertScalarTo<TN>(a.raw[i]);
   }
   for (size_t i = 0; i < NW; ++i) {
-    ret.raw[NW + i] = static_cast<uint16_t>(b_bits.raw[i] >> 16);
+    ret.raw[NW + i] = ConvertScalarTo<TN>(b.raw[i]);
   }
-  return BitCast(dn, ret);
+  return ret;
 }
 
 namespace detail {
@@ -1780,7 +1828,7 @@ HWY_API VFromD<DTo> ConvertTo(hwy::FloatTag /*tag*/, DTo /*tag*/,
 
   for (size_t i = 0; i < N; ++i) {
     // float## -> int##: return closest representable value
-    ret.raw[i] = CastValueForF2IConv<ToT>(hwy::TypeTag<ToT>(), from.raw[i]);
+    ret.raw[i] = CastValueForF2IConv<ToT>(from.raw[i]);
   }
   return ret;
 }
@@ -1980,8 +2028,16 @@ HWY_API VFromD<D> ConcatEven(D d, VFromD<D> hi, VFromD<D> lo) {
   return ret;
 }
 
+// 2023-11-23: workaround for incorrect codegen (reduction_test fails for
+// SumsOf2 because PromoteOddTo, which uses ConcatOdd, returns zero).
+#if HWY_ARCH_RVV && HWY_TARGET == HWY_EMU128 && HWY_COMPILER_CLANG
+#define HWY_EMU128_CONCAT_INLINE HWY_NOINLINE
+#else
+#define HWY_EMU128_CONCAT_INLINE HWY_API
+#endif
+
 template <class D>
-HWY_API VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
+HWY_EMU128_CONCAT_INLINE VFromD<D> ConcatOdd(D d, VFromD<D> hi, VFromD<D> lo) {
   const Half<decltype(d)> dh;
   VFromD<D> ret;
   for (size_t i = 0; i < MaxLanes(dh); ++i) {
@@ -2349,8 +2405,8 @@ HWY_API Vec128<T, N> InterleaveLower(Vec128<T, N> a, Vec128<T, N> b) {
 }
 
 // Additional overload for the optional tag.
-template <class V>
-HWY_API V InterleaveLower(DFromV<V> /* tag */, V a, V b) {
+template <class D>
+HWY_API VFromD<D> InterleaveLower(D /* tag */, VFromD<D> a, VFromD<D> b) {
   return InterleaveLower(a, b);
 }
 
@@ -2412,6 +2468,15 @@ HWY_API MFromD<D> LoadMaskBits(D d, const uint8_t* HWY_RESTRICT bits) {
     const size_t bit = size_t{1} << (i & 7);
     const size_t idx_byte = i >> 3;
     m.bits[i] = MFromD<D>::FromBool((bits[idx_byte] & bit) != 0);
+  }
+  return m;
+}
+
+template <class D>
+HWY_API MFromD<D> Dup128MaskFromMaskBits(D d, unsigned mask_bits) {
+  MFromD<D> m;
+  for (size_t i = 0; i < MaxLanes(d); ++i) {
+    m.bits[i] = MFromD<D>::FromBool(((mask_bits >> i) & 1u) != 0);
   }
   return m;
 }
@@ -2517,7 +2582,7 @@ HWY_API Vec128<T, N> Expand(Vec128<T, N> v, const Mask128<T, N> mask) {
     if (mask.bits[i]) {
       ret.raw[i] = v.raw[in_pos++];
     } else {
-      ret.raw[i] = T();  // zero, also works for float16_t
+      ret.raw[i] = ConvertScalarTo<T>(0);
     }
   }
   return ret;
@@ -2754,15 +2819,13 @@ HWY_API VW RearrangeToOddPlusEven(VW sum0, VW sum1) {
 
 // ================================================== REDUCTIONS
 
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
-  T sum = T{0};
-  for (size_t i = 0; i < MaxLanes(d); ++i) {
-    sum += v.raw[i];
-  }
-  return Set(d, sum);
-}
-template <class D, typename T = TFromD<D>>
+#ifdef HWY_NATIVE_REDUCE_SCALAR
+#undef HWY_NATIVE_REDUCE_SCALAR
+#else
+#define HWY_NATIVE_REDUCE_SCALAR
+#endif
+
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
 HWY_API T ReduceSum(D d, VFromD<D> v) {
   T sum = T{0};
   for (size_t i = 0; i < MaxLanes(d); ++i) {
@@ -2770,21 +2833,36 @@ HWY_API T ReduceSum(D d, VFromD<D> v) {
   }
   return sum;
 }
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
+HWY_API T ReduceMin(D d, VFromD<D> v) {
   T min = HighestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     min = HWY_MIN(min, v.raw[i]);
   }
-  return Set(d, min);
+  return min;
 }
-template <class D, typename T = TFromD<D>>
-HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+template <class D, typename T = TFromD<D>, HWY_IF_REDUCE_D(D)>
+HWY_API T ReduceMax(D d, VFromD<D> v) {
   T max = LowestValue<T>();
   for (size_t i = 0; i < MaxLanes(d); ++i) {
     max = HWY_MAX(max, v.raw[i]);
   }
-  return Set(d, max);
+  return max;
+}
+
+// ------------------------------ SumOfLanes
+
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> SumOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceSum(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MinOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMin(d, v));
+}
+template <class D, HWY_IF_LANES_GT_D(D, 1)>
+HWY_API VFromD<D> MaxOfLanes(D d, VFromD<D> v) {
+  return Set(d, ReduceMax(d, v));
 }
 
 // ================================================== OPS WITH DEPENDENCIES

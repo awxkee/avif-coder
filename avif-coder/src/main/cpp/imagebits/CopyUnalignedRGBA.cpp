@@ -80,54 +80,38 @@ namespace coder::HWY_NAMESPACE {
                       int width,
                       int height,
                       int pixelSize) {
-        int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
-                                    width * height / (256 * 256)), 1, 12);
-        vector<thread> workers;
-
-        int segmentHeight = height / threadCount;
-
-        for (int i = 0; i < threadCount; i++) {
-            int start = i * segmentHeight;
-            int end = (i + 1) * segmentHeight;
-            if (i == threadCount - 1) {
-                end = height;
+    #pragma omp parallel for num_threads(3) schedule(dynamic)
+        for (int y = 0; y < height; ++y) {
+            if (pixelSize == 1) {
+                const ScalableTag<uint8_t> du8;
+                Copy1Row<decltype(du8), uint8_t>(du8,
+                                                 reinterpret_cast<const uint8_t *>(
+                                                         reinterpret_cast<const uint8_t *>(src) +
+                                                         (y * srcStride)),
+                                                 reinterpret_cast<uint8_t *>(
+                                                         reinterpret_cast<uint8_t *>(dst) +
+                                                         (y * dstStride)),
+                                                 width);
+            } else if (pixelSize == 2) {
+                const ScalableTag<uint16_t> du16;
+                Copy1Row<decltype(du16), uint16_t>(du16,
+                                                   reinterpret_cast<const uint16_t *>(
+                                                           reinterpret_cast<const uint8_t *>(src) +
+                                                           (y * srcStride)),
+                                                   reinterpret_cast<uint16_t *>(
+                                                           reinterpret_cast<uint8_t *>(dst) +
+                                                           (y * dstStride)),
+                                                   width);
+            } else if (pixelSize == 4) {
+                const ScalableTag<uint32_t> df32;
+                Copy1Row<decltype(df32), uint32_t>(df32,
+                                                   reinterpret_cast<const uint32_t *>(
+                                                           reinterpret_cast<const uint8_t *>(src) +
+                                                           (y * srcStride)),
+                                                   reinterpret_cast<uint32_t *>(
+                                                           reinterpret_cast<uint8_t *>(dst) +
+                                                           (y * dstStride)), width);
             }
-            workers.emplace_back([start, end, src, dstStride, dst, srcStride, pixelSize, width]() {
-                for (int y = start; y < end; ++y) {
-                    if (pixelSize == 1) {
-                        const ScalableTag<uint8_t> du8;
-                        auto fn = Copy1Row<decltype(du8), uint8_t>;
-                        fn(du8,
-                           reinterpret_cast<const uint8_t *>(
-                                   reinterpret_cast<const uint8_t *>(src) + (y * srcStride)),
-                           reinterpret_cast<uint8_t *>(reinterpret_cast<uint8_t *>(dst) +
-                                                       (y * dstStride)),
-                           width);
-                    } else if (pixelSize == 2) {
-                        const ScalableTag<uint16_t> du16;
-                        auto fn = Copy1Row<decltype(du16), uint16_t>;
-                        fn(du16,
-                           reinterpret_cast<const uint16_t *>(
-                                   reinterpret_cast<const uint8_t *>(src) +
-                                   (y * srcStride)),
-                           reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) +
-                                                        (y * dstStride)),
-                           width);
-                    } else if (pixelSize == 4) {
-                        const ScalableTag<uint32_t> df32;
-                        auto fn = Copy1Row<decltype(df32), uint32_t>;
-                        fn(df32,
-                           reinterpret_cast<const uint32_t *>(
-                                   reinterpret_cast<const uint8_t *>(src) + (y * srcStride)),
-                           reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(dst) +
-                                                        (y * dstStride)), width);
-                    }
-                }
-            });
-        }
-
-        for (std::thread &thread: workers) {
-            thread.join();
         }
     }
 }

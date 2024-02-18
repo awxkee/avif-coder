@@ -753,7 +753,7 @@ namespace coder {
 }
 
 void HDRTransferAdapter::transfer() {
-    auto maxColors = powf(2, (float) this->bitDepth) - 1;
+    auto maxColors = std::pow(2.f, (float) this->bitDepth) - 1;
     coder::ProcessCPUDispatcher(this->rgbaData, this->width, this->height, this->halfFloats,
                                 this->stride, maxColors, this->gammaCorrection,
                                 this->function, this->toneMapper, this->srcProfile,

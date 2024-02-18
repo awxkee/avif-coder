@@ -153,9 +153,9 @@ namespace coder::HWY_NAMESPACE {
         HWY_CODER_CMS_INLINE void convert(float &r, float &g, float &b) {
 #if __arm64
             float32x4_t v = { r, g, b, 0.0f };
-        r = vdot_f32(v, row1);
-        g = vdot_f32(v, row2);
-        b = vdot_f32(v, row3);
+            r = vdot_f32(v, row1);
+            g = vdot_f32(v, row2);
+            b = vdot_f32(v, row3);
 #else
             const float newR = matrix[0] * r + matrix[1] * g + matrix[2] * b;
             const float newG = matrix[3] * r + matrix[4] * g + matrix[5] * b;
