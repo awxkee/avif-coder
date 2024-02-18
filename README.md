@@ -11,8 +11,6 @@ Supported decoding in all necessary pixel formats in Android and avoids android 
 
 Image processing speeded up by [libhwy](https://github.com/google/highway)
 
-If `context` is provided to the coder HDR images tone mapping is done on [Vulkan](https://developer.android.com/ndk/guides/graphics/getting-started). If you prefer not to use GPU to do tone mapping set context to null
-
 # Usage example
 
 ```kotlin
