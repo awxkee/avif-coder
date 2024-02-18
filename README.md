@@ -6,7 +6,7 @@ Very fast and convinient to use AVIF in android apps with api version 24+. Based
 Correctly handles ICC, and color profiles and HDR images.
 Fully supports HDR images, 10, 12 bit. Preprocess image in tile to increase speed.
 Extremly fast in decoding large HDR images or just large images.
-The most features AVIF, HEIF library in android.
+The most featured AVIF, HEIF library in android.
 Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
 
 Image processing speeded up by [libhwy](https://github.com/google/highway)
@@ -41,13 +41,13 @@ repositories {
 ```
 
 ```groovy
-implementation 'com.github.awxkee:avif-coder:1.5.11' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder:1.5.12' // or any version above picker from release tags
 
 // Glide avif plugin if you need one
-implementation 'com.github.awxkee:avif-coder-glide:1.5.11' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-glide:1.5.12' // or any version above picker from release tags
 
 // Coil avif plugin if you need one
-implementation 'com.github.awxkee:avif-coder-coil:1.5.11' // or any version above picker from release tags
+implementation 'com.github.awxkee:avif-coder-coil:1.5.12' // or any version above picker from release tags
 ```
 
 # Also supports coil integration
