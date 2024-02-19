@@ -77,6 +77,5 @@ include_directories(icc)
 
 target_link_libraries( # Specifies the target library.
         coder
-        -static-openmp
         ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics
         libde265 libdav1d libsharpyuv ${android-lib})

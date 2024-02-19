@@ -81,17 +81,18 @@ namespace coder::HWY_NAMESPACE {
     void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                                uint8_t *dst, int dstStride, int width,
                                int height) {
-        const FixedTag<uint8_t, 16> du8x16;
-        const FixedTag<uint16_t, 8> du16x8;
-        const FixedTag<uint8_t, 8> du8x8;
-
-        using VU8x16 = Vec<decltype(du8x16)>;
-        using VU16x8 = Vec<decltype(du16x8)>;
-
-        VU16x8 mult255 = Set(du16x8, 255);
-
 #pragma omp parallel for num_threads(4) schedule(dynamic)
         for (int y = 0; y < height; ++y) {
+
+            const FixedTag<uint8_t, 16> du8x16;
+            const FixedTag<uint16_t, 8> du16x8;
+            const FixedTag<uint8_t, 8> du8x8;
+
+            using VU8x16 = Vec<decltype(du8x16)>;
+            using VU16x8 = Vec<decltype(du16x8)>;
+
+            VU16x8 mult255 = Set(du16x8, 255);
+
             auto mSrc = reinterpret_cast<const uint8_t *>(src + y * srcStride);
             auto mDst = reinterpret_cast<uint8_t *>(dst + y * dstStride);
 
@@ -191,17 +192,18 @@ namespace coder::HWY_NAMESPACE {
     void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                              uint8_t *dst, int dstStride, int width,
                              int height) {
-        const FixedTag<uint8_t, 16> du8x16;
-        const FixedTag<uint16_t, 8> du16x8;
-        const FixedTag<uint8_t, 8> du8x8;
-
-        using VU8x16 = Vec<decltype(du8x16)>;
-        using VU16x8 = Vec<decltype(du16x8)>;
-
-        VU16x8 mult255d2 = Set(du16x8, 255 / 2);
-
 #pragma omp parallel for num_threads(4) schedule(dynamic)
         for (int y = 0; y < height; ++y) {
+
+            const FixedTag<uint8_t, 16> du8x16;
+            const FixedTag<uint16_t, 8> du16x8;
+            const FixedTag<uint8_t, 8> du8x8;
+
+            using VU8x16 = Vec<decltype(du8x16)>;
+            using VU16x8 = Vec<decltype(du16x8)>;
+
+            VU16x8 mult255d2 = Set(du16x8, 255 / 2);
+
             auto mSrc = reinterpret_cast<const uint8_t *>(src + y * srcStride);
             auto mDst = reinterpret_cast<uint8_t *>(dst + y * dstStride);
 

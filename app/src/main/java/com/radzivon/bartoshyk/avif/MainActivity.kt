@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-//            allFiles = allFiles.filter { it.contains("test_avif.avif") }.toMutableList()
+            allFiles = allFiles.takeLast(4).toMutableList()
             for (file in allFiles) {
                 try {
                     val buffer = this@MainActivity.assets.open(file).source().buffer()
@@ -109,9 +109,10 @@ class MainActivity : AppCompatActivity() {
                                 buffer,
                                 if (size.width > 1800 || size.height > 1800) size.width / 2 else size.width,
                                 if (size.width > 1800 || size.height > 1800) size.height / 2 else size.height,
-                                PreferredColorConfig.HARDWARE,
+                                PreferredColorConfig.RGBA_8888,
                                 ScaleMode.RESIZE
                         )
+                        coder.encodeAvif(bitmap)
                         lifecycleScope.launch(Dispatchers.Main) {
                             val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
                             imageView.root.setImageBitmap(bitmap)
