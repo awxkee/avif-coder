@@ -1072,6 +1072,101 @@ HWY_API MFromD<DTo> OrderedDemote2MasksTo(DTo d_to, DFrom /*d_from*/,
                       MH{static_cast<RawMH>(a.raw)});
 }
 
+// ------------------------------ Slide mask up/down
+#ifdef HWY_NATIVE_SLIDE_MASK
+#undef HWY_NATIVE_SLIDE_MASK
+#else
+#define HWY_NATIVE_SLIDE_MASK
+#endif
+
+template <class D, HWY_IF_LANES_LE_D(D, 8)>
+HWY_API MFromD<D> SlideMask1Up(D d, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+  constexpr size_t kN = MaxLanes(d);
+  constexpr unsigned kValidLanesMask = (1u << kN) - 1u;
+
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  MFromD<D> result_mask{
+      static_cast<RawM>(_kshiftli_mask8(static_cast<__mmask8>(m.raw), 1))};
+
+  if (kN < 8) {
+    result_mask =
+        And(result_mask, MFromD<D>{static_cast<RawM>(kValidLanesMask)});
+  }
+#else
+  MFromD<D> result_mask{
+      static_cast<RawM>((static_cast<unsigned>(m.raw) << 1) & kValidLanesMask)};
+#endif
+
+  return result_mask;
+}
+
+template <class D, HWY_IF_LANES_D(D, 16)>
+HWY_API MFromD<D> SlideMask1Up(D /*d*/, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftli_mask16(static_cast<__mmask16>(m.raw), 1))};
+#else
+  return MFromD<D>{static_cast<RawM>(static_cast<unsigned>(m.raw) << 1)};
+#endif
+}
+
+template <class D, HWY_IF_LANES_LE_D(D, 8)>
+HWY_API MFromD<D> SlideMask1Down(D d, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+  constexpr size_t kN = MaxLanes(d);
+  constexpr unsigned kValidLanesMask = (1u << kN) - 1u;
+
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  if (kN < 8) {
+    m = And(m, MFromD<D>{static_cast<RawM>(kValidLanesMask)});
+  }
+
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftri_mask8(static_cast<__mmask8>(m.raw), 1))};
+#else
+  return MFromD<D>{
+      static_cast<RawM>((static_cast<unsigned>(m.raw) & kValidLanesMask) >> 1)};
+#endif
+}
+
+template <class D, HWY_IF_LANES_D(D, 16)>
+HWY_API MFromD<D> SlideMask1Down(D /*d*/, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftri_mask16(static_cast<__mmask16>(m.raw), 1))};
+#else
+  return MFromD<D>{
+      static_cast<RawM>((static_cast<unsigned>(m.raw) & 0xFFFFu) >> 1)};
+#endif
+}
+
+// Generic for all vector lengths
+template <class D>
+HWY_API MFromD<D> SlideMaskUpLanes(D d, MFromD<D> m, size_t amt) {
+  using RawM = decltype(MFromD<D>().raw);
+  constexpr size_t kN = MaxLanes(d);
+  constexpr uint64_t kValidLanesMask =
+      static_cast<uint64_t>(((kN < 64) ? (1ULL << kN) : 0ULL) - 1ULL);
+
+  return MFromD<D>{static_cast<RawM>(
+      (static_cast<uint64_t>(m.raw) << (amt & 63)) & kValidLanesMask)};
+}
+
+// Generic for all vector lengths
+template <class D>
+HWY_API MFromD<D> SlideMaskDownLanes(D d, MFromD<D> m, size_t amt) {
+  using RawM = decltype(MFromD<D>().raw);
+  constexpr size_t kN = MaxLanes(d);
+  constexpr uint64_t kValidLanesMask =
+      static_cast<uint64_t>(((kN < 64) ? (1ULL << kN) : 0ULL) - 1ULL);
+
+  return MFromD<D>{static_cast<RawM>(
+      (static_cast<uint64_t>(m.raw) & kValidLanesMask) >> (amt & 63))};
+}
+
 // ------------------------------ VecFromMask
 
 template <typename T, size_t N, HWY_IF_T_SIZE(T, 1)>
@@ -9065,6 +9160,21 @@ HWY_INLINE_F16 VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
 
 #endif  // HWY_NATIVE_F16C
 
+#if HWY_HAVE_FLOAT16
+
+#ifdef HWY_NATIVE_PROMOTE_F16_TO_F64
+#undef HWY_NATIVE_PROMOTE_F16_TO_F64
+#else
+#define HWY_NATIVE_PROMOTE_F16_TO_F64
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> PromoteTo(D /*tag*/, VFromD<Rebind<float16_t, D>> v) {
+  return VFromD<D>{_mm_cvtph_pd(v.raw)};
+}
+
+#endif  // HWY_HAVE_FLOAT16
+
 template <class D, HWY_IF_V_SIZE_LE_D(D, 16), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df32, VFromD<Rebind<bfloat16_t, D>> v) {
   const Rebind<uint16_t, decltype(df32)> du16;
@@ -9307,6 +9417,21 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 HWY_DIAGNOSTICS(pop)
 
 #endif  // F16C
+
+#if HWY_HAVE_FLOAT16
+
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+template <class D, HWY_IF_V_SIZE_LE_D(D, 4), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /*df16*/, VFromD<Rebind<double, D>> v) {
+  return VFromD<D>{_mm_cvtpd_ph(v.raw)};
+}
+
+#endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_LE_D(D, 8), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> DemoteTo(D dbf16, VFromD<Rebind<float, D>> v) {

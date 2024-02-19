@@ -3045,6 +3045,55 @@ HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<float, D>> v) {
 
 #endif  // HWY_NATIVE_F16C
 
+// ------------------------------ F64->F16 DemoteTo
+#if (defined(HWY_NATIVE_DEMOTE_F64_TO_F16) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_DEMOTE_F64_TO_F16
+#undef HWY_NATIVE_DEMOTE_F64_TO_F16
+#else
+#define HWY_NATIVE_DEMOTE_F64_TO_F16
+#endif
+
+#if HWY_HAVE_FLOAT64
+template <class D, HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D df16, VFromD<Rebind<double, D>> v) {
+  const Rebind<double, D> df64;
+  const Rebind<uint64_t, D> du64;
+  const Rebind<float, D> df32;
+
+  // The mantissa bits of v[i] are first rounded using round-to-odd rounding to
+  // the nearest F64 value that has the lower 29 bits zeroed out to ensure that
+  // the result is correctly rounded to a F16.
+
+  const auto vf64_rounded = OrAnd(
+      And(v,
+          BitCast(df64, Set(du64, static_cast<uint64_t>(0xFFFFFFFFE0000000u)))),
+      BitCast(df64, Add(BitCast(du64, v),
+                        Set(du64, static_cast<uint64_t>(0x000000001FFFFFFFu)))),
+      BitCast(df64, Set(du64, static_cast<uint64_t>(0x0000000020000000ULL))));
+
+  return DemoteTo(df16, DemoteTo(df32, vf64_rounded));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+#endif  // HWY_NATIVE_DEMOTE_F64_TO_F16
+
+// ------------------------------ F16->F64 PromoteTo
+#if (defined(HWY_NATIVE_PROMOTE_F16_TO_F64) == defined(HWY_TARGET_TOGGLE))
+#ifdef HWY_NATIVE_PROMOTE_F16_TO_F64
+#undef HWY_NATIVE_PROMOTE_F16_TO_F64
+#else
+#define HWY_NATIVE_PROMOTE_F16_TO_F64
+#endif
+
+#if HWY_HAVE_FLOAT64
+template <class D, HWY_IF_F64_D(D)>
+HWY_API VFromD<D> PromoteTo(D df64, VFromD<Rebind<float16_t, D>> v) {
+  return PromoteTo(df64, PromoteTo(Rebind<float, D>(), v));
+}
+#endif  // HWY_HAVE_FLOAT64
+
+#endif  // HWY_NATIVE_PROMOTE_F16_TO_F64
+
 // ------------------------------ SumsOf2
 
 #if HWY_TARGET != HWY_SCALAR
@@ -6293,6 +6342,37 @@ HWY_API VFromD<D> SlideDownBlocks(D d, VFromD<D> v) {
   return SlideDownLanes(d, v, static_cast<size_t>(kBlocks) * kLanesPerBlock);
 }
 #endif
+
+// ------------------------------ Slide mask up/down
+#if (defined(HWY_NATIVE_SLIDE_MASK) == defined(HWY_TARGET_TOGGLE))
+
+#ifdef HWY_NATIVE_SLIDE_MASK
+#undef HWY_NATIVE_SLIDE_MASK
+#else
+#define HWY_NATIVE_SLIDE_MASK
+#endif
+
+template <class D>
+HWY_API Mask<D> SlideMask1Up(D d, Mask<D> m) {
+  return MaskFromVec(Slide1Up(d, VecFromMask(d, m)));
+}
+
+template <class D>
+HWY_API Mask<D> SlideMask1Down(D d, Mask<D> m) {
+  return MaskFromVec(Slide1Down(d, VecFromMask(d, m)));
+}
+
+template <class D>
+HWY_API Mask<D> SlideMaskUpLanes(D d, Mask<D> m, size_t amt) {
+  return MaskFromVec(SlideUpLanes(d, VecFromMask(d, m), amt));
+}
+
+template <class D>
+HWY_API Mask<D> SlideMaskDownLanes(D d, Mask<D> m, size_t amt) {
+  return MaskFromVec(SlideDownLanes(d, VecFromMask(d, m), amt));
+}
+
+#endif  // HWY_NATIVE_SLIDE_MASK
 
 // ------------------------------ SumsOfAdjQuadAbsDiff
 

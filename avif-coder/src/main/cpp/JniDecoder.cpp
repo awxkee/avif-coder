@@ -204,7 +204,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         GammaCurve gammaCurve = sRGB;
         GamutTransferFunction function = SKIP;
 
-        const float gamma = 1.0f;
+        float gamma = 1.0f;
 
         if (nclx->transfer_characteristics ==
             heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
@@ -219,10 +219,12 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
             function = SKIP;
         } else if (nclx->transfer_characteristics ==
                    heif_transfer_characteristic_ITU_R_BT_470_6_System_M) {
-            function = Gamma2p2;
+            function = EOTF_GAMMA;
+            gamma = 2.2f;
         } else if (nclx->transfer_characteristics ==
                    heif_transfer_characteristic_ITU_R_BT_470_6_System_B_G) {
-            function = Gamma2p8;
+            function = EOTF_GAMMA;
+            gamma = 2.8f;
         } else if (nclx->transfer_characteristics ==
                    heif_transfer_characteristic_ITU_R_BT_601_6) {
             function = EOTF_BT601;

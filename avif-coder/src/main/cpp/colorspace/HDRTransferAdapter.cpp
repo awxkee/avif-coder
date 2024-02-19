@@ -55,6 +55,12 @@ namespace coder::HWY_NAMESPACE {
 
     static const float sdrReferencePoint = 203.0f;
 
+    float half_to_float(const uint16_t x) {
+        half f;
+        f.data_ = x;
+        return f;
+    }
+
     HWY_FAST_MATH_INLINE void
     TransferROWU16HFloats(uint16_t *data,
                           const GamutTransferFunction function,
@@ -63,9 +69,9 @@ namespace coder::HWY_NAMESPACE {
                           Eigen::Matrix3f *conversion,
                           const float gamma,
                           const bool useChromaticAdaptation) {
-        auto r = (float) half(data[0]);
-        auto g = (float) half(data[1]);
-        auto b = (float) half(data[2]);
+        auto r = (float) half_to_float(data[0]);
+        auto g = (float) half_to_float(data[1]);
+        auto b = (float) half_to_float(data[2]);
 
         const auto adopt = getBradfordAdaptation();
 
@@ -85,12 +91,8 @@ namespace coder::HWY_NAMESPACE {
                 g = SMPTE428Eotf(g);
                 b = SMPTE428Eotf(b);
                 break;
-            case Gamma2p2:
-            case Gamma2p8: {
-                float gammaValue = 2.2f;
-                if (function == Gamma2p8) {
-                    gammaValue = 2.8f;
-                }
+            case EOTF_GAMMA: {
+                float gammaValue = gamma;
                 r = gammaOtf(r, gammaValue);
                 g = gammaOtf(g, gammaValue);
                 b = gammaOtf(b, gammaValue);
@@ -213,15 +215,10 @@ namespace coder::HWY_NAMESPACE {
                 g = SMPTE428Eotf(g);
                 b = SMPTE428Eotf(b);
                 break;
-            case Gamma2p2:
-            case Gamma2p8: {
-                float gammaValue = 2.2f;
-                if (function == Gamma2p8) {
-                    gammaValue = 2.8f;
-                }
-                r = gammaOtf(r, gammaValue);
-                g = gammaOtf(g, gammaValue);
-                b = gammaOtf(b, gammaValue);
+            case EOTF_GAMMA: {
+                r = gammaOtf(r, gamma);
+                g = gammaOtf(g, gamma);
+                b = gammaOtf(b, gamma);
             }
                 break;
             case EOTF_BT601: {
@@ -284,40 +281,40 @@ namespace coder::HWY_NAMESPACE {
         }
 
         if (gammaCorrection == Rec2020) {
-            data[0] = (uint8_t) clamp((float) bt2020GammaCorrection(r * maxColors), 0.0f,
+            data[0] = (uint8_t) clamp((float) bt2020GammaCorrection(r) * maxColors, 0.0f,
                                       maxColors);
-            data[1] = (uint8_t) clamp((float) bt2020GammaCorrection(g * maxColors), 0.0f,
+            data[1] = (uint8_t) clamp((float) bt2020GammaCorrection(g) * maxColors, 0.0f,
                                       maxColors);
-            data[2] = (uint8_t) clamp((float) bt2020GammaCorrection(b * maxColors), 0.0f,
+            data[2] = (uint8_t) clamp((float) bt2020GammaCorrection(b) * maxColors, 0.0f,
                                       maxColors);
         } else if (gammaCorrection == DCIP3) {
-            data[0] = (uint8_t) clamp((float) dciP3PQGammaCorrection(r * maxColors), 0.0f,
+            data[0] = (uint8_t) clamp((float) dciP3PQGammaCorrection(r) * maxColors, 0.0f,
                                       maxColors);
-            data[1] = (uint8_t) clamp((float) dciP3PQGammaCorrection(g * maxColors), 0.0f,
+            data[1] = (uint8_t) clamp((float) dciP3PQGammaCorrection(g) * maxColors, 0.0f,
                                       maxColors);
-            data[2] = (uint8_t) clamp((float) dciP3PQGammaCorrection(b * maxColors), 0.0f,
+            data[2] = (uint8_t) clamp((float) dciP3PQGammaCorrection(b) * maxColors, 0.0f,
                                       maxColors);
         } else if (gammaCorrection == GAMMA) {
             const float gammaEval = 1.f / gamma;
-            data[0] = (uint8_t) clamp((float) gammaOtf(r * maxColors, gammaEval), 0.0f,
+            data[0] = (uint8_t) clamp((float) gammaOtf(r, gammaEval) * maxColors, 0.0f,
                                       maxColors);
-            data[1] = (uint8_t) clamp((float) gammaOtf(g * maxColors, gammaEval), 0.0f,
+            data[1] = (uint8_t) clamp((float) gammaOtf(g, gammaEval) * maxColors, 0.0f,
                                       maxColors);
-            data[2] = (uint8_t) clamp((float) gammaOtf(b * maxColors, gammaEval), 0.0f,
+            data[2] = (uint8_t) clamp((float) gammaOtf(b, gammaEval) * maxColors, 0.0f,
                                       maxColors);
         } else if (gammaCorrection == Rec709) {
-            data[0] = (uint8_t) clamp((float) LinearITUR709ToITUR709(r * maxColors), 0.0f,
+            data[0] = (uint8_t) clamp((float) LinearITUR709ToITUR709(r) * maxColors, 0.0f,
                                       maxColors);
-            data[1] = (uint8_t) clamp((float) LinearITUR709ToITUR709(g * maxColors), 0.0f,
+            data[1] = (uint8_t) clamp((float) LinearITUR709ToITUR709(g) * maxColors, 0.0f,
                                       maxColors);
-            data[2] = (uint8_t) clamp((float) LinearITUR709ToITUR709(b * maxColors), 0.0f,
+            data[2] = (uint8_t) clamp((float) LinearITUR709ToITUR709(b) * maxColors, 0.0f,
                                       maxColors);
         } else if (gammaCorrection == sRGB) {
-            data[0] = (uint8_t) clamp((float) LinearSRGBTosRGB(r * maxColors), 0.0f,
+            data[0] = (uint8_t) clamp((float) LinearSRGBTosRGB(r) * maxColors, 0.0f,
                                       maxColors);
-            data[1] = (uint8_t) clamp((float) LinearSRGBTosRGB(g * maxColors), 0.0f,
+            data[1] = (uint8_t) clamp((float) LinearSRGBTosRGB(g) * maxColors, 0.0f,
                                       maxColors);
-            data[2] = (uint8_t) clamp((float) LinearSRGBTosRGB(b * maxColors), 0.0f,
+            data[2] = (uint8_t) clamp((float) LinearSRGBTosRGB(b) * maxColors, 0.0f,
                                       maxColors);
         } else {
             data[0] = (uint8_t) clamp((float) r * maxColors, 0.0f, maxColors);
@@ -410,12 +407,8 @@ namespace coder::HWY_NAMESPACE {
                     pqHighG = SMPTE428Eotf(df32, gHigh32);
                     pqHighB = SMPTE428Eotf(df32, bHigh32);
                     break;
-                case Gamma2p2:
-                case Gamma2p8: {
-                    float gammaValue = 2.2f;
-                    if (function == Gamma2p8) {
-                        gammaValue = 2.8f;
-                    }
+                case EOTF_GAMMA: {
+                    const float gammaValue = gamma;
                     pqLowR = gammaOtf(df32, rLow32, gammaValue);
                     pqLowG = gammaOtf(df32, gLow32, gammaValue);
                     pqLowB = gammaOtf(df32, bLow32, gammaValue);
@@ -610,12 +603,8 @@ namespace coder::HWY_NAMESPACE {
                 pqG = SMPTE428Eotf(df32, G);
                 pqB = SMPTE428Eotf(df32, B);
                 break;
-            case Gamma2p2:
-            case Gamma2p8: {
-                float gammaValue = 2.2f;
-                if (function == Gamma2p8) {
-                    gammaValue = 2.8f;
-                }
+            case EOTF_GAMMA: {
+                const float gammaValue = gamma;
                 pqR = gammaOtf(df32, R, gammaValue);
                 pqG = gammaOtf(df32, G, gammaValue);
                 pqB = gammaOtf(df32, B, gammaValue);

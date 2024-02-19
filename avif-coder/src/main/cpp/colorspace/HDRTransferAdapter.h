@@ -39,7 +39,7 @@ enum GammaCurve {
 };
 
 enum GamutTransferFunction {
-    SKIP, PQ, HLG, SMPTE428, Gamma2p2, Gamma2p8, EOTF_BT601, EOTF_BT709, EOTF_SMPTE240,
+    SKIP, PQ, HLG, SMPTE428, EOTF_GAMMA, EOTF_BT601, EOTF_BT709, EOTF_SMPTE240,
     EOTF_LOG100, EOTF_LOG100SRT10, EOTF_IEC_61966, EOTF_BT1361
 };
 
@@ -56,7 +56,9 @@ public:
                        float gamma,
                        bool useChromaticAdaptation)
             : function(function),
-              gammaCorrection(gammaCorrection), bitDepth(bitDepth), halfFloats(halfFloats),
+              gammaCorrection(gammaCorrection),
+              bitDepth(bitDepth),
+              halfFloats(halfFloats),
               rgbaData(rgbaData),
               stride(stride),
               width(width),

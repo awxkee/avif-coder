@@ -2874,6 +2874,28 @@ HWY_API MFromD<D> UpperHalfOfMask(D /*d*/, MFromD<Twice<D>> m) {
   return MFromD<D>{static_cast<decltype(MFromD<D>().raw)>(shifted_mask)};
 }
 
+template <class D, HWY_IF_LANES_D(D, 64)>
+HWY_API MFromD<D> SlideMask1Up(D /*d*/, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftli_mask64(static_cast<__mmask64>(m.raw), 1))};
+#else
+  return MFromD<D>{static_cast<RawM>(static_cast<uint64_t>(m.raw) << 1)};
+#endif
+}
+
+template <class D, HWY_IF_LANES_D(D, 64)>
+HWY_API MFromD<D> SlideMask1Down(D /*d*/, MFromD<D> m) {
+  using RawM = decltype(MFromD<D>().raw);
+#if HWY_COMPILER_HAS_MASK_INTRINSICS
+  return MFromD<D>{
+      static_cast<RawM>(_kshiftri_mask64(static_cast<__mmask64>(m.raw), 1))};
+#else
+  return MFromD<D>{static_cast<RawM>(static_cast<uint64_t>(m.raw) >> 1)};
+#endif
+}
+
 // ------------------------------ BroadcastSignBit (ShiftRight, compare, mask)
 
 HWY_API Vec512<int8_t> BroadcastSignBit(Vec512<int8_t> v) {
@@ -5349,6 +5371,15 @@ HWY_API VFromD<D> PromoteTo(D /* tag */, Vec256<float16_t> v) {
 #endif  // HWY_HAVE_FLOAT16
 }
 
+#if HWY_HAVE_FLOAT16
+
+template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F64_D(D)>
+HWY_INLINE VFromD<D> PromoteTo(D /*tag*/, Vec128<float16_t> v) {
+  return VFromD<D>{_mm512_cvtph_pd(v.raw)};
+}
+
+#endif  // HWY_HAVE_FLOAT16
+
 template <class D, HWY_IF_V_SIZE_D(D, 64), HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df32, Vec256<bfloat16_t> v) {
   const Rebind<uint16_t, decltype(df32)> du16;
@@ -5529,6 +5560,13 @@ HWY_API VFromD<D> DemoteTo(D df16, Vec512<float> v) {
       df16, VFromD<decltype(du16)>{_mm512_cvtps_ph(v.raw, _MM_FROUND_NO_EXC)});
   HWY_DIAGNOSTICS(pop)
 }
+
+#if HWY_HAVE_FLOAT16
+template <class D, HWY_IF_V_SIZE_D(D, 16), HWY_IF_F16_D(D)>
+HWY_API VFromD<D> DemoteTo(D /*df16*/, Vec512<double> v) {
+  return VFromD<D>{_mm512_cvtpd_ph(v.raw)};
+}
+#endif  // HWY_HAVE_FLOAT16
 
 template <class D, HWY_IF_V_SIZE_D(D, 32), HWY_IF_BF16_D(D)>
 HWY_API VFromD<D> DemoteTo(D dbf16, Vec512<float> v) {
