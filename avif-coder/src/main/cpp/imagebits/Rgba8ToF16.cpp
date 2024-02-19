@@ -30,6 +30,7 @@
 #include <thread>
 #include <vector>
 #include "half.hpp"
+#include "concurrency.hpp"
 
 using namespace std;
 using namespace half_float;
@@ -232,13 +233,11 @@ namespace coder::HWY_NAMESPACE {
 
         const float scale = 1.0f / float(pow(2, bitDepth) - 1);
 
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
-            Rgba8ToF16HWYRow(
-                    reinterpret_cast<const uint8_t *>(mSrc + y * srcStride),
+        concurrency::parallel_for(2, height, [&](int y) {
+            Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc + y * srcStride),
                     reinterpret_cast<uint16_t *>(mDst + y * dstStride), width,
                     scale, permuteMap, attenuateAlpha);
-        }
+        });
 
     }
 }

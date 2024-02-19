@@ -32,6 +32,7 @@
 #include <vector>
 #include <thread>
 #include <android/log.h>
+#include "concurrency.hpp"
 
 using namespace std;
 
@@ -326,7 +327,6 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
 
     int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
                                 height * width / (256 * 256)), 1, 12);
-    std::vector<std::thread> workers;
 
     int segmentHeight = height / threadCount;
 
@@ -334,13 +334,12 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     auto mInputBuffer = srcVector.data();
     auto mTransform = ptrTransform.get();
 
-#pragma omp parallel for num_threads(6) schedule(dynamic)
-    for (int y = 0; y < height; ++y) {
+    concurrency::parallel_for(6, height, [&](int y) {
         cmsDoTransformLineStride(mTransform,
                                  mInputBuffer + stride * y,
                                  mOutputBuffer + dstStride * y, width, 1,
                                  stride, stride, 0, 0);
-    }
+    });
 
     srcVector = iccARGB;
     *newStride = dstStride;

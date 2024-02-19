@@ -27,6 +27,7 @@
  */
 
 #include "RgbaU16toHF.h"
+#include "concurrency.hpp"
 
 using namespace std;
 
@@ -100,14 +101,13 @@ namespace coder::HWY_NAMESPACE {
                         const int height, const int bitDepth) {
         const float scale = 1.0f / (pow(2.0f, static_cast<float>(bitDepth)) - 1.0f);
 
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
+        concurrency::parallel_for(2, height, [&](int y) {
             RgbaU16ToFHWYRow(
                     reinterpret_cast<const uint16_t *>(reinterpret_cast<const uint8_t *>(src) +
                                                        y * srcStride),
                     reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) + y * dstStride),
                     width, scale);
-        }
+        });
     }
 }
 

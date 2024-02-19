@@ -31,6 +31,7 @@
 #include <thread>
 #include "imagebits/half.hpp"
 #include "Eigen/Eigen"
+#include "concurrency.hpp"
 
 using namespace half_float;
 using namespace std;
@@ -878,13 +879,12 @@ namespace coder::HWY_NAMESPACE {
                              Eigen::Matrix3f *conversion,
                              const float gamma,
                              const bool useChromaticAdaptation) {
-#pragma omp parallel for num_threads(7) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
+        concurrency::parallel_for(6, height, [&](int y) {
             ProcessCPURowHWY(data, y, halfFloats,
                              stride, width, maxColors, gammaCorrection,
                              function, curveToneMapper, conversion, gamma,
                              useChromaticAdaptation);
-        }
+        });
     }
 }
 

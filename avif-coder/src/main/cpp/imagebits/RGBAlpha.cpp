@@ -27,6 +27,7 @@
  */
 
 #include "RGBAlpha.h"
+#include "concurrency.hpp"
 
 using namespace std;
 
@@ -81,9 +82,7 @@ namespace coder::HWY_NAMESPACE {
     void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                                uint8_t *dst, int dstStride, int width,
                                int height) {
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
-
+        concurrency::parallel_for(2, height, [&]( int y) {
             const FixedTag<uint8_t, 16> du8x16;
             const FixedTag<uint16_t, 8> du16x8;
             const FixedTag<uint8_t, 8> du8x8;
@@ -146,7 +145,7 @@ namespace coder::HWY_NAMESPACE {
                 mSrc += 4;
                 mDst += 4;
             }
-        }
+        });
     }
 
     template<typename D, typename I = Vec<D>>
@@ -192,9 +191,7 @@ namespace coder::HWY_NAMESPACE {
     void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                              uint8_t *dst, int dstStride, int width,
                              int height) {
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
-
+        concurrency::parallel_for(2, height, [&](int y) {
             const FixedTag<uint8_t, 16> du8x16;
             const FixedTag<uint16_t, 8> du16x8;
             const FixedTag<uint8_t, 8> du8x8;
@@ -233,7 +230,7 @@ namespace coder::HWY_NAMESPACE {
                 mSrc += 4;
                 mDst += 4;
             }
-        }
+        });
     }
 }
 

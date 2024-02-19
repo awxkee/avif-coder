@@ -63,7 +63,9 @@ add_definitions(-DCMS_NO_REGISTER_KEYWORD -DSTB_IMAGE_RESIZE_IMPLEMENTATION)
 
 set(CMAKE_ANDROID_API_MIN 24)
 
-target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv ${CMAKE_SOURCE_DIR}/colorspace)
+target_include_directories(coder PRIVATE ${CMAKE_SOURCE_DIR}/libheif
+        ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libyuv
+        ${CMAKE_SOURCE_DIR}/colorspace ${CMAKE_SOURCE_DIR}/algo)
 
 find_library( # Sets the name of the path variable.
         log-lib

@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <thread>
 #include <vector>
+#include "concurrency.hpp"
 
 using namespace std;
 
@@ -175,13 +176,11 @@ namespace coder::HWY_NAMESPACE {
 
         const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
-            RGBAF16BitToNBitRowU8(
-                    reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
+        concurrency::parallel_for(2, height, [&](int y) {
+            RGBAF16BitToNBitRowU8(reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
                     reinterpret_cast<uint8_t *>(mDst + y * dstStride), width, scale,
                     maxColors, attenuateAlpha);
-        }
+        });
     }
 }
 

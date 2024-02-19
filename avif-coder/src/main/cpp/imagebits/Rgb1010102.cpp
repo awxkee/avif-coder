@@ -31,6 +31,7 @@
 #include <thread>
 #include <algorithm>
 #include "half.hpp"
+#include "concurrency.hpp"
 
 using namespace std;
 
@@ -372,16 +373,11 @@ namespace coder::HWY_NAMESPACE {
         auto src = reinterpret_cast<const uint8_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
 
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
-            Rgba8ToRGBA1010102HWYRow(reinterpret_cast<const uint8_t *>(src +
-                                                                       srcStride *
-                                                                       y),
-                                     reinterpret_cast<uint32_t *>(dst +
-                                                                  dstStride *
-                                                                  y),
+        concurrency::parallel_for(2, height, [&](int y) {
+            Rgba8ToRGBA1010102HWYRow(reinterpret_cast<const uint8_t *>(src + srcStride * y),
+                                     reinterpret_cast<uint32_t *>(dst + dstStride * y),
                                      width, &permuteMap[0], attenuateAlpha);
-        }
+        });
     }
 
     void
@@ -395,15 +391,11 @@ namespace coder::HWY_NAMESPACE {
         auto src = reinterpret_cast<const uint8_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
 
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-        for (int y = 0; y < height; ++y) {
-            F16ToRGBA1010102HWYRow(reinterpret_cast<const uint16_t *>(src +
-                                                                      srcStride *
-                                                                      y),
-                                   reinterpret_cast<uint32_t *>(dst +
-                                                                dstStride * y),
+        concurrency::parallel_for(2, height, [&](int y) {
+            F16ToRGBA1010102HWYRow(reinterpret_cast<const uint16_t *>(src + srcStride * y),
+                                   reinterpret_cast<uint32_t *>(dst + dstStride * y),
                                    width, &permuteMap[0]);
-        }
+        });
     }
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)

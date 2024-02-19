@@ -29,6 +29,7 @@
 #include "RgbaF16bitToNBitU16.h"
 #include "half.hpp"
 #include <algorithm>
+#include "concurrency.hpp"
 
 using namespace std;
 
@@ -46,7 +47,6 @@ void RGBAF16BitToNU16NEON(const uint16_t *sourceData, int srcStride, uint16_t *d
     auto maxValue = vdupq_n_f32((float) maxColors);
     auto minValue = vdupq_n_f32(0);
 
-    #pragma omp parallel for num_threads(4) schedule(dynamic)
     for (int y = 0; y < height; ++y) {
         auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
         auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
@@ -105,8 +105,7 @@ void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
     const float scale = 1.0f / float((1 << bitDepth) - 1);
     const float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
 
-#pragma omp parallel for num_threads(4) schedule(dynamic)
-    for (int y = 0; y < height; ++y) {
+    concurrency::parallel_for(2, height, [&](int y) {
         auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
         auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
         for (int x = 0; x < width; ++x) {
@@ -127,7 +126,7 @@ void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
 
         srcData += srcStride;
         data64Ptr += dstStride;
-    }
+    });
 }
 
 void
