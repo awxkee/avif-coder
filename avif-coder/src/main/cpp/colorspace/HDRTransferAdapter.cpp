@@ -784,7 +784,7 @@ namespace coder::HWY_NAMESPACE {
                                     recProcColors);
             VF32 gHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, upperG16)),
                                     recProcColors);
-            VF32 bHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, lowB16)),
+            VF32 bHigherLow32 = Mul(ConvertTo(rebind32, PromoteLowerTo(du32, upperB16)),
                                     recProcColors);
 
             TransferU8Row(df32, gammaCorrection, function, toneMapper.get(), rHigherLow32,
