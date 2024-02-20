@@ -71,6 +71,7 @@ for abi in ${ABI_LIST}; do
     -DLIBSHARPYUV_LIBRARY=../../libwebp/build-${abi}/libsharpyuv.a \
     -DENABLE_MULTITHREADING_SUPPORT=TRUE \
     -DENABLE_PARALLEL_TILE_DECODING=TRUE \
+    -DBUILD_TESTING=OFF \
     -DANDROID_ABI=${abi}
   ninja
   cd ..

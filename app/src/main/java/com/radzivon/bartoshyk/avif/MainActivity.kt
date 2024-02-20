@@ -98,9 +98,9 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-//            allFiles = allFiles.takeLast(4).toMutableList()
             for (file in allFiles) {
                 try {
+                    Log.d("AVIF", "start processing $file")
                     val buffer = this@MainActivity.assets.open(file).source().buffer()
                             .readByteArray()
                     val size = coder.getSize(buffer)
