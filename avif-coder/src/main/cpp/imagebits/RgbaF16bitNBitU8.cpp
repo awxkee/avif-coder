@@ -73,7 +73,7 @@ namespace coder::HWY_NAMESPACE {
 
     inline __attribute__((flatten)) Vec<FixedTag<uint8_t, 8>>
     ConvertRow(Vec<FixedTag<uint16_t, 8>> v, const float maxColors) {
-        FixedTag<float16_t, 4> df16;
+        FixedTag<hwy::float16_t, 4> df16;
         FixedTag<uint16_t, 4> dfu416;
         FixedTag<uint8_t, 8> du8;
         Rebind<float, decltype(df16)> rf32;
@@ -83,7 +83,7 @@ namespace coder::HWY_NAMESPACE {
         using VU8 = Vec<decltype(du8)>;
 
         const auto minColors = Zero(rf32);
-        const auto vMaxColors = Set(rf32, (float) maxColors);
+        const auto vMaxColors = Set(rf32, maxColors);
 
         auto lower = DemoteTo(ru8, ConvertTo(ri32,
                                              ClampRound(rf32, Mul(
@@ -112,7 +112,7 @@ namespace coder::HWY_NAMESPACE {
         using VU8 = Vec<decltype(du8)>;
 
         int x = 0;
-        int pixels = 8;
+        const int pixels = 8;
 
         auto src = reinterpret_cast<const uint16_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
@@ -144,10 +144,10 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            auto tmpR = (uint8_t) clamp(round(LoadHalf(src[0]) * maxColors), 0.0f, maxColors);
-            auto tmpG = (uint8_t) clamp(round(LoadHalf(src[1]) * maxColors), 0.0f, maxColors);
-            auto tmpB = (uint8_t) clamp(round(LoadHalf(src[2]) * maxColors), 0.0f, maxColors);
-            auto tmpA = (uint8_t) clamp(round(LoadHalf(src[3]) * maxColors), 0.0f, maxColors);
+            auto tmpR = (uint8_t) std::clamp(std::roundf(LoadHalf(src[0]) * maxColors), 0.0f, maxColors);
+            auto tmpG = (uint8_t) std::clamp(std::roundf(LoadHalf(src[1]) * maxColors), 0.0f, maxColors);
+            auto tmpB = (uint8_t) std::clamp(std::roundf(LoadHalf(src[2]) * maxColors), 0.0f, maxColors);
+            auto tmpA = (uint8_t) std::clamp(std::roundf(LoadHalf(src[3]) * maxColors), 0.0f, maxColors);
 
             if (attenuateAlpha) {
                 tmpR = (tmpR * tmpA + 127) / 255;
@@ -169,7 +169,7 @@ namespace coder::HWY_NAMESPACE {
                             uint8_t *dst, int dstStride, int width,
                             int height, int bitDepth, const bool attenuateAlpha) {
 
-        float maxColors = powf(2, (float) bitDepth) - 1;
+        const float maxColors = powf(2, (float) bitDepth) - 1;
 
         auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
         auto mDst = reinterpret_cast<uint8_t *>(dst);

@@ -208,10 +208,10 @@ namespace coder::HWY_NAMESPACE {
                 b = (b * alpha + 127) / 255;
             }
 
-            uint16_t tmpR = (uint16_t) half((float) (r) * scale).data_;
-            uint16_t tmpG = (uint16_t) half((float) (g) * scale).data_;
-            uint16_t tmpB = (uint16_t) half((float) (b) * scale).data_;
-            uint16_t tmpA = (uint16_t) half((float) (alpha) * scale).data_;
+            uint16_t tmpR = (uint16_t) half(static_cast<float>(r) * scale).data_;
+            uint16_t tmpG = (uint16_t) half(static_cast<float>(g) * scale).data_;
+            uint16_t tmpB = (uint16_t) half(static_cast<float>(b) * scale).data_;
+            uint16_t tmpA = (uint16_t) half(static_cast<float>(alpha) * scale).data_;
 
             uint16_t clr[4] = {tmpR, tmpG, tmpB, tmpA};
 
@@ -231,7 +231,7 @@ namespace coder::HWY_NAMESPACE {
         auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
         auto mDst = reinterpret_cast<uint8_t *>(dst);
 
-        const float scale = 1.0f / float(pow(2, bitDepth) - 1);
+        const float scale = 1.0f / float(std::powf(2.f, bitDepth) - 1.f);
 
         concurrency::parallel_for(2, height, [&](int y) {
             Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc + y * srcStride),

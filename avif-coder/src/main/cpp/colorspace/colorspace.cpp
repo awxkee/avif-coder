@@ -160,7 +160,7 @@ cmsToneCurve *createGammaToneCurve(double gamma) {
     // Calculate the gamma-corrected values and store them in the table
     for (int i = 0; i < numEntries; ++i) {
         double input = static_cast<double>(i) / (numEntries - 1);
-        double output = std::pow(input, 1.0 / gamma);
+        double output = std::powf(input, 1.0 / gamma);
         values[i] = static_cast<float>(output);
     }
 

@@ -28,7 +28,6 @@
 
 #include <android/log.h>
 #include "IccRecognizer.h"
-#include "LinearExtendedRec2020.h"
 
 void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
                   std::shared_ptr<heif_image> &image,
@@ -61,12 +60,6 @@ void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
             } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_709_5 &&
                        transfer == heif_transfer_characteristic_ITU_R_BT_709_5) {
                 colorSpaceName = "BT709";
-            } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_2020_2_and_2100_0 &&
-                       transfer == heif_transfer_characteristic_linear) {
-                iccProfile.resize(sizeof(linearExtendedBT2020));
-                std::copy(&linearExtendedBT2020[0],
-                          &linearExtendedBT2020[0] + sizeof(linearExtendedBT2020),
-                          iccProfile.begin());
             } else if ((transfer == heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
                         transfer == heif_transfer_characteristic_ITU_R_BT_2020_2_12bit)) {
                 colorSpaceName = "BT2020";

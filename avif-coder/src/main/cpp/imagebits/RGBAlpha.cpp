@@ -41,25 +41,11 @@ HWY_BEFORE_NAMESPACE();
 
 namespace coder::HWY_NAMESPACE {
 
-    using hwy::HWY_NAMESPACE::Vec;
-    using hwy::HWY_NAMESPACE::FixedTag;
-    using hwy::HWY_NAMESPACE::Min;
-    using hwy::HWY_NAMESPACE::LoadInterleaved4;
-    using hwy::HWY_NAMESPACE::StoreInterleaved4;
-    using hwy::HWY_NAMESPACE::PromoteLowerTo;
-    using hwy::HWY_NAMESPACE::PromoteUpperTo;
-    using hwy::HWY_NAMESPACE::DemoteTo;
-    using hwy::HWY_NAMESPACE::Combine;
-    using hwy::HWY_NAMESPACE::Min;
-    using hwy::HWY_NAMESPACE::Add;
-    using hwy::HWY_NAMESPACE::ShiftRight;
-    using hwy::HWY_NAMESPACE::Rebind;
-    using hwy::HWY_NAMESPACE::Div;
-    using hwy::HWY_NAMESPACE::ConvertTo;
-    using hwy::HWY_NAMESPACE::ApproximateReciprocal;
+    using namespace hwy;
+    using namespace hwy::HWY_NAMESPACE;
 
     template<typename D, typename I = Vec<D>>
-    inline __attribute__((flatten)) I
+    HWY_INLINE HWY_FLATTEN I
     RearrangeVec(D df, I vec) {
         const FixedTag<uint16_t, 4> du16x4;
         const FixedTag<uint32_t, 4> du32x4;
@@ -79,10 +65,36 @@ namespace coder::HWY_NAMESPACE {
                                                                   mult255)))));
     }
 
+    HWY_INLINE HWY_FLATTEN Vec<FixedTag<uint16_t, 8>>
+    RearrangeVecAlpha(Vec<FixedTag<uint16_t, 8>> vec, Vec<FixedTag<uint16_t, 8>> alphas) {
+        const FixedTag<uint16_t, 8> du16x8;
+        const FixedTag<uint16_t, 4> du16x4;
+        const FixedTag<uint32_t, 4> du32x4;
+        const FixedTag<float, 4> df32x4;
+        Rebind<int32_t, decltype(df32x4)> ru32;
+        using VF32 = Vec<decltype(df32x4)>;
+        const auto ones = Set(df32x4, 1.0f);
+        const auto zeros = Zero(df32x4);
+        VF32 lowDiv = ConvertTo(df32x4, PromoteLowerTo(du32x4, alphas));
+        VF32 highDiv = ConvertTo(df32x4, PromoteUpperTo(du32x4, alphas));
+        lowDiv = IfThenElse(lowDiv == zeros, ones, lowDiv);
+        highDiv = IfThenElse(highDiv == zeros, ones, highDiv);
+        return Combine(du16x8, DemoteTo(du16x4, ConvertTo(ru32, Round(Div(ConvertTo(df32x4,
+                                                                                    PromoteUpperTo(
+                                                                                            du32x4,
+                                                                                            vec)),
+                                                                          highDiv)))),
+                       DemoteTo(du16x4, ConvertTo(ru32, Round(Div(ConvertTo(df32x4,
+                                                                            PromoteLowerTo(
+                                                                                    du32x4,
+                                                                                    vec)),
+                                                                  lowDiv)))));
+    }
+
     void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                                uint8_t *dst, int dstStride, int width,
                                int height) {
-        concurrency::parallel_for(2, height, [&]( int y) {
+        concurrency::parallel_for(2, height, [&](int y) {
             const FixedTag<uint8_t, 16> du8x16;
             const FixedTag<uint16_t, 8> du16x8;
             const FixedTag<uint8_t, 8> du8x8;
@@ -96,7 +108,7 @@ namespace coder::HWY_NAMESPACE {
             auto mDst = reinterpret_cast<uint8_t *>(dst + y * dstStride);
 
             int x = 0;
-            int pixels = 16;
+            const int pixels = 16;
 
             for (; x + pixels < width; x += pixels) {
                 VU8x16 r8, g8, b8, a8;
@@ -108,11 +120,11 @@ namespace coder::HWY_NAMESPACE {
                 VU16x8 bLow = PromoteLowerTo(du16x8, b8);
                 auto lowADivider = ShiftRight<1>(aLow);
                 VU16x8 tmp = Add(Mul(Min(rLow, aLow), mult255), lowADivider);
-                rLow = RearrangeVec(du16x8, tmp);
+                rLow = RearrangeVecAlpha(tmp, aLow);
                 tmp = Add(Mul(Min(gLow, aLow), mult255), lowADivider);
-                gLow = RearrangeVec(du16x8, tmp);
+                gLow = RearrangeVecAlpha(tmp, aLow);
                 tmp = Add(Mul(Min(bLow, aLow), mult255), lowADivider);
-                bLow = RearrangeVec(du16x8, tmp);
+                bLow = RearrangeVecAlpha(tmp, aLow);
 
                 VU16x8 aHigh = PromoteUpperTo(du16x8, a8);
                 VU16x8 rHigh = PromoteUpperTo(du16x8, r8);
@@ -120,11 +132,11 @@ namespace coder::HWY_NAMESPACE {
                 VU16x8 bHigh = PromoteUpperTo(du16x8, b8);
                 auto highADivider = ShiftRight<1>(aHigh);
                 tmp = Add(Mul(Min(rHigh, aHigh), mult255), highADivider);
-                rHigh = RearrangeVec(du16x8, tmp);
+                rHigh = RearrangeVecAlpha(tmp, aHigh);
                 tmp = Add(Mul(Min(gHigh, aHigh), mult255), highADivider);
-                gHigh = RearrangeVec(du16x8, tmp);
+                gHigh = RearrangeVecAlpha(tmp, aHigh);
                 tmp = Add(Mul(Min(bHigh, aHigh), mult255), highADivider);
-                bHigh = RearrangeVec(du16x8, tmp);
+                bHigh = RearrangeVecAlpha(tmp, aHigh);
 
                 r8 = Combine(du8x16, DemoteTo(du8x8, rHigh), DemoteTo(du8x8, rLow));
                 g8 = Combine(du8x16, DemoteTo(du8x8, gHigh), DemoteTo(du8x8, gLow));
@@ -138,9 +150,11 @@ namespace coder::HWY_NAMESPACE {
 
             for (; x < width; ++x) {
                 uint8_t alpha = mSrc[3];
-                mDst[0] = (min(mSrc[0], alpha) * 255 + alpha / 2) / alpha;
-                mDst[1] = (min(mSrc[1], alpha) * 255 + alpha / 2) / alpha;
-                mDst[2] = (min(mSrc[2], alpha) * 255 + alpha / 2) / alpha;
+                if (alpha != 0) {
+                    mDst[0] = (std::min(mSrc[0], alpha) * 255 + alpha / 2) / alpha;
+                    mDst[1] = (std::min(mSrc[1], alpha) * 255 + alpha / 2) / alpha;
+                    mDst[2] = (std::min(mSrc[2], alpha) * 255 + alpha / 2) / alpha;
+                }
                 mDst[3] = alpha;
                 mSrc += 4;
                 mDst += 4;

@@ -26,6 +26,14 @@
  *
  */
 
+#undef HWY_TARGET_INCLUDE
+#define HWY_TARGET_INCLUDE "imagebits/RgbaF16bitToNBitU16.cpp"
+
+#include "hwy/foreach_target.h"
+#include "hwy/highway.h"
+
+#include "algo/math-inl.h"
+#include "attenuate-inl.h"
 #include "RgbaF16bitToNBitU16.h"
 #include "half.hpp"
 #include <algorithm>
@@ -33,109 +41,123 @@
 
 using namespace std;
 
-#if HAVE_NEON
+HWY_BEFORE_NAMESPACE();
+namespace coder::HWY_NAMESPACE {
 
-#include <arm_neon.h>
+    using namespace hwy::HWY_NAMESPACE;
 
-void RGBAF16BitToNU16NEON(const uint16_t *sourceData, int srcStride, uint16_t *dst, int dstStride,
-                          int width, int height, int bitDepth) {
-    auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
-    auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
-    const float scale = 1.0f / float((1 << bitDepth) - 1);
-    auto vectorScale = vdupq_n_f32(scale);
-    float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
-    auto maxValue = vdupq_n_f32((float) maxColors);
-    auto minValue = vdupq_n_f32(0);
+    void
+    RGBAF16BitToNU16HWY(const uint16_t *sourceData, int srcStride, uint16_t *dst, int dstStride,
+                        int width, int height, int bitDepth) {
+        auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
+        auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
+        const float maxColors = std::powf(2.0f, static_cast<float>(bitDepth)) - 1.f;
 
-    for (int y = 0; y < height; ++y) {
-        auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
-        auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
-        int x;
-        for (x = 0; x + 2 < width; x += 2) {
-            float16x8_t neonSrc = vld1q_f16(reinterpret_cast<const __fp16 *>(srcPtr));
+        const FixedTag<hwy::float16_t, 8> df16;
 
-            float32x4_t neonFloat32_1 = vminq_f32(
-                    vmaxq_f32(vdivq_f32(vcvt_f32_f16(vget_low_f16(neonSrc)), vectorScale),
-                              minValue), maxValue);
-            float32x4_t neonFloat32_2 = vminq_f32(
-                    vmaxq_f32(vdivq_f32(vcvt_f32_f16(vget_high_f16(neonSrc)), vectorScale),
-                              minValue), maxValue);
+        const FixedTag<hwy::float32_t, 4> df;
+        const FixedTag<uint16_t, 8> dfu16;
+        const FixedTag<uint16_t, 4> dfu16x4;
+        const FixedTag<uint32_t, 4> du;
 
-            uint32x4_t neonSigned1 = vcvtq_u32_f32(neonFloat32_1);
-            uint32x4_t neonSigned2 = vcvtq_u32_f32(neonFloat32_2);
+        using VF16 = Vec<decltype(df16)>;
+        using VF = Vec<decltype(df)>;
+        using VU = Vec<decltype(dfu16)>;
 
-            uint16x4_t neonUInt16_1 = vqmovn_u32(neonSigned1);
-            uint16x4_t neonUInt16_2 = vqmovn_u32(neonSigned2);
+        const VF zeros = Zero(df);
+        const VF vMaxColors = Set(df, maxColors);
 
-            vst1_u16(dstPtr, neonUInt16_1);
-            vst1_u16(dstPtr + 4, neonUInt16_2);
+        for (int y = 0; y < height; ++y) {
+            auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
+            auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
+            int x = 0;
+            for (; x + 2 < width; x += 2) {
+                VF16 uPixels = LoadU(df16, reinterpret_cast<const hwy::float16_t *>(srcPtr));
 
-            srcPtr += 8;
-            dstPtr += 8;
+                auto low = Clamp(Mul(PromoteLowerTo(df, uPixels), vMaxColors), zeros, vMaxColors);
+                auto high = Clamp(Mul(PromoteUpperTo(df, uPixels), vMaxColors), zeros, vMaxColors);
+                auto df16Pixels = Combine(dfu16,
+                                          DemoteTo(dfu16x4, ConvertTo(du, high)),
+                                          DemoteTo(dfu16x4, ConvertTo(du, low)));
+
+                StoreU(df16Pixels, dfu16, dstPtr);
+                srcPtr += 8;
+                dstPtr += 8;
+            }
+
+            for (; x < width; ++x) {
+                auto tmpR = (uint16_t) std::clamp(std::roundf(LoadHalf(srcPtr[0]) * maxColors),
+                                                  0.0f, maxColors);
+                auto tmpG = (uint16_t) std::clamp(std::roundf(LoadHalf(srcPtr[1]) * maxColors),
+                                                  0.0f, maxColors);
+                auto tmpB = (uint16_t) std::clamp(std::roundf(LoadHalf(srcPtr[2]) * maxColors),
+                                                  0.0f, maxColors);
+                auto tmpA = (uint16_t) std::clamp(std::roundf(LoadHalf(srcPtr[3]) * maxColors),
+                                                  0.0f, maxColors);
+
+                dstPtr[0] = tmpR;
+                dstPtr[1] = tmpG;
+                dstPtr[2] = tmpB;
+                dstPtr[3] = tmpA;
+
+                srcPtr += 4;
+                dstPtr += 4;
+            }
+
+            srcData += srcStride;
+            data64Ptr += dstStride;
         }
-
-        for (; x < width; ++x) {
-            auto alpha = LoadHalf(srcPtr[3]);
-            auto tmpR = (uint16_t) clamp(LoadHalf(srcPtr[0]) * maxColors, 0.0f, maxColors);
-            auto tmpG = (uint16_t) clamp(LoadHalf(srcPtr[1]) * maxColors, 0.0f, maxColors);
-            auto tmpB = (uint16_t) clamp(LoadHalf(srcPtr[2]) * maxColors, 0.0f, maxColors);
-            auto tmpA = (uint16_t) clamp((alpha / scale), 0.0f, maxColors);
-
-            dstPtr[0] = tmpR;
-            dstPtr[1] = tmpG;
-            dstPtr[2] = tmpB;
-            dstPtr[3] = tmpA;
-
-            srcPtr += 4;
-            dstPtr += 4;
-        }
-
-        srcData += srcStride;
-        data64Ptr += dstStride;
     }
-}
 
+}
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+namespace coder {
+    HWY_EXPORT(RGBAF16BitToNU16HWY);
+
+    void
+    RGBAF16BitToNBitU16(const uint16_t *sourceData, int srcStride, uint16_t *dst, int dstStride,
+                        int width,
+                        int height, int bitDepth) {
+        HWY_DYNAMIC_DISPATCH(RGBAF16BitToNU16HWY)(sourceData, srcStride, dst, dstStride, width,
+                                                  height, bitDepth);
+    }
+
+    void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
+                           uint16_t *dst, int dstStride, int width,
+                           int height, int bitDepth) {
+        auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
+        auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
+        const float scale = 1.0f / float((1 << bitDepth) - 1);
+        const float maxColors = (float) std::powf(2.0f, static_cast<float>(bitDepth)) - 1.f;
+
+        concurrency::parallel_for(2, height, [&](int y) {
+            auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
+            auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
+            for (int x = 0; x < width; ++x) {
+                auto alpha = LoadHalf(srcPtr[3]);
+                auto tmpR = static_cast<uint16_t>(std::clamp(LoadHalf(srcPtr[0]) * maxColors, 0.0f,
+                                                             maxColors));
+                auto tmpG = static_cast<uint16_t>(std::clamp(LoadHalf(srcPtr[1]) * maxColors, 0.0f,
+                                                             maxColors));
+                auto tmpB = static_cast<uint16_t>(std::clamp(LoadHalf(srcPtr[2]) * maxColors, 0.0f,
+                                                             maxColors));
+                auto tmpA = static_cast<uint16_t>(std::clamp((alpha / scale), 0.0f, maxColors));
+
+                dstPtr[0] = tmpR;
+                dstPtr[1] = tmpG;
+                dstPtr[2] = tmpB;
+                dstPtr[3] = tmpA;
+
+                srcPtr += 4;
+                dstPtr += 4;
+            }
+
+            srcData += srcStride;
+            data64Ptr += dstStride;
+        });
+    }
+
+}
 #endif
-
-void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
-                       uint16_t *dst, int dstStride, int width,
-                       int height, int bitDepth) {
-    auto srcData = reinterpret_cast<const uint8_t *>(sourceData);
-    auto data64Ptr = reinterpret_cast<uint8_t *>(dst);
-    const float scale = 1.0f / float((1 << bitDepth) - 1);
-    const float maxColors = (float) pow(2.0, (double) bitDepth) - 1;
-
-    concurrency::parallel_for(2, height, [&](int y) {
-        auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
-        auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
-        for (int x = 0; x < width; ++x) {
-            auto alpha = LoadHalf(srcPtr[3]);
-            auto tmpR = (uint16_t) clamp(LoadHalf(srcPtr[0]) * maxColors, 0.0f, maxColors);
-            auto tmpG = (uint16_t) clamp(LoadHalf(srcPtr[1]) * maxColors, 0.0f, maxColors);
-            auto tmpB = (uint16_t) clamp(LoadHalf(srcPtr[2]) * maxColors, 0.0f, maxColors);
-            auto tmpA = (uint16_t) clamp((alpha / scale), 0.0f, maxColors);
-
-            dstPtr[0] = tmpR;
-            dstPtr[1] = tmpG;
-            dstPtr[2] = tmpB;
-            dstPtr[3] = tmpA;
-
-            srcPtr += 4;
-            dstPtr += 4;
-        }
-
-        srcData += srcStride;
-        data64Ptr += dstStride;
-    });
-}
-
-void
-RGBAF16BitToNBitU16(const uint16_t *sourceData, int srcStride, uint16_t *dst, int dstStride,
-                    int width,
-                    int height, int bitDepth) {
-#if HAVE_NEON
-    RGBAF16BitToNU16NEON(sourceData, srcStride, dst, dstStride, width, height, bitDepth);
-#else
-    RGBAF16BitToNU16C(sourceData, srcStride, dst, dstStride, width, height, bitDepth);
-#endif
-}

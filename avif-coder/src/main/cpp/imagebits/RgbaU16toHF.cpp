@@ -68,7 +68,7 @@ namespace coder::HWY_NAMESPACE {
         const FixedTag<uint32_t, df16.MaxLanes() / 2> du32;
         const FixedTag<float32_t, df16.MaxLanes() / 2> df32;
         const FixedTag<float16_t, df16.MaxLanes() / 2> df16h;
-        int lanes = df16.MaxLanes();
+        const int lanes = df16.MaxLanes();
         using VF16 = Vec<decltype(df16)>;
         using VU16 = Vec<decltype(du16)>;
         using VF32 = Vec<decltype(df32)>;
@@ -99,7 +99,7 @@ namespace coder::HWY_NAMESPACE {
     void RgbaU16ToF_HWY(const uint16_t *src, const int srcStride,
                         uint16_t *dst, const int dstStride, const int width,
                         const int height, const int bitDepth) {
-        const float scale = 1.0f / (pow(2.0f, static_cast<float>(bitDepth)) - 1.0f);
+        const float scale = 1.0f / (std::powf(2.0f, static_cast<float>(bitDepth)) - 1.0f);
 
         concurrency::parallel_for(2, height, [&](int y) {
             RgbaU16ToFHWYRow(

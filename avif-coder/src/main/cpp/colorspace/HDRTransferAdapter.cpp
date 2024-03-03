@@ -282,45 +282,45 @@ namespace coder::HWY_NAMESPACE {
         }
 
         if (gammaCorrection == Rec2020) {
-            data[0] = (uint8_t) clamp((float) bt2020GammaCorrection(r) * maxColors, 0.0f,
-                                      maxColors);
-            data[1] = (uint8_t) clamp((float) bt2020GammaCorrection(g) * maxColors, 0.0f,
-                                      maxColors);
-            data[2] = (uint8_t) clamp((float) bt2020GammaCorrection(b) * maxColors, 0.0f,
-                                      maxColors);
+            data[0] = (uint8_t) std::clamp((float) bt2020GammaCorrection(r) * maxColors, 0.0f,
+                                           maxColors);
+            data[1] = (uint8_t) std::clamp((float) bt2020GammaCorrection(g) * maxColors, 0.0f,
+                                           maxColors);
+            data[2] = (uint8_t) std::clamp((float) bt2020GammaCorrection(b) * maxColors, 0.0f,
+                                           maxColors);
         } else if (gammaCorrection == DCIP3) {
-            data[0] = (uint8_t) clamp((float) dciP3PQGammaCorrection(r) * maxColors, 0.0f,
-                                      maxColors);
-            data[1] = (uint8_t) clamp((float) dciP3PQGammaCorrection(g) * maxColors, 0.0f,
-                                      maxColors);
-            data[2] = (uint8_t) clamp((float) dciP3PQGammaCorrection(b) * maxColors, 0.0f,
-                                      maxColors);
+            data[0] = (uint8_t) std::clamp((float) dciP3PQGammaCorrection(r) * maxColors, 0.0f,
+                                           maxColors);
+            data[1] = (uint8_t) std::clamp((float) dciP3PQGammaCorrection(g) * maxColors, 0.0f,
+                                           maxColors);
+            data[2] = (uint8_t) std::clamp((float) dciP3PQGammaCorrection(b) * maxColors, 0.0f,
+                                           maxColors);
         } else if (gammaCorrection == GAMMA) {
             const float gammaEval = 1.f / gamma;
-            data[0] = (uint8_t) clamp((float) gammaOtf(r, gammaEval) * maxColors, 0.0f,
-                                      maxColors);
-            data[1] = (uint8_t) clamp((float) gammaOtf(g, gammaEval) * maxColors, 0.0f,
-                                      maxColors);
-            data[2] = (uint8_t) clamp((float) gammaOtf(b, gammaEval) * maxColors, 0.0f,
-                                      maxColors);
+            data[0] = (uint8_t) std::clamp((float) gammaOtf(r, gammaEval) * maxColors, 0.0f,
+                                           maxColors);
+            data[1] = (uint8_t) std::clamp((float) gammaOtf(g, gammaEval) * maxColors, 0.0f,
+                                           maxColors);
+            data[2] = (uint8_t) std::clamp((float) gammaOtf(b, gammaEval) * maxColors, 0.0f,
+                                           maxColors);
         } else if (gammaCorrection == Rec709) {
-            data[0] = (uint8_t) clamp((float) LinearITUR709ToITUR709(r) * maxColors, 0.0f,
-                                      maxColors);
-            data[1] = (uint8_t) clamp((float) LinearITUR709ToITUR709(g) * maxColors, 0.0f,
-                                      maxColors);
-            data[2] = (uint8_t) clamp((float) LinearITUR709ToITUR709(b) * maxColors, 0.0f,
-                                      maxColors);
+            data[0] = (uint8_t) std::clamp((float) LinearITUR709ToITUR709(r) * maxColors, 0.0f,
+                                           maxColors);
+            data[1] = (uint8_t) std::clamp((float) LinearITUR709ToITUR709(g) * maxColors, 0.0f,
+                                           maxColors);
+            data[2] = (uint8_t) std::clamp((float) LinearITUR709ToITUR709(b) * maxColors, 0.0f,
+                                           maxColors);
         } else if (gammaCorrection == sRGB) {
-            data[0] = (uint8_t) clamp((float) LinearSRGBTosRGB(r) * maxColors, 0.0f,
-                                      maxColors);
-            data[1] = (uint8_t) clamp((float) LinearSRGBTosRGB(g) * maxColors, 0.0f,
-                                      maxColors);
-            data[2] = (uint8_t) clamp((float) LinearSRGBTosRGB(b) * maxColors, 0.0f,
-                                      maxColors);
+            data[0] = (uint8_t) std::clamp((float) LinearSRGBTosRGB(r) * maxColors, 0.0f,
+                                           maxColors);
+            data[1] = (uint8_t) std::clamp((float) LinearSRGBTosRGB(g) * maxColors, 0.0f,
+                                           maxColors);
+            data[2] = (uint8_t) std::clamp((float) LinearSRGBTosRGB(b) * maxColors, 0.0f,
+                                           maxColors);
         } else {
-            data[0] = (uint8_t) clamp((float) r * maxColors, 0.0f, maxColors);
-            data[1] = (uint8_t) clamp((float) g * maxColors, 0.0f, maxColors);
-            data[2] = (uint8_t) clamp((float) b * maxColors, 0.0f, maxColors);
+            data[0] = (uint8_t) std::clamp((float) r * maxColors, 0.0f, maxColors);
+            data[1] = (uint8_t) std::clamp((float) g * maxColors, 0.0f, maxColors);
+            data[2] = (uint8_t) std::clamp((float) b * maxColors, 0.0f, maxColors);
         }
     }
 

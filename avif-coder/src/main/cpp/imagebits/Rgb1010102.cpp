@@ -79,7 +79,7 @@ namespace coder::HWY_NAMESPACE {
     F16ToRGBA1010102HWYRow(const uint16_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT dst,
                            int width,
                            const int *permuteMap) {
-        const float range10 = pow(2.0f, 10.0f) - 1.0f;
+        const float range10 = std::powf(2.0f, 10.0f) - 1.0f;
         const FixedTag<float, 4> df;
         const FixedTag<float16_t, 8> df16;
         const FixedTag<uint16_t, 8> du16x8;
@@ -185,10 +185,10 @@ namespace coder::HWY_NAMESPACE {
             auto R16 = (float) LoadHalf(data[rvShift]);
             auto G16 = (float) LoadHalf(data[gvShift]);
             auto B16 = (float) LoadHalf(data[bvShift]);
-            auto R10 = (uint32_t) (clamp(round(R16 * range10), 0.0f, (float) range10));
-            auto G10 = (uint32_t) (clamp(round(G16 * range10), 0.0f, (float) range10));
-            auto B10 = (uint32_t) (clamp(round(B16 * range10), 0.0f, (float) range10));
-            auto A10 = (uint32_t) clamp(round(A16 * 3.f), 0.0f, 3.0f);
+            auto R10 = static_cast<uint32_t>(std::clamp(std::roundf(R16 * range10), 0.0f, (float) range10));
+            auto G10 = static_cast<uint32_t>(std::clamp(std::roundf(G16 * range10), 0.0f, (float) range10));
+            auto B10 = static_cast<uint32_t>(std::clamp(std::roundf(B16 * range10), 0.0f, (float) range10));
+            auto A10 = static_cast<uint32_t>(std::clamp(std::roundf(A16 * 3.f), 0.0f, 3.0f));
 
             dst32[0] = (A10 << 30) | (R10 << 20) | (G10 << 10) | B10;
 
@@ -712,14 +712,14 @@ void convertRGBA1010102ToU8_C(const uint8_t *src, int srcStride, uint8_t *dst, i
             uint32_t a = (a1 << 8) | (a1 << 6) | (a1 << 4) | (a1 << 2) | a1;
 
             // Convert each channel to floating-point values
-            auto rFloat = clamp(static_cast<uint8_t>((r * 255) / 1023), (uint8_t) 255,
-                                (uint8_t) 0);
-            auto gFloat = clamp(static_cast<uint8_t>((g * 255) / 1023), (uint8_t) 255,
-                                (uint8_t) 0);
-            auto bFloat = clamp(static_cast<uint8_t>((b * 255) / 1023), (uint8_t) 255,
-                                (uint8_t) 0);
-            auto aFloat = clamp(static_cast<uint8_t>((a * 255) / 1023), (uint8_t) 255,
-                                (uint8_t) 0);
+            auto rFloat = std::clamp(static_cast<uint8_t>((r * 255) / 1023), (uint8_t) 255,
+                                     (uint8_t) 0);
+            auto gFloat = std::clamp(static_cast<uint8_t>((g * 255) / 1023), (uint8_t) 255,
+                                     (uint8_t) 0);
+            auto bFloat = std::clamp(static_cast<uint8_t>((b * 255) / 1023), (uint8_t) 255,
+                                     (uint8_t) 0);
+            auto aFloat = std::clamp(static_cast<uint8_t>((a * 255) / 1023), (uint8_t) 255,
+                                     (uint8_t) 0);
 
             auto dstCast = reinterpret_cast<uint8_t *>(dstPointer);
             if (littleEndian) {

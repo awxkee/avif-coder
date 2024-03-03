@@ -30,11 +30,6 @@
 #define AVIF_COLORSPACE_H
 
 #include <vector>
-#include "Rec2020Colorspace.h"
-#include "LinearExtendedRec2020.h"
-#include "displayP3Colorspace.h"
-#include "LinearSRGBColorspace.h"
-#include "Rec709Colorspace.h"
 #include "lcms2.h"
 
 void

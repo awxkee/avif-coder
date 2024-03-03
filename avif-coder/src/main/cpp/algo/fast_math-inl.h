@@ -131,7 +131,7 @@ namespace coder::HWY_NAMESPACE {
 
     template<class DF, class V>
     HWY_FAST_MATH_INLINE V Pow(const DF df, V val, V n) {
-        return hwy::HWY_NAMESPACE::sleef::Exp(df, Mul(n, hwy::HWY_NAMESPACE::sleef::LogFast(df, val)));
+        return Exp(df, Mul(n, Lognf(df, val)));
     }
 
 // Computes base-2 logarithm like std::log2. Undefined if negative / NaN.

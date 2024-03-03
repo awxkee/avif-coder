@@ -52,7 +52,9 @@ if (ANDROID_ABI STREQUAL arm64-v8a)
     add_definitions("-DHAVE_NEON=1")
 endif ()
 
-add_definitions(-DHWY_COMPILE_ONLY_STATIC)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DHWY_COMPILE_ONLY_STATIC)
+endif ()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

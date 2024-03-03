@@ -184,7 +184,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         if (heifCompressionFormat == heif_compression_AV1) {
-            RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
+            coder::RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
                                 (int) info.stride,
                                 reinterpret_cast<uint16_t *>(imgData), stride,
                                 (int) info.width,

@@ -79,7 +79,7 @@ namespace coder::HWY_NAMESPACE {
         using VU8x8 = Vec<decltype(du8x8)>;
 
         int x = 0;
-        int pixels = 8;
+        const int pixels = 8;
 
         auto src = reinterpret_cast<const uint16_t *>(source);
         auto dst = reinterpret_cast<uint8_t *>(destination);
@@ -328,12 +328,12 @@ namespace coder::HWY_NAMESPACE {
         }
 
         for (; x < width; ++x) {
-            uint8_t r = static_cast<uint8_t >(roundf(
-                    clamp(LoadHalf(src[0]), 0.0f, 1.0f) * maxColors));
-            uint8_t g = static_cast<uint8_t >(roundf(
-                    clamp(LoadHalf(src[1]), 0.0f, 1.0f) * maxColors));
-            uint8_t b = static_cast<uint8_t >(roundf(
-                    clamp(LoadHalf(src[2]), 0.0f, 1.0f) * maxColors));
+            uint8_t r = static_cast<uint8_t >(std::roundf(
+                    std::clamp(LoadHalf(src[0]), 0.0f, 1.0f) * maxColors));
+            uint8_t g = static_cast<uint8_t >(std::roundf(
+                    std::clamp(LoadHalf(src[1]), 0.0f, 1.0f) * maxColors));
+            uint8_t b = static_cast<uint8_t >(std::roundf(
+                    std::clamp(LoadHalf(src[2]), 0.0f, 1.0f) * maxColors));
 
             r = clamp(r, (uint8_t) 0, (uint8_t) maxColors);
             g = clamp(g, (uint8_t) 0, (uint8_t) maxColors);
