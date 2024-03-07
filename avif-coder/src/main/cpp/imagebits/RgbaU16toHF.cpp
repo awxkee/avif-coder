@@ -44,18 +44,7 @@ HWY_BEFORE_NAMESPACE();
 
 namespace coder::HWY_NAMESPACE {
 
-    using hwy::HWY_NAMESPACE::ScalableTag;
-    using hwy::HWY_NAMESPACE::Vec;
-    using hwy::HWY_NAMESPACE::Set;
-    using hwy::HWY_NAMESPACE::LoadU;
-    using hwy::HWY_NAMESPACE::PromoteUpperTo;
-    using hwy::HWY_NAMESPACE::PromoteLowerTo;
-    using hwy::HWY_NAMESPACE::Mul;
-    using hwy::HWY_NAMESPACE::Combine;
-    using hwy::HWY_NAMESPACE::FixedTag;
-    using hwy::HWY_NAMESPACE::DemoteTo;
-    using hwy::HWY_NAMESPACE::ConvertTo;
-    using hwy::HWY_NAMESPACE::StoreU;
+    using namespace hwy::HWY_NAMESPACE;
     using hwy::float16_t;
     using hwy::float32_t;
 
@@ -65,9 +54,9 @@ namespace coder::HWY_NAMESPACE {
         int x = 0;
         const ScalableTag<float16_t> df16;
         const ScalableTag<uint16_t> du16;
-        const FixedTag<uint32_t, df16.MaxLanes() / 2> du32;
-        const FixedTag<float32_t, df16.MaxLanes() / 2> df32;
-        const FixedTag<float16_t, df16.MaxLanes() / 2> df16h;
+        const Rebind<uint32_t, Half<decltype(df16)>> du32;
+        const Rebind<float32_t, Half<decltype(df16)>> df32;
+        const Rebind<float16_t, Half<decltype(df16)>> df16h;
         const int lanes = df16.MaxLanes();
         using VF16 = Vec<decltype(df16)>;
         using VU16 = Vec<decltype(du16)>;

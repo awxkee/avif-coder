@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (c) 2023 Radzivon Bartoshyk
+ * Copyright (c) 2024 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
  * Created by Radzivon Bartoshyk on 07/03/2024

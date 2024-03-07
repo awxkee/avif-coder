@@ -355,7 +355,7 @@ namespace coder::HWY_NAMESPACE {
     void RGBAF16To565HWY(const uint16_t *sourceData, int srcStride,
                          uint16_t *dst, int dstStride, int width,
                          int height) {
-        const float maxColors = powf(2, (float) 8) - 1;
+        const float maxColors = std::powf(2.f, static_cast<float>(8.0f)) - 1.f;
 
         auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
         auto mDst = reinterpret_cast<uint8_t *>(dst);

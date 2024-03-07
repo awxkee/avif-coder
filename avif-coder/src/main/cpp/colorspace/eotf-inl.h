@@ -224,7 +224,7 @@ namespace coder::HWY_NAMESPACE {
     }
 
     HWY_FAST_MATH_INLINE float HLGEotf(float v) {
-        v = max(0.0f, v);
+        v = std::max(0.0f, v);
         constexpr float a = 0.17883277f;
         constexpr float b = 0.28466892f;
         constexpr float c = 0.55991073f;
@@ -237,7 +237,7 @@ namespace coder::HWY_NAMESPACE {
 
     template<class D, typename T = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
     HWY_FAST_MATH_INLINE T dciP3PQGammaCorrection(const D d, T color) {
-        const auto pw = Set(d, 1 / 2.6f);
+        const auto pw = Set(d, 1.f / 2.6f);
         return coder::HWY_NAMESPACE::Pow(d, color, pw);
     }
 
@@ -248,7 +248,7 @@ namespace coder::HWY_NAMESPACE {
     }
 
     HWY_FAST_MATH_INLINE float dciP3PQGammaCorrection(float linear) {
-        return std::powf(linear, 1 / 2.6f);
+        return std::powf(linear, 1.f / 2.6f);
     }
 
     HWY_FAST_MATH_INLINE float gammaOtf(float linear, const float gamma) {

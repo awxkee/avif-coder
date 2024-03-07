@@ -57,7 +57,7 @@ namespace coder::HWY_NAMESPACE {
     Copy1Row(const D d, const Buf *HWY_RESTRICT src, Buf *HWY_RESTRICT dst, int width) {
         int x = 0;
         using VU = Vec<decltype(d)>;
-        int pixels = d.MaxLanes();
+        const int pixels = d.MaxLanes();
         for (; x + pixels < width; x += pixels) {
             VU a = LoadU(d, src);
             StoreU(a, d, reinterpret_cast<Buf *>(dst));
