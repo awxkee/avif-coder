@@ -55,7 +55,7 @@ namespace coder::HWY_NAMESPACE {
 
     HWY_FAST_MATH_INLINE float ToLinearPQ(float v, const float sdrReferencePoint) {
         float o = v;
-        v = max(0.0f, v);
+        v = std::max(0.0f, v);
         const float m1 = (2610.0f / 4096.0f) / 4.0f;
         const float m2 = (2523.0f / 4096.0f) * 128.0f;
         const float c1 = 3424.0f / 4096.0f;
@@ -64,7 +64,7 @@ namespace coder::HWY_NAMESPACE {
         float p = std::powf(v, 1.0f / m2);
         v = std::powf(max(p - c1, 0.0f) / (c2 - c3 * p), 1.0f / m1);
         v *= 10000.0f / sdrReferencePoint;
-        return copysign(v, o);
+        return std::copysignf(v, o);
     }
 
     using hwy::HWY_NAMESPACE::Zero;
@@ -352,7 +352,7 @@ namespace coder::HWY_NAMESPACE {
     }
 
     HWY_FAST_MATH_INLINE float Log100Oetf(float linear) {
-        return (linear < 0.01f) ? 0.0f : 1.0f + std::log10(std::min(linear, 1.f)) / 2.0f;
+        return (linear < 0.01f) ? 0.0f : 1.0f + std::log10f(std::min(linear, 1.f)) / 2.0f;
     }
 
     HWY_FAST_MATH_INLINE float Log100Sqrt10Eotf(float gamma) {
@@ -378,7 +378,7 @@ namespace coder::HWY_NAMESPACE {
 
     HWY_FAST_MATH_INLINE float Log100Sqrt10Oetf(float linear) {
         return (linear < 0.00316227766f) ? 0.0f
-                                         : 1.0f + std::log10(std::min(linear, 1.f)) / 2.5f;
+                                         : 1.0f + std::log10f(std::min(linear, 1.f)) / 2.5f;
     }
 
     HWY_FAST_MATH_INLINE float Iec61966Eotf(float gamma) {
@@ -546,7 +546,7 @@ namespace coder::HWY_NAMESPACE {
             if (Lin == 0) {
                 return;
             }
-            const TFromD<D> Lout = log(abs(1 + Lin)) * den;
+            const TFromD<D> Lout = std::logf(std::abs(1 + Lin)) * den;
             const auto shScale = Lout / Lin;
             r = r * shScale;
             g = g * shScale;

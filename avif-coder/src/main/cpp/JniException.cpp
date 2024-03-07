@@ -4,7 +4,7 @@
  * Copyright (c) 2023 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 01/1/2023
+ * Created by Radzivon Bartoshyk on 01/01/2023
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

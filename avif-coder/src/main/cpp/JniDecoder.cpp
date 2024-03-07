@@ -206,6 +206,12 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
         float gamma = 1.0f;
 
+        if (nclx->transfer_characteristics !=
+            heif_transfer_characteristic_ITU_R_BT_2100_0_HLG &&
+            nclx->transfer_characteristics != heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
+            toneMapper = TONE_SKIP;
+        }
+
         if (nclx->transfer_characteristics ==
             heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
             function = HLG;
@@ -228,9 +234,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         } else if (nclx->transfer_characteristics ==
                    heif_transfer_characteristic_ITU_R_BT_601_6) {
             function = EOTF_BT601;
-        } else if (
-                nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_709_5 ||
-                nclx->transfer_characteristics ==
+        } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_709_5) {
+            function = EOTF_SRGB;
+        } else if (nclx->transfer_characteristics ==
                 heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
                 nclx->transfer_characteristics ==
                 heif_transfer_characteristic_ITU_R_BT_2020_2_12bit) {

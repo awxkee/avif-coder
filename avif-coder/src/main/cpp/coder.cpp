@@ -48,6 +48,7 @@
 #include "colorspace/HDRTransferAdapter.h"
 #include "imagebits/RGBAlpha.h"
 #include "imagebits/Rgb565.h"
+#include "DataSpaceToNCLX.hpp"
 
 using namespace std;
 
@@ -72,7 +73,7 @@ struct heif_error writeHeifData(struct heif_context *ctx,
 
 jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                         jobject bitmap, heif_compression_format heifCompressionFormat,
-                        int quality) {
+                        int quality, int dataSpace) {
     std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                       [](heif_context *c) { heif_context_free(c); });
     if (!ctx) {
@@ -135,13 +136,29 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
          heifCompressionFormat == heif_compression_AV1)) {
         chroma = heif_chroma_interleaved_RRGGBBAA_LE;
     }
-    result = heif_image_create((int) info.width, (int) info.height, heif_colorspace_RGB,
-                               chroma, &image);
+
+    result = heif_image_create((int) info.width, (int) info.height,
+                               heif_colorspace_RGB, chroma, &image);
     if (result.code != heif_error_Ok) {
         std::string choke(result.message);
         std::string str = "Can't create encoded image with exception: " + choke;
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
+    }
+
+    std::shared_ptr<heif_color_profile_nclx> profile(heif_nclx_color_profile_alloc(), [](auto x) {
+        heif_nclx_color_profile_free(x);
+    });
+
+    bool nclxResult = coder::nclxFromDataSpace(dataSpace, profile.get());
+    if (nclxResult) {
+        result = heif_image_set_nclx_color_profile(image, profile.get());
+        if (result.code != heif_error_Ok) {
+            std::string choke(result.message);
+            std::string str = "Can't set required color profiel: " + choke;
+            throwException(env, str);
+            return static_cast<jbyteArray>(nullptr);
+        }
     }
 
     int bitDepth = 8;
@@ -174,21 +191,24 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                  imgData, stride, (int) info.width, (int) info.height, 8, 255);
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
         if (heifCompressionFormat == heif_compression_HEVC) {
-            RGBA1010102ToU8(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
-                            reinterpret_cast<uint8_t *>(imgData), stride, (int) info.width,
-                            (int) info.height);
+            coder::RGBA1010102ToUnsigned(reinterpret_cast<const uint8_t *>(sourceData.data()),
+                                         (int) info.stride,
+                                         reinterpret_cast<uint8_t *>(imgData), stride,
+                                         (int) info.width, (int) info.height, 8);
+            heif_image_set_premultiplied_alpha(image, true);
         } else {
-            RGBA1010102ToU16(reinterpret_cast<uint8_t *>(sourceData.data()), (int) info.stride,
-                             reinterpret_cast<uint16_t *>(imgData), stride, (int) info.width,
-                             (int) info.height);
+            coder::RGBA1010102ToUnsigned(reinterpret_cast<uint8_t *>(sourceData.data()),
+                                         (int) info.stride,
+                                         reinterpret_cast<uint16_t *>(imgData), stride,
+                                         (int) info.width, (int) info.height, 10);
         }
     } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
         if (heifCompressionFormat == heif_compression_AV1) {
             coder::RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
-                                (int) info.stride,
-                                reinterpret_cast<uint16_t *>(imgData), stride,
-                                (int) info.width,
-                                (int) info.height, 10);
+                                       (int) info.stride,
+                                       reinterpret_cast<uint16_t *>(imgData), stride,
+                                       (int) info.width,
+                                       (int) info.height, 10);
         } else {
             coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
                                       (int) info.stride,
@@ -205,59 +225,11 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                                    });
     options->version = 5;
     options->image_orientation = heif_orientation_normal;
-//    options->output_nclx_profile = nullptr;
-//    options->save_two_colr_boxes_when_ICC_and_nclx_available = false;
 
     result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
     options.reset();
     if (handle && result.code == heif_error_Ok) {
         heif_context_set_primary_image(ctx.get(), handle);
-//
-//        std::time_t currentTime = std::time(nullptr);
-//        std::tm *timeInfo = std::localtime(&currentTime);
-//
-//        // Format the date and time
-//        char formattedTime[20]; // Buffer for the formatted time
-//        std::strftime(formattedTime, sizeof(formattedTime), "%Y:%m:%d %H:%M:%S", timeInfo);
-//        std::string dateTime(formattedTime);
-//
-//        std::string format(heifCompressionFormat == heif_compression_AV1 ? "AVIF" : "HEIC");
-//
-//        std::string xmpMetadata = "<?xpacket begin='' id='W5M0MpCehiHzreSzNTczkc9d'?>"
-//                                  "<x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='XMP Core 5.5.0'>"
-//                                  "<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>"
-//                                  "<rdf:Description rdf:about='' xmlns:dc='http://purl.org/dc/elements/1.1/'>"
-//                                  "<dc:title>Generated image by avif-coder</dc:title>"
-//                                  "<dc:creator>avif-coder</dc:creator>"
-//                                  "<dc:description>A image was created by avif-coder (https://github.com/awxkee/avif-coder)</dc:description>"
-//                                  "<dc:date>" + dateTime + "</dc:date>\n"
-//                                                           "<dc:publisher>https://github.com/awxkee/avif-coder>"
-//                                                           "<dc:format>" + format + "</dc:format>"
-//                                                                                    "</rdf:Description>"
-//                                                                                    "<rdf:Description rdf:about='' xmlns:exif='http://ns.adobe.com/exif/1.0/'>\n"
-//                                                                                    "<exif:ColorSpace>sRGB</exif:ColorSpace>\n"
-//                                                                                    "<exif:ColorProfile>sRGB IEC61966-2.1</exif:ColorProfile>\n"
-//                                                                                    "</rdf:Description>\n"
-//                                                                                    "<rdf:Description rdf:about='' xmlns:xmp='http://ns.adobe.com/xap/1.0/'>\n"
-//                                                                                    "<xmp:CreatorTool>avif-coder (https://github.com/awxkee/avif-coder)</xmp:CreatorTool>\n"
-//                                                                                    "<xmp:ModifyDate>" +
-//                                  dateTime +
-//                                  "</xmp:ModifyDate>\n"
-//                                  "</rdf:Description>\n"
-//                                  "</rdf:RDF>"
-//                                  "</x:xmpmeta>"
-//                                  "<?xpacket end='w'?>";
-//
-//        result = heif_context_add_XMP_metadata(ctx.get(), handle,
-//                                               reinterpret_cast<const void *>(xmpMetadata.data()),
-//                                               static_cast<int>(xmpMetadata.size()));
-//        if (result.code != heif_error_Ok) {
-//            heif_image_handle_release(handle);
-//            heif_image_release(image);
-//            throwCantEncodeImageException(env, result.message);
-//            return static_cast<jbyteArray>(nullptr);
-//        }
-
         heif_image_handle_release(handle);
     }
     heif_image_release(image);
@@ -293,9 +265,10 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality) {
+                                                                jobject bitmap, jint quality,
+                                                                jint dataSpace) {
     try {
-        return encodeBitmap(env, thiz, bitmap, heif_compression_AV1, quality);
+        return encodeBitmap(env, thiz, bitmap, heif_compression_AV1, quality, dataSpace);
     } catch (std::bad_alloc &err) {
         std::string exception = "Not enough memory to encode this image";
         throwException(env, exception);
@@ -306,9 +279,10 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, job
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality) {
+                                                                jobject bitmap, jint quality,
+                                                                jint dataSpace) {
     try {
-        return encodeBitmap(env, thiz, bitmap, heif_compression_HEVC, quality);
+        return encodeBitmap(env, thiz, bitmap, heif_compression_HEVC, quality, dataSpace);
     } catch (std::bad_alloc &err) {
         std::string exception = "Not enough memory to encode this image";
         throwException(env, exception);

@@ -93,11 +93,11 @@ class MainActivity : AppCompatActivity() {
 
         // HDR EXAMPLES - https://us.zonerama.com/williamskeaguidingphotography/Photo/1000120226/1004888131
         lifecycleScope.launch(Dispatchers.IO) {
-            val buffer = this@MainActivity.assets.open("test_1.jpg").source().buffer().readByteArray()
+            val buffer = this@MainActivity.assets.open("test_2.jpg").source().buffer().readByteArray()
             var bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size)
 
             bitmap = bitmap.scale(bitmap.width / 2, bitmap.height / 2)
-                .copy(Bitmap.Config.RGBA_F16, true)
+                .copy(Bitmap.Config.RGBA_1010102, true)
             lifecycleScope.launch(Dispatchers.Main) {
                 val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
                 imageView.root.setImageBitmap(bitmap)

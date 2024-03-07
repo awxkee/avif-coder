@@ -169,7 +169,7 @@ namespace coder::HWY_NAMESPACE {
                             uint8_t *dst, int dstStride, int width,
                             int height, int bitDepth, const bool attenuateAlpha) {
 
-        const float maxColors = powf(2, (float) bitDepth) - 1;
+        const float maxColors = std::powf(2.f, static_cast<float>(bitDepth)) - 1;
 
         auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
         auto mDst = reinterpret_cast<uint8_t *>(dst);

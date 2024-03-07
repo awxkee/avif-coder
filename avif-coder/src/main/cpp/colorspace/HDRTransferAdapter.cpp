@@ -111,6 +111,12 @@ namespace coder::HWY_NAMESPACE {
                 b = Rec709Eotf(b);
             }
                 break;
+            case EOTF_SRGB: {
+                r = SRGBToLinear(r);
+                g = SRGBToLinear(g);
+                b = SRGBToLinear(b);
+            }
+                break;
             case EOTF_SMPTE240: {
                 r = SMPTE428Eotf(r);
                 g = SMPTE428Eotf(g);
@@ -145,7 +151,9 @@ namespace coder::HWY_NAMESPACE {
                 break;
         }
 
-        toneMapper->Execute(r, g, b);
+        if (toneMapper) {
+            toneMapper->Execute(r, g, b);
+        }
 
         if (conversion) {
             convertColorProfile(*conversion, r, g, b);
@@ -234,6 +242,12 @@ namespace coder::HWY_NAMESPACE {
                 b = Rec601Eotf(b);
             }
                 break;
+            case EOTF_SRGB: {
+                r = SRGBToLinear(r);
+                g = SRGBToLinear(g);
+                b = SRGBToLinear(b);
+            }
+                break;
             case EOTF_SMPTE240: {
                 r = Smpte240Eotf(r);
                 g = Smpte240Eotf(g);
@@ -268,7 +282,9 @@ namespace coder::HWY_NAMESPACE {
                 break;
         }
 
-        toneMapper->Execute(r, g, b);
+        if (toneMapper) {
+            toneMapper->Execute(r, g, b);
+        }
 
         if (conversion) {
             convertColorProfile(*conversion, r, g, b);
@@ -332,12 +348,12 @@ namespace coder::HWY_NAMESPACE {
                   const float gamma,
                   const bool useChromaticAdaptation) {
         const FixedTag<hwy::float16_t, 4> df16x4;
-        const FixedTag<float16_t, 8> df16x8;
-        const FixedTag<float32_t, 4> df32;
+        const FixedTag<hwy::float16_t, 8> df16x8;
+        const FixedTag<hwy::float32_t, 4> df32;
         const FixedTag<uint16_t, 4> du16x4;
         const FixedTag<uint16_t, 8> du16x8;
-        const Rebind<float32_t, decltype(df16x4)> rebind32;
-        const Rebind<float16_t, decltype(df32)> rebind16;
+        const Rebind<hwy::float32_t, decltype(df16x4)> rebind32;
+        const Rebind<hwy::float16_t, decltype(df32)> rebind16;
 
         using VU16x4 = Vec<decltype(du16x4)>;
         using VU16x8 = Vec<decltype(du16x8)>;
@@ -348,13 +364,13 @@ namespace coder::HWY_NAMESPACE {
         unique_ptr<ToneMapper<FixedTag<float, 4>>> toneMapper;
         if (curveToneMapper == LOGARITHMIC) {
             toneMapper.reset(new LogarithmicToneMapper<FixedTag<float, 4>>(lumaPrimaries));
-        } else {
+        } else if (curveToneMapper == REC2408) {
             toneMapper.reset(new Rec2408PQToneMapper<FixedTag<float, 4>>(1000,
                                                                          250.0f, sdrReferencePoint,
                                                                          lumaPrimaries));
         }
 
-        auto ptr16 = reinterpret_cast<float16_t *>(data);
+        auto ptr16 = reinterpret_cast<hwy::float16_t *>(data);
 
         int pixels = 8;
 
@@ -436,6 +452,15 @@ namespace coder::HWY_NAMESPACE {
                     pqHighB = Rec709Eotf(df32, bHigh32);
                 }
                     break;
+                case EOTF_SRGB: {
+                    pqLowR = SRGBToLinear(df32, rLow32);
+                    pqLowG = SRGBToLinear(df32, gLow32);
+                    pqLowB = SRGBToLinear(df32, bLow32);
+                    pqHighR = SRGBToLinear(df32, rHigh32);
+                    pqHighG = SRGBToLinear(df32, gHigh32);
+                    pqHighB = SRGBToLinear(df32, bHigh32);
+                }
+                    break;
                 case EOTF_SMPTE240: {
                     pqLowR = Smpte240Eotf(df32, rLow32);
                     pqLowG = Smpte240Eotf(df32, gLow32);
@@ -490,8 +515,10 @@ namespace coder::HWY_NAMESPACE {
                     pqHighB = bHigh32;
             }
 
-            toneMapper->Execute(pqLowR, pqLowG, pqLowB);
-            toneMapper->Execute(pqHighR, pqHighG, pqHighB);
+            if (toneMapper) {
+                toneMapper->Execute(pqLowR, pqLowG, pqLowB);
+                toneMapper->Execute(pqHighR, pqHighG, pqHighB);
+            }
 
             const auto adopt = getBradfordAdaptation();
 
@@ -617,6 +644,12 @@ namespace coder::HWY_NAMESPACE {
                 pqB = Rec601Eotf(df32, B);
             }
                 break;
+            case EOTF_SRGB: {
+                pqR = SRGBToLinear(df32, R);
+                pqG = SRGBToLinear(df32, G);
+                pqB = SRGBToLinear(df32, B);
+            }
+                break;
             case EOTF_BT709: {
                 pqR = Rec709Eotf(df32, R);
                 pqG = Rec709Eotf(df32, G);
@@ -659,7 +692,9 @@ namespace coder::HWY_NAMESPACE {
                 pqB = B;
         }
 
-        toneMapper->Execute(pqR, pqG, pqB);
+        if (toneMapper) {
+            toneMapper->Execute(pqR, pqG, pqB);
+        }
 
         const auto adopt = getBradfordAdaptation();
 
@@ -722,7 +757,7 @@ namespace coder::HWY_NAMESPACE {
         const float lumaPrimaries[3] = {0.2627f, 0.6780f, 0.0593f};
         if (curveToneMapper == LOGARITHMIC) {
             toneMapper.reset(new LogarithmicToneMapper<FixedTag<float, 4>>(lumaPrimaries));
-        } else {
+        } else if (curveToneMapper == REC2408) {
             toneMapper.reset(new Rec2408PQToneMapper<FixedTag<float, 4>>(1000,
                                                                          250.0f, 203.0f,
                                                                          lumaPrimaries));
@@ -879,7 +914,10 @@ namespace coder::HWY_NAMESPACE {
                              Eigen::Matrix3f *conversion,
                              const float gamma,
                              const bool useChromaticAdaptation) {
-        concurrency::parallel_for(6, height, [&](int y) {
+        const int threadCount = std::clamp(
+                std::min(static_cast<int>(std::thread::hardware_concurrency()),
+                         height * width / (256 * 256)), 1, 12);
+        concurrency::parallel_for(threadCount, height, [&](int y) {
             ProcessCPURowHWY(data, y, halfFloats,
                              stride, width, maxColors, gammaCorrection,
                              function, curveToneMapper, conversion, gamma,

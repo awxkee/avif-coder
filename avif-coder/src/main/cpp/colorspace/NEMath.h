@@ -83,7 +83,6 @@ static const uint32_t exp_f32_coeff[] =
     0x3c072010, // x^5: 0x1.0e4020p-7f
 };
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vtaylor_polyq_f32(float32x4_t x, const std::array<float32x4_t, 8> &coeffs)
 {
@@ -97,7 +96,6 @@ static inline float32x4_t vtaylor_polyq_f32(float32x4_t x, const std::array<floa
     return res;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t prefer_vfmaq_f32(float32x4_t a, float32x4_t b, float32x4_t c)
 {
@@ -108,7 +106,6 @@ static inline float32x4_t prefer_vfmaq_f32(float32x4_t a, float32x4_t b, float32
 #endif // __ARM_FEATURE_FMA
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vexpq_f32(float32x4_t x)
 {
@@ -170,7 +167,6 @@ static inline float32x4_t vexpq_f32(float32x4_t x)
     return poly;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vlogq_f32(float32x4_t x)
 {
@@ -190,7 +186,6 @@ static inline float32x4_t vlogq_f32(float32x4_t x)
     return poly;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vlog10q_f32(float32x4_t x)
 {
@@ -210,26 +205,22 @@ static inline float32x4_t vlog10q_f32(float32x4_t x)
     return poly;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vpowq_f32(float32x4_t val, float32x4_t n)
 {
     return vexpq_f32(vmulq_f32(n, vlogq_f32(val)));
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vpowq_f32(float32x4_t t, float power) {
     return vpowq_f32(t, vdupq_n_f32(power));
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vclampq_n_f32(const float32x4_t t, const float min, const float max) {
     return vmaxq_f32(vminq_f32(t, vdupq_n_f32(max)), vdupq_n_f32(min));
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float16x8_t vclampq_n_f16(const float16x8_t t, const float16_t min, const float16_t max) {
 #if FP16_FULL_SUPPORTED
@@ -243,7 +234,6 @@ static inline float16x8_t vclampq_n_f16(const float16x8_t t, const float16_t min
 #endif
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4x4_t vtransposeq_f32(const float32x4x4_t matrix)
 {
@@ -264,7 +254,6 @@ static inline float32x4x4_t vtransposeq_f32(const float32x4x4_t matrix)
     return r;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline uint8x8x4_t vtranspose_u8(const uint8x8x4_t matrix) {
     const uint8x8x2_t b0 = vtrn_u8(matrix.val[0], matrix.val[1]);
@@ -284,7 +273,6 @@ static inline uint8x8x4_t vtranspose_u8(const uint8x8x4_t matrix) {
     return r;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline uint8x16x4_t vtransposeq_u8(const uint8x16x4_t matrix) {
     const uint8x16x2_t b0 = vtrnq_u8(matrix.val[0], matrix.val[1]);
@@ -317,7 +305,6 @@ static inline uint8x16x4_t vtransposeq_u8(const uint8x16x4_t matrix) {
     return rs;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float16x8x4_t vtransposeq_f16(const float16x8x4_t matrix)
 {
@@ -362,7 +349,6 @@ static inline float16x8x4_t vtransposeq_f16(const float16x8x4_t matrix)
 #endif
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline uint32x4_t vhtonlq_u32(const uint32x4_t hostlong) {
     uint8x8_t low = vreinterpret_u8_u32(vget_low_u32(hostlong));
@@ -375,7 +361,6 @@ static inline uint32x4_t vhtonlq_u32(const uint32x4_t hostlong) {
     return result;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vcopysignq_f32(const float32x4_t dst, const float32x4_t src) {
     // Create a mask where each element is 1 if the sign is negative, otherwise 0
@@ -383,7 +368,6 @@ static inline float32x4_t vcopysignq_f32(const float32x4_t dst, const float32x4_
     return vbslq_f32(mask, vnegq_f32(dst), dst);
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x2_t vsumq_f32x2(const float32x4_t v, const float32x4_t v1) {
     //    float32x2_t r = vadd_f32(vget_high_f32(v), vget_low_f32(v));
@@ -397,14 +381,12 @@ static inline float32x2_t vsumq_f32x2(const float32x4_t v, const float32x4_t v1)
     return r;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vsumq_f32x4(const float32x4_t v, const float32x4_t v1, const float32x4_t v2, const float32x4_t v3) {
     float32x4_t r = { vaddvq_f32(v), vaddvq_f32(v1), vaddvq_f32(v2), vaddvq_f32(v3) };
     return r;
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vsetq_if_f32(const float32x4_t& inputVector, const float ifValue, const float newValue) {
     const float32x4_t ones = vdupq_n_f32(newValue);
@@ -412,7 +394,6 @@ static inline float32x4_t vsetq_if_f32(const float32x4_t& inputVector, const flo
     return vbslq_f32(zeroMask, ones, inputVector);
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vgtq_n_f32(const float32x4_t& inputVector, const float ifValue, const float newValue) {
     const float32x4_t replace = vdupq_n_f32(newValue);
@@ -420,7 +401,6 @@ static inline float32x4_t vgtq_n_f32(const float32x4_t& inputVector, const float
     return vbslq_f32(zeroMask, replace, inputVector);
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float32x4_t vltq_n_f32(const float32x4_t& inputVector, const float ifValue, const float newValue) {
     const float32x4_t replace = vdupq_n_f32(newValue);
@@ -428,7 +408,6 @@ static inline float32x4_t vltq_n_f32(const float32x4_t& inputVector, const float
     return vbslq_f32(zeroMask, replace, inputVector);
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float vsumq_f16(const float16x8_t v) {
     const float32x4_t low = vcvt_f32_f16(vget_low_f16(v));
@@ -436,13 +415,11 @@ static inline float vsumq_f16(const float16x8_t v) {
     return vaddvq_f32(vaddq_f32(high, low));
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float16x8_t vdupq_n_f16_f32(const float v) {
     return vcombine_f16(vcvt_f16_f32(vdupq_n_f32(v)), vcvt_f16_f32(vdupq_n_f32(v)));
 }
 
-__attribute__((always_inline))
 __attribute__((flatten))
 static inline float vdot_f32(const float32x4_t v, const float32x4_t r) {
     return vaddvq_f32(vmulq_f32(v, r));

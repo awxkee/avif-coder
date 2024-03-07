@@ -120,14 +120,22 @@ class HeifCoder(
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
         }
-        return encodeAvifImpl(bitmap, quality)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            encodeAvifImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1)
+        } else {
+            encodeAvifImpl(bitmap, quality, -1)
+        }
     }
 
     fun encodeHeic(bitmap: Bitmap, quality: Int = 80): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
         }
-        return encodeHeicImpl(bitmap, quality)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            encodeHeicImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1)
+        } else {
+            encodeHeicImpl(bitmap, quality, -1)
+        }
     }
 
     private external fun getSizeImpl(byteArray: ByteArray): Size?
@@ -155,8 +163,8 @@ class HeifCoder(
         toneMapper: Int,
     ): Bitmap
 
-    private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int): ByteArray
-    private external fun encodeHeicImpl(bitmap: Bitmap, quality: Int): ByteArray
+    private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int, dataSpace: Int): ByteArray
+    private external fun encodeHeicImpl(bitmap: Bitmap, quality: Int, dataSpace: Int): ByteArray
 
     @SuppressLint("ObsoleteSdkInt")
     companion object {

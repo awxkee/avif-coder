@@ -70,16 +70,14 @@ bool checkDecodePreconditions(JNIEnv *env, jint javaColorspace, PreferredColorCo
 
     auto mScaleMode = static_cast<ScaleMode>(javaScaleMode);
     if (!mScaleMode) {
-        std::string errorString =
-                "Invalid Scale Mode was passed";
+        std::string errorString = "Invalid Scale Mode was passed";
         throwException(env, errorString);
         return false;
     }
 
     auto mToneMapper = static_cast<CurveToneMapper>(javaToneMapper);
     if (!mScaleMode) {
-        std::string errorString =
-                "Invalid Tone mapper was requestedd";
+        std::string errorString = "Invalid Tone mapper was requestedd";
         throwException(env, errorString);
         return false;
     }

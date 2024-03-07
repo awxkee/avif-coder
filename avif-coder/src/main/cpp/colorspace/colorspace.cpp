@@ -325,8 +325,9 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     int newLength = dstStride * height;
     iccARGB.resize(newLength);
 
-    int threadCount = clamp(min(static_cast<int>(std::thread::hardware_concurrency()),
-                                height * width / (256 * 256)), 1, 12);
+    const int threadCount = std::clamp(
+            std::min(static_cast<int>(std::thread::hardware_concurrency()),
+                     height * width / (256 * 256)), 1, 12);
 
     int segmentHeight = height / threadCount;
 
