@@ -37,19 +37,34 @@ convertUseICC(std::vector<uint8_t> &vector, int stride, int width, int height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
               bool image16Bits, int *newStride);
 
-
 class ColorSpace {
-public:
-    ColorSpace(cmsHPROFILE profile) {
-        this->cmsProfile = profile;
-    };
+ public:
+  ColorSpace(cmsHPROFILE profile) {
+    this->cmsProfile = profile;
+  };
 
-    ~ColorSpace() {
-        cmsCloseProfile(this->cmsProfile);
+  std::vector<uint8_t> iccProfile() {
+    std::vector<uint8_t> vec;
+    cmsUInt32Number profileSize = 0;
+    cmsSaveProfileToMem(cmsProfile, nullptr, &profileSize);
+    if (profileSize == 0) {
+      return vec;
+    }
+    vec.resize(profileSize);
+    if (!cmsSaveProfileToMem(cmsProfile, reinterpret_cast<void *>(vec.data()), &profileSize)) {
+      vec.resize(0);
+      return vec;
     }
 
-protected:
-    cmsHPROFILE cmsProfile;
+    return vec;
+  }
+
+  ~ColorSpace() {
+    cmsCloseProfile(this->cmsProfile);
+  }
+
+ protected:
+  cmsHPROFILE cmsProfile;
 };
 
 cmsHPROFILE colorspacesCreateSrgbProfile(bool v2);
@@ -68,9 +83,11 @@ cmsHPROFILE colorspacesCreatePqRec2020RgbProfile();
 
 cmsHPROFILE colorspacesCreateLinearRec709RgbProfile();
 
-static ColorSpace colorspacesCreateAdobergbProfile();
+ColorSpace colorspacesCreateAdobergbProfile();
 
-static ColorSpace colorspacesCreateDisplayP3RgbProfile();
+ColorSpace colorspacesCreateDisplayP3RgbProfile();
+
+ColorSpace colorspacesCreateDCIP3RgbProfile();
 
 cmsHPROFILE createGammaCorrectionProfile(double gamma);
 void

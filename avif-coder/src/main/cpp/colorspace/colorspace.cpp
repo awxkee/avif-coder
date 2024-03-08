@@ -49,61 +49,61 @@ static const cmsCIExyY D50xyY = {0.3457, 0.3585, 1.0};
 
 // D65:
 static const cmsCIExyYTRIPLE sRGB_Primaries = {
-        {0.6400, 0.3300, 1.0}, // red
-        {0.3000, 0.6000, 1.0}, // green
-        {0.1500, 0.0600, 1.0}  // blue
+    {0.6400, 0.3300, 1.0}, // red
+    {0.3000, 0.6000, 1.0}, // green
+    {0.1500, 0.0600, 1.0}  // blue
 };
 
 // D65:
 static const cmsCIExyYTRIPLE Rec2020_Primaries = {
-        {0.7080, 0.2920, 1.0}, // red
-        {0.1700, 0.7970, 1.0}, // green
-        {0.1310, 0.0460, 1.0}  // blue
+    {0.7080, 0.2920, 1.0}, // red
+    {0.1700, 0.7970, 1.0}, // green
+    {0.1310, 0.0460, 1.0}  // blue
 };
 
 // D65:
 static const cmsCIExyYTRIPLE Rec709_Primaries = {
-        {0.6400, 0.3300, 1.0}, // red
-        {0.3000, 0.6000, 1.0}, // green
-        {0.1500, 0.0600, 1.0}  // blue
+    {0.6400, 0.3300, 1.0}, // red
+    {0.3000, 0.6000, 1.0}, // green
+    {0.1500, 0.0600, 1.0}  // blue
 };
 
 // D65:
 static const cmsCIExyYTRIPLE Adobe_Primaries = {
-        {0.6400, 0.3300, 1.0}, // red
-        {0.2100, 0.7100, 1.0}, // green
-        {0.1500, 0.0600, 1.0}  // blue
+    {0.6400, 0.3300, 1.0}, // red
+    {0.2100, 0.7100, 1.0}, // green
+    {0.1500, 0.0600, 1.0}  // blue
 };
 
 // D65:
 static const cmsCIExyYTRIPLE P3_Primaries = {
-        {0.680, 0.320, 1.0}, // red
-        {0.265, 0.690, 1.0}, // green
-        {0.150, 0.060, 1.0}  // blue
+    {0.680, 0.320, 1.0}, // red
+    {0.265, 0.690, 1.0}, // green
+    {0.150, 0.060, 1.0}  // blue
 };
 
 // https://en.wikipedia.org/wiki/ProPhoto_RGB_color_space
 // D50:
 static const cmsCIExyYTRIPLE ProPhoto_Primaries = {
-        /*       x,        y,       Y */
-        {0.734699, 0.265301, 1.0000}, /* red   */
-        {0.159597, 0.840403, 1.0000}, /* green */
-        {0.036598, 0.000105, 1.0000}, /* blue  */
+    /*       x,        y,       Y */
+    {0.734699, 0.265301, 1.0000}, /* red   */
+    {0.159597, 0.840403, 1.0000}, /* green */
+    {0.036598, 0.000105, 1.0000}, /* blue  */
 };
 
 static cmsToneCurve *colorSpacesCreateTransfer(int32_t size, double (*fct)(double)) {
-    float *values = (float *) malloc(size * sizeof(float));
+  float *values = (float *) malloc(size * sizeof(float));
 
-    for (int32_t i = 0; i < size; ++i) {
-        const double x = (float) i / (float) (size - 1);
-        double y = std::min(fct(x), 1.0);
-        if (y > 1.0) y = 1.0;
-        values[i] = (float) y;
-    }
+  for (int32_t i = 0; i < size; ++i) {
+    const double x = (float) i / (float) (size - 1);
+    double y = std::min(fct(x), 1.0);
+    if (y > 1.0) y = 1.0;
+    values[i] = (float) y;
+  }
 
-    cmsToneCurve *result = cmsBuildTabulatedToneCurveFloat(nullptr, size, values);
-    free(values);
-    return result;
+  cmsToneCurve *result = cmsBuildTabulatedToneCurveFloat(nullptr, size, values);
+  free(values);
+  return result;
 }
 
 static cmsHPROFILE createLcmsProfile(const char *desc, const char *dmdd,
@@ -111,185 +111,197 @@ static cmsHPROFILE createLcmsProfile(const char *desc, const char *dmdd,
                                      const cmsCIExyYTRIPLE *primaries,
                                      cmsToneCurve *trc,
                                      bool v2) {
-    cmsMLU *mlu1 = cmsMLUalloc(nullptr, 1);
-    cmsMLU *mlu2 = cmsMLUalloc(nullptr, 1);
-    cmsMLU *mlu3 = cmsMLUalloc(nullptr, 1);
-    cmsMLU *mlu4 = cmsMLUalloc(nullptr, 1);
+  cmsMLU *mlu1 = cmsMLUalloc(nullptr, 1);
+  cmsMLU *mlu2 = cmsMLUalloc(nullptr, 1);
+  cmsMLU *mlu3 = cmsMLUalloc(nullptr, 1);
+  cmsMLU *mlu4 = cmsMLUalloc(nullptr, 1);
 
-    cmsToneCurve *out_curves[3] = {trc, trc, trc};
-    cmsHPROFILE profile = cmsCreateRGBProfile(whitepoint, primaries, out_curves);
+  cmsToneCurve *out_curves[3] = {trc, trc, trc};
+  cmsHPROFILE profile = cmsCreateRGBProfile(whitepoint, primaries, out_curves);
 
-    if (v2) {
-        cmsSetProfileVersion(profile, 2.1);
-        const cmsCIEXYZ black = {0, 0, 0};
-        cmsWriteTag(profile, cmsSigMediaBlackPointTag, &black);
-        cmsWriteTag(profile, cmsSigMediaWhitePointTag, whitepoint);
-        cmsSetDeviceClass(profile, cmsSigDisplayClass);
-    }
+  if (v2) {
+    cmsSetProfileVersion(profile, 2.1);
+    const cmsCIEXYZ black = {0, 0, 0};
+    cmsWriteTag(profile, cmsSigMediaBlackPointTag, &black);
+    cmsWriteTag(profile, cmsSigMediaWhitePointTag, whitepoint);
+    cmsSetDeviceClass(profile, cmsSigDisplayClass);
+  }
 
-    cmsSetHeaderFlags(profile, cmsEmbeddedProfileTrue | cmsUseAnywhere);
+  cmsSetHeaderFlags(profile, cmsEmbeddedProfileTrue | cmsUseAnywhere);
 
-    cmsMLUsetASCII(mlu1, "en", "US", "Public Domain");
-    cmsWriteTag(profile, cmsSigCopyrightTag, mlu1);
+  cmsMLUsetASCII(mlu1, "en", "US", "Public Domain");
+  cmsWriteTag(profile, cmsSigCopyrightTag, mlu1);
 
-    cmsMLUsetASCII(mlu2, "en", "US", desc);
-    cmsWriteTag(profile, cmsSigProfileDescriptionTag, mlu2);
+  cmsMLUsetASCII(mlu2, "en", "US", desc);
+  cmsWriteTag(profile, cmsSigProfileDescriptionTag, mlu2);
 
-    cmsMLUsetASCII(mlu3, "en", "US", dmdd);
-    cmsWriteTag(profile, cmsSigDeviceModelDescTag, mlu3);
+  cmsMLUsetASCII(mlu3, "en", "US", dmdd);
+  cmsWriteTag(profile, cmsSigDeviceModelDescTag, mlu3);
 
-    cmsMLUsetASCII(mlu4, "en", "US", "Darktable");
-    cmsWriteTag(profile, cmsSigDeviceMfgDescTag, mlu4);
+  cmsMLUsetASCII(mlu4, "en", "US", "AVIF Coder");
+  cmsWriteTag(profile, cmsSigDeviceMfgDescTag, mlu4);
 
-    cmsMLUfree(mlu1);
-    cmsMLUfree(mlu2);
-    cmsMLUfree(mlu3);
-    cmsMLUfree(mlu4);
+  cmsMLUfree(mlu1);
+  cmsMLUfree(mlu2);
+  cmsMLUfree(mlu3);
+  cmsMLUfree(mlu4);
 
-    return profile;
+  return profile;
 }
 
 // Function to create a gamma-corrected tone curve
 cmsToneCurve *createGammaToneCurve(double gamma) {
-    // Define the number of entries in the table (e.g., 1024)
-    int numEntries = 1024;
+  // Define the number of entries in the table (e.g., 1024)
+  int numEntries = 1024;
 
-    // Allocate memory for the curve data
-    std::vector<float> values(numEntries);
+  // Allocate memory for the curve data
+  std::vector<float> values(numEntries);
 
-    // Calculate the gamma-corrected values and store them in the table
-    for (int i = 0; i < numEntries; ++i) {
-        double input = static_cast<double>(i) / (numEntries - 1);
-        double output = std::powf(input, 1.0 / gamma);
-        values[i] = static_cast<float>(output);
-    }
+  // Calculate the gamma-corrected values and store them in the table
+  for (int i = 0; i < numEntries; ++i) {
+    double input = static_cast<double>(i) / (numEntries - 1);
+    double output = std::powf(input, 1.0 / gamma);
+    values[i] = static_cast<float>(output);
+  }
 
-    // Create the tabulated tone curve
-    return cmsBuildTabulatedToneCurveFloat(nullptr, numEntries, values.data());
+  // Create the tabulated tone curve
+  return cmsBuildTabulatedToneCurveFloat(nullptr, numEntries, values.data());
 }
 
 // Function to create an LCMS profile with gamma correction
 cmsHPROFILE createGammaCorrectionProfile(double gamma) {
-    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, gamma);
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, gamma);
 
-    cmsHPROFILE profile = createLcmsProfile("RGB", "RGB",
-                                            &D65xyY, &sRGB_Primaries, transferFunction, TRUE);
+  cmsHPROFILE profile = createLcmsProfile("RGB", "RGB",
+                                          &D65xyY, &sRGB_Primaries, transferFunction, TRUE);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return profile;
+  return profile;
 }
 
 cmsHPROFILE colorspacesCreateSrgbProfile(bool v2) {
-    cmsFloat64Number srgb_parameters[5] = {2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
-    cmsToneCurve *transferFunction = cmsBuildParametricToneCurve(nullptr, 4, srgb_parameters);
+  cmsFloat64Number srgb_parameters[5] = {2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
+  cmsToneCurve *transferFunction = cmsBuildParametricToneCurve(nullptr, 4, srgb_parameters);
 
-    cmsHPROFILE profile = createLcmsProfile("sRGB", "sRGB",
-                                            &D65xyY, &sRGB_Primaries, transferFunction, v2);
+  cmsHPROFILE profile = createLcmsProfile("sRGB", "sRGB",
+                                          &D65xyY, &sRGB_Primaries, transferFunction, v2);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return profile;
+  return profile;
 }
 
 static cmsHPROFILE colorspacesCreateXyzProfile() {
-    cmsHPROFILE hXYZ = cmsCreateXYZProfile();
-    cmsSetPCS(hXYZ, cmsSigXYZData);
-    cmsSetHeaderRenderingIntent(hXYZ, INTENT_PERCEPTUAL);
+  cmsHPROFILE hXYZ = cmsCreateXYZProfile();
+  cmsSetPCS(hXYZ, cmsSigXYZData);
+  cmsSetHeaderRenderingIntent(hXYZ, INTENT_PERCEPTUAL);
 
-    if (hXYZ == nullptr) return nullptr;
+  if (hXYZ == nullptr) return nullptr;
 
-    cmsSetProfileVersion(hXYZ, 2.1);
-    cmsMLU *mlu0 = cmsMLUalloc(nullptr, 1);
-    cmsMLUsetASCII(mlu0, "en", "US", "(dt internal)");
-    cmsMLU *mlu1 = cmsMLUalloc(nullptr, 1);
-    cmsMLUsetASCII(mlu1, "en", "US", "linear XYZ");
-    cmsMLU *mlu2 = cmsMLUalloc(nullptr, 1);
-    cmsMLUsetASCII(mlu2, "en", "US", "Darktable linear XYZ");
-    cmsWriteTag(hXYZ, cmsSigDeviceMfgDescTag, mlu0);
-    cmsWriteTag(hXYZ, cmsSigDeviceModelDescTag, mlu1);
-    // this will only be displayed when the embedded profile is read by for example GIMP
-    cmsWriteTag(hXYZ, cmsSigProfileDescriptionTag, mlu2);
-    cmsMLUfree(mlu0);
-    cmsMLUfree(mlu1);
-    cmsMLUfree(mlu2);
+  cmsSetProfileVersion(hXYZ, 2.1);
+  cmsMLU *mlu0 = cmsMLUalloc(nullptr, 1);
+  cmsMLUsetASCII(mlu0, "en", "US", "(dt internal)");
+  cmsMLU *mlu1 = cmsMLUalloc(nullptr, 1);
+  cmsMLUsetASCII(mlu1, "en", "US", "linear XYZ");
+  cmsMLU *mlu2 = cmsMLUalloc(nullptr, 1);
+  cmsMLUsetASCII(mlu2, "en", "US", "AVIF linear XYZ");
+  cmsWriteTag(hXYZ, cmsSigDeviceMfgDescTag, mlu0);
+  cmsWriteTag(hXYZ, cmsSigDeviceModelDescTag, mlu1);
+  // this will only be displayed when the embedded profile is read by for example GIMP
+  cmsWriteTag(hXYZ, cmsSigProfileDescriptionTag, mlu2);
+  cmsMLUfree(mlu0);
+  cmsMLUfree(mlu1);
+  cmsMLUfree(mlu2);
 
-    return hXYZ;
+  return hXYZ;
 }
 
-static ColorSpace colorspacesCreateDisplayP3RgbProfile() {
-    cmsFloat64Number srgb_parameters[5] =
-            {2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
-    cmsToneCurve *transferFunction = cmsBuildParametricToneCurve(nullptr, 4, srgb_parameters);
+ColorSpace colorspacesCreateDisplayP3RgbProfile() {
+  cmsFloat64Number srgb_parameters[5] =
+      {2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045};
+  cmsToneCurve *transferFunction = cmsBuildParametricToneCurve(nullptr, 4, srgb_parameters);
 
-    cmsHPROFILE profile = createLcmsProfile("Display P3 RGB", "Display P3 RGB",
-                                            &D65xyY, &P3_Primaries,
-                                            transferFunction, TRUE);
+  cmsHPROFILE profile = createLcmsProfile("Display P3 RGB", "Display P3 RGB",
+                                          &D65xyY, &P3_Primaries,
+                                          transferFunction, TRUE);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return {profile};
+  return {profile};
 }
 
+ColorSpace colorspacesCreateDCIP3RgbProfile() {
+  //DCI P3 gamma 2.6
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 2.6f);
 
-static ColorSpace colorspacesCreateAdobergbProfile() {
-    // AdobeRGB's "2.2" gamma is technically defined as 2 + 51/256
-    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 2.19921875);
+  cmsHPROFILE profile = createLcmsProfile("DCI P3 RGB", "DCI P3 RGB",
+                                          &D65xyY, &P3_Primaries,
+                                          transferFunction, TRUE);
 
-    cmsHPROFILE profile = createLcmsProfile("Adobe RGB (compatible)", "Adobe RGB",
-                                            &D65xyY, &Adobe_Primaries,
-                                            transferFunction, TRUE);
+  cmsFreeToneCurve(transferFunction);
 
-    cmsFreeToneCurve(transferFunction);
+  return {profile};
+}
 
-    return {profile};
+ColorSpace colorspacesCreateAdobergbProfile() {
+  // AdobeRGB's "2.2" gamma is technically defined as 2 + 51/256
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 2.19921875);
+
+  cmsHPROFILE profile = createLcmsProfile("Adobe RGB (compatible)", "Adobe RGB",
+                                          &D65xyY, &Adobe_Primaries,
+                                          transferFunction, TRUE);
+
+  cmsFreeToneCurve(transferFunction);
+
+  return {profile};
 }
 
 cmsHPROFILE colorspacesCreateLinearRec709RgbProfile() {
-    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
 
-    cmsHPROFILE profile = createLcmsProfile("Linear Rec709 RGB", "Linear Rec709 RGB",
-                                            &D65xyY, &Rec709_Primaries, transferFunction, TRUE);
+  cmsHPROFILE profile = createLcmsProfile("Linear Rec709 RGB", "Linear Rec709 RGB",
+                                          &D65xyY, &Rec709_Primaries, transferFunction, TRUE);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return profile;
+  return profile;
 }
 
 cmsHPROFILE colorspacesCreateLinearRec2020RgbProfile() {
-    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
 
-    cmsHPROFILE profile = createLcmsProfile("Linear Rec2020 RGB", "Linear Rec2020 RGB",
-                                            &D65xyY, &Rec2020_Primaries, transferFunction, TRUE);
+  cmsHPROFILE profile = createLcmsProfile("Linear Rec2020 RGB", "Linear Rec2020 RGB",
+                                          &D65xyY, &Rec2020_Primaries, transferFunction, TRUE);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return profile;
+  return profile;
 }
 
 cmsHPROFILE colorspacesCreateLinearProphotoRgbProfile() {
-    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
 
-    cmsHPROFILE profile = createLcmsProfile("Linear ProPhoto RGB", "Linear ProPhoto RGB",
-                                            &D50xyY, &ProPhoto_Primaries, transferFunction, TRUE);
+  cmsHPROFILE profile = createLcmsProfile("Linear ProPhoto RGB", "Linear ProPhoto RGB",
+                                          &D50xyY, &ProPhoto_Primaries, transferFunction, TRUE);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return profile;
+  return profile;
 }
 
 cmsHPROFILE colorspacesCreateLinearInfraredProfile() {
-    cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
+  cmsToneCurve *transferFunction = cmsBuildGamma(nullptr, 1.0);
 
-    // linear rgb with r and b swapped:
-    cmsCIExyYTRIPLE BGR_Primaries = {sRGB_Primaries.Blue, sRGB_Primaries.Green, sRGB_Primaries.Red};
+  // linear rgb with r and b swapped:
+  cmsCIExyYTRIPLE BGR_Primaries = {sRGB_Primaries.Blue, sRGB_Primaries.Green, sRGB_Primaries.Red};
 
-    cmsHPROFILE profile = createLcmsProfile("Linear Infrared BGR", "Darktable Linear Infrared BGR",
-                                            &D65xyY, &BGR_Primaries, transferFunction, FALSE);
+  cmsHPROFILE profile = createLcmsProfile("Linear Infrared BGR", "Darktable Linear Infrared BGR",
+                                          &D65xyY, &BGR_Primaries, transferFunction, FALSE);
 
-    cmsFreeToneCurve(transferFunction);
+  cmsFreeToneCurve(transferFunction);
 
-    return profile;
+  return profile;
 }
 
 void
@@ -298,90 +310,90 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
                    int width, int height,
                    cmsHPROFILE dstProfile,
                    bool image16Bits, int *newStride) {
-    cmsContext context = cmsCreateContext(nullptr, nullptr);
-    shared_ptr<void> contextPtr(context, [](void *profile) {
-        cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
-    });
-    cmsHTRANSFORM transform = cmsCreateTransform(srcProfile,
-                                                 image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
-                                                 dstProfile,
-                                                 image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
-                                                 INTENT_ABSOLUTE_COLORIMETRIC,
-                                                 cmsFLAGS_COPY_ALPHA);
-    if (!transform) {
-        // JUST RETURN without signalling error, better proceed with invalid photo than crash
-        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
-        return;
-    }
-    shared_ptr<void> ptrTransform(transform, [](void *transform) {
-        cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
-    });
+  cmsContext context = cmsCreateContext(nullptr, nullptr);
+  shared_ptr<void> contextPtr(context, [](void *profile) {
+    cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
+  });
+  cmsHTRANSFORM transform = cmsCreateTransform(srcProfile,
+                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               dstProfile,
+                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               INTENT_ABSOLUTE_COLORIMETRIC,
+                                               cmsFLAGS_COPY_ALPHA);
+  if (!transform) {
+    // JUST RETURN without signalling error, better proceed with invalid photo than crash
+    __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
+    return;
+  }
+  shared_ptr<void> ptrTransform(transform, [](void *transform) {
+    cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
+  });
 
-    vector<uint8_t> iccARGB;
-    int lineWidth = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
-    int alignment = 64;
-    int padding = (alignment - (lineWidth % alignment)) % alignment;
-    int dstStride = lineWidth + padding;
-    int newLength = dstStride * height;
-    iccARGB.resize(newLength);
+  vector<uint8_t> iccARGB;
+  int lineWidth = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
+  int alignment = 64;
+  int padding = (alignment - (lineWidth % alignment)) % alignment;
+  int dstStride = lineWidth + padding;
+  int newLength = dstStride * height;
+  iccARGB.resize(newLength);
 
-    const int threadCount = std::clamp(
-            std::min(static_cast<int>(std::thread::hardware_concurrency()),
-                     height * width / (256 * 256)), 1, 12);
+  const int threadCount = std::clamp(
+      std::min(static_cast<int>(std::thread::hardware_concurrency()),
+               height * width / (256 * 256)), 1, 12);
 
-    int segmentHeight = height / threadCount;
+  int segmentHeight = height / threadCount;
 
-    auto mOutputBuffer = iccARGB.data();
-    auto mInputBuffer = srcVector.data();
-    auto mTransform = ptrTransform.get();
+  auto mOutputBuffer = iccARGB.data();
+  auto mInputBuffer = srcVector.data();
+  auto mTransform = ptrTransform.get();
 
-    concurrency::parallel_for(6, height, [&](int y) {
-        cmsDoTransformLineStride(mTransform,
-                                 mInputBuffer + stride * y,
-                                 mOutputBuffer + dstStride * y, width, 1,
-                                 stride, stride, 0, 0);
-    });
+  concurrency::parallel_for(6, height, [&](int y) {
+    cmsDoTransformLineStride(mTransform,
+                             mInputBuffer + stride * y,
+                             mOutputBuffer + dstStride * y, width, 1,
+                             stride, stride, 0, 0);
+  });
 
-    srcVector = iccARGB;
-    *newStride = dstStride;
+  srcVector = iccARGB;
+  *newStride = dstStride;
 }
 
 void
 convertUseICC(vector<uint8_t> &vector, int stride, int width, int height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
               bool image16Bits, int *newStride) {
-    cmsContext context = cmsCreateContext(nullptr, nullptr);
-    shared_ptr<void> contextPtr(context, [](void *profile) {
-        cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
-    });
-    cmsHPROFILE srcProfile = cmsOpenProfileFromMem(colorSpace, colorSpaceSize);
-    if (!srcProfile) {
-        // JUST RETURN without signalling error, better proceed with invalid photo than crash
-        __android_log_print(ANDROID_LOG_ERROR, "JXLCoder", "ColorProfile Allocation Failed");
-        return;
-    }
-    shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
-        cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
-    });
-    cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(
-            reinterpret_cast<cmsContext>(contextPtr.get()));
-    shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
-        cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
-    });
-    cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
-                                                 image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
-                                                 ptrDstProfile.get(),
-                                                 image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
-                                                 INTENT_PERCEPTUAL,
-                                                 cmsFLAGS_BLACKPOINTCOMPENSATION |
-                                                 cmsFLAGS_NOWHITEONWHITEFIXUP |
-                                                 cmsFLAGS_COPY_ALPHA);
-    if (!transform) {
-        // JUST RETURN without signalling error, better proceed with invalid photo than crash
-        __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
-        return;
-    }
+  cmsContext context = cmsCreateContext(nullptr, nullptr);
+  shared_ptr<void> contextPtr(context, [](void *profile) {
+    cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
+  });
+  cmsHPROFILE srcProfile = cmsOpenProfileFromMem(colorSpace, colorSpaceSize);
+  if (!srcProfile) {
+    // JUST RETURN without signalling error, better proceed with invalid photo than crash
+    __android_log_print(ANDROID_LOG_ERROR, "JXLCoder", "ColorProfile Allocation Failed");
+    return;
+  }
+  shared_ptr<void> ptrSrcProfile(srcProfile, [](void *profile) {
+    cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
+  });
+  cmsHPROFILE dstProfile = cmsCreate_sRGBProfileTHR(
+      reinterpret_cast<cmsContext>(contextPtr.get()));
+  shared_ptr<void> ptrDstProfile(dstProfile, [](void *profile) {
+    cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
+  });
+  cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
+                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               ptrDstProfile.get(),
+                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               INTENT_PERCEPTUAL,
+                                               cmsFLAGS_BLACKPOINTCOMPENSATION |
+                                                   cmsFLAGS_NOWHITEONWHITEFIXUP |
+                                                   cmsFLAGS_COPY_ALPHA);
+  if (!transform) {
+    // JUST RETURN without signalling error, better proceed with invalid photo than crash
+    __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
+    return;
+  }
 
-    convertUseProfiles(vector, stride, ptrSrcProfile.get(), width, height, ptrDstProfile.get(),
-                       image16Bits, newStride);
+  convertUseProfiles(vector, stride, ptrSrcProfile.get(), width, height, ptrDstProfile.get(),
+                     image16Bits, newStride);
 }

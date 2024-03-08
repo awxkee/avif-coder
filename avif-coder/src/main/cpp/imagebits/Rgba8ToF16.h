@@ -32,9 +32,9 @@
 #include <cstdint>
 
 namespace coder {
-    void Rgba8ToF16(const uint8_t *sourceData, int srcStride,
-                    uint16_t *dst, int dstStride, int width,
-                    int height, const bool attenuateAlpha);
+void Rgba8ToF16(const uint8_t *sourceData, int srcStride,
+                uint16_t *dst, int dstStride, int width,
+                int height, const bool attenuateAlpha);
 }
 
 #endif //AVIF_RGBA8TOF16_H

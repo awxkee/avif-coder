@@ -34,15 +34,15 @@
 #include "heif.h"
 
 enum ScaleMode {
-    Fit = 1,
-    Fill = 2,
-    Resize = 3,
+  Fit = 1,
+  Fill = 2,
+  Resize = 3,
 };
 
 bool RescaleImage(std::vector<uint8_t> &initialData,
                   JNIEnv *env,
-                  std::shared_ptr<heif_image_handle>& handle,
-                  std::shared_ptr<heif_image>& img,
+                  std::shared_ptr<heif_image_handle> &handle,
+                  std::shared_ptr<heif_image> &img,
                   int *stride,
                   bool useFloats,
                   int *imageWidthPtr, int *imageHeightPtr,

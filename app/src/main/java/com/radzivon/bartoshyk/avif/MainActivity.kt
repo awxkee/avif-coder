@@ -93,58 +93,41 @@ class MainActivity : AppCompatActivity() {
 
         // HDR EXAMPLES - https://us.zonerama.com/williamskeaguidingphotography/Photo/1000120226/1004888131
         lifecycleScope.launch(Dispatchers.IO) {
-            val buffer = this@MainActivity.assets.open("test_2.jpg").source().buffer().readByteArray()
-            var bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size)
+            val coder = HeifCoder()
+            val allFiles1 = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+            val allFiles2 = getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
+            var allFiles = mutableListOf<String>()
+            allFiles.addAll(allFiles2)
+            allFiles.addAll(allFiles1)
+            for (file in allFiles) {
+                try {
+                    Log.d("AVIF", "start processing $file")
+                    val buffer = this@MainActivity.assets.open(file).source().buffer()
+                            .readByteArray()
+                    val size = coder.getSize(buffer)
+                    if (size != null) {
+                        val bitmap = coder.decodeSampled(
+                                buffer,
+                                if (size.width > 1800 || size.height > 1800) size.width / 2 else size.width,
+                                if (size.width > 1800 || size.height > 1800) size.height / 2 else size.height,
+                                PreferredColorConfig.RGBA_8888,
+                                ScaleMode.RESIZE
+                        )
+                        coder.encodeAvif(bitmap)
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
+                            imageView.root.setImageBitmap(bitmap)
+                            binding.scrollViewContainer.addView(imageView.root)
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
 
-            bitmap = bitmap.scale(bitmap.width / 2, bitmap.height / 2)
-                .copy(Bitmap.Config.RGBA_1010102, true)
-            lifecycleScope.launch(Dispatchers.Main) {
-                val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
-                imageView.root.setImageBitmap(bitmap)
-                binding.scrollViewContainer.addView(imageView.root)
+                    } else {
+                        throw e
+                    }
+                }
             }
-            val coder = HeifCoder(null, toneMapper = ToneMapper.LOGARITHMIC)
-            val avif = coder.encodeAvif(bitmap)
-            val decodedAvif = coder.decode(avif)
-            lifecycleScope.launch(Dispatchers.Main) {
-                val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
-                imageView.root.setImageBitmap(decodedAvif)
-                binding.scrollViewContainer.addView(imageView.root)
-            }
-//            val allFiles1 = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
-//            val allFiles2 = getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
-//            var allFiles = mutableListOf<String>()
-//            allFiles.addAll(allFiles2)
-//            allFiles.addAll(allFiles1)
-//            for (file in allFiles) {
-//                try {
-//                    Log.d("AVIF", "start processing $file")
-//                    val buffer = this@MainActivity.assets.open(file).source().buffer()
-//                            .readByteArray()
-//                    val size = coder.getSize(buffer)
-//                    if (size != null) {
-//                        val bitmap = coder.decodeSampled(
-//                                buffer,
-//                                if (size.width > 1800 || size.height > 1800) size.width / 2 else size.width,
-//                                if (size.width > 1800 || size.height > 1800) size.height / 2 else size.height,
-//                                PreferredColorConfig.RGBA_8888,
-//                                ScaleMode.RESIZE
-//                        )
-//                        coder.encodeAvif(bitmap)
-//                        lifecycleScope.launch(Dispatchers.Main) {
-//                            val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
-//                            imageView.root.setImageBitmap(bitmap)
-//                            binding.scrollViewContainer.addView(imageView.root)
-//                        }
-//                    }
-//                } catch (e: Exception) {
-//                    if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
-//
-//                    } else {
-//                        throw e
-//                    }
-//                }
-//            }
         }
 
 //        https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif

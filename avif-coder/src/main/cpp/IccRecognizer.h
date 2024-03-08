@@ -32,11 +32,11 @@
 #include <string>
 #include "heif.h"
 
-void RecognizeICC(std::shared_ptr<heif_image_handle>& handle,
-                  std::shared_ptr<heif_image>& image,
+void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
+                  std::shared_ptr<heif_image> &image,
                   std::vector<uint8_t> &iccProfile,
                   std::string &colorSpaceName,
                   heif_color_profile_nclx **colorProfileNclx,
-                  bool* hasNclx);
+                  bool *hasNclx);
 
 #endif //AVIF_ICCRECOGNIZER_H

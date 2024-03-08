@@ -16,7 +16,7 @@ add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
         icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
         icc/cmswtpnt.c icc/cmsxform.c colorspace/colorspace.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
-        colorspace/HDRTransferAdapter.cpp
+        colorspace/GamutAdapter.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
         HardwareBuffersCompat.cpp imagebits/half.cpp

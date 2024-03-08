@@ -53,45 +53,45 @@ HWY_BEFORE_NAMESPACE();
 
 namespace coder::HWY_NAMESPACE {
 
-    using hwy::EnableIf;
-    using hwy::IsFloat;
-    using hwy::HWY_NAMESPACE::Vec;
-    using hwy::HWY_NAMESPACE::Mul;
-    using hwy::HWY_NAMESPACE::MulAdd;
-    using hwy::HWY_NAMESPACE::LoadU;
-    using hwy::HWY_NAMESPACE::Set;
-    using hwy::HWY_NAMESPACE::TFromD;
+using hwy::EnableIf;
+using hwy::IsFloat;
+using hwy::HWY_NAMESPACE::Vec;
+using hwy::HWY_NAMESPACE::Mul;
+using hwy::HWY_NAMESPACE::MulAdd;
+using hwy::HWY_NAMESPACE::LoadU;
+using hwy::HWY_NAMESPACE::Set;
+using hwy::HWY_NAMESPACE::TFromD;
 
-    template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
-    HWY_CODER_CMS_INLINE void
-    convertColorProfile(const D df, const Eigen::Matrix3f &conversion, V &r, V &g, V &b) {
-        const auto tLane0 = Set(df, static_cast<TFromD<D>>(conversion(0, 0)));
-        const auto tLane1 = Set(df, static_cast<TFromD<D>>(conversion(0, 1)));
-        const auto tLane2 = Set(df, static_cast<TFromD<D>>(conversion(0, 2)));
-        auto newR = MulAdd(r, tLane0, MulAdd(g, tLane1, Mul(b, tLane2)));
-        const auto tLane3 = Set(df, static_cast<TFromD<D>>(conversion(1, 0)));
-        const auto tLane4 = Set(df, static_cast<TFromD<D>>(conversion(1, 1)));
-        const auto tLane5 = Set(df, static_cast<TFromD<D>>(conversion(1, 2)));
-        auto newG = MulAdd(r, tLane3, MulAdd(g, tLane4, Mul(b, tLane5)));
-        const auto tLane6 = Set(df, static_cast<TFromD<D>>(conversion(2, 0)));
-        const auto tLane7 = Set(df, static_cast<TFromD<D>>(conversion(2, 1)));
-        const auto tLane8 = Set(df, static_cast<TFromD<D>>(conversion(2, 2)));
-        auto newB = MulAdd(r, tLane6, MulAdd(g, tLane7, Mul(b, tLane8)));
-        r = newR;
-        g = newG;
-        b = newB;
-    }
+template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
+HWY_CODER_CMS_INLINE void
+convertColorProfile(const D df, const Eigen::Matrix3f &conversion, V &r, V &g, V &b) {
+  const auto tLane0 = Set(df, static_cast<TFromD<D>>(conversion(0, 0)));
+  const auto tLane1 = Set(df, static_cast<TFromD<D>>(conversion(0, 1)));
+  const auto tLane2 = Set(df, static_cast<TFromD<D>>(conversion(0, 2)));
+  auto newR = MulAdd(r, tLane0, MulAdd(g, tLane1, Mul(b, tLane2)));
+  const auto tLane3 = Set(df, static_cast<TFromD<D>>(conversion(1, 0)));
+  const auto tLane4 = Set(df, static_cast<TFromD<D>>(conversion(1, 1)));
+  const auto tLane5 = Set(df, static_cast<TFromD<D>>(conversion(1, 2)));
+  auto newG = MulAdd(r, tLane3, MulAdd(g, tLane4, Mul(b, tLane5)));
+  const auto tLane6 = Set(df, static_cast<TFromD<D>>(conversion(2, 0)));
+  const auto tLane7 = Set(df, static_cast<TFromD<D>>(conversion(2, 1)));
+  const auto tLane8 = Set(df, static_cast<TFromD<D>>(conversion(2, 2)));
+  auto newB = MulAdd(r, tLane6, MulAdd(g, tLane7, Mul(b, tLane8)));
+  r = newR;
+  g = newG;
+  b = newB;
+}
 
-    HWY_CODER_CMS_INLINE void
-    convertColorProfile(const Eigen::Matrix3f &conversion, float &r, float &g, float &b) {
-        const Eigen::Vector3f color = {r, g, b};
-        const float newR = conversion.row(0).dot(color);
-        const float newG = conversion.row(1).dot(color);
-        const float newB = conversion.row(2).dot(color);
-        r = newR;
-        g = newG;
-        b = newB;
-    }
+HWY_CODER_CMS_INLINE void
+convertColorProfile(const Eigen::Matrix3f &conversion, float &r, float &g, float &b) {
+  const Eigen::Vector3f color = {r, g, b};
+  const float newR = conversion.row(0).dot(color);
+  const float newG = conversion.row(1).dot(color);
+  const float newB = conversion.row(2).dot(color);
+  r = newR;
+  g = newG;
+  b = newB;
+}
 
 }
 

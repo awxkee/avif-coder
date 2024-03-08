@@ -39,129 +39,129 @@
 #define HWY_ATTENUATE_INLINE inline __attribute__((flatten))
 
 namespace coder::HWY_NAMESPACE {
-    HWY_BEFORE_NAMESPACE();
+HWY_BEFORE_NAMESPACE();
 
-    using hwy::HWY_NAMESPACE::Set;
-    using hwy::HWY_NAMESPACE::FixedTag;
-    using hwy::HWY_NAMESPACE::Vec;
-    using hwy::HWY_NAMESPACE::Mul;
-    using hwy::HWY_NAMESPACE::Max;
-    using hwy::HWY_NAMESPACE::Min;
-    using hwy::HWY_NAMESPACE::Zero;
-    using hwy::HWY_NAMESPACE::BitCast;
-    using hwy::HWY_NAMESPACE::ConvertTo;
-    using hwy::HWY_NAMESPACE::PromoteTo;
-    using hwy::HWY_NAMESPACE::DemoteTo;
-    using hwy::HWY_NAMESPACE::Combine;
-    using hwy::HWY_NAMESPACE::And;
-    using hwy::HWY_NAMESPACE::LoadU;
-    using hwy::HWY_NAMESPACE::Rebind;
-    using hwy::HWY_NAMESPACE::StoreInterleaved4;
-    using hwy::HWY_NAMESPACE::LowerHalf;
-    using hwy::HWY_NAMESPACE::ShiftLeft;
-    using hwy::HWY_NAMESPACE::ShiftRight;
-    using hwy::HWY_NAMESPACE::PromoteLowerTo;
-    using hwy::HWY_NAMESPACE::PromoteUpperTo;
-    using hwy::HWY_NAMESPACE::UpperHalf;
-    using hwy::HWY_NAMESPACE::LoadInterleaved4;
-    using hwy::HWY_NAMESPACE::StoreU;
-    using hwy::HWY_NAMESPACE::Or;
-    using hwy::HWY_NAMESPACE::ApproximateReciprocal;
-    using hwy::HWY_NAMESPACE::Mul;
-    using hwy::HWY_NAMESPACE::Div;
-    using hwy::HWY_NAMESPACE::TFromV;
-    using hwy::HWY_NAMESPACE::TFromD;
-    using hwy::EnableIf;
-    using hwy::IsSame;
-    using hwy::float16_t;
-    using hwy::float32_t;
+using hwy::HWY_NAMESPACE::Set;
+using hwy::HWY_NAMESPACE::FixedTag;
+using hwy::HWY_NAMESPACE::Vec;
+using hwy::HWY_NAMESPACE::Mul;
+using hwy::HWY_NAMESPACE::Max;
+using hwy::HWY_NAMESPACE::Min;
+using hwy::HWY_NAMESPACE::Zero;
+using hwy::HWY_NAMESPACE::BitCast;
+using hwy::HWY_NAMESPACE::ConvertTo;
+using hwy::HWY_NAMESPACE::PromoteTo;
+using hwy::HWY_NAMESPACE::DemoteTo;
+using hwy::HWY_NAMESPACE::Combine;
+using hwy::HWY_NAMESPACE::And;
+using hwy::HWY_NAMESPACE::LoadU;
+using hwy::HWY_NAMESPACE::Rebind;
+using hwy::HWY_NAMESPACE::StoreInterleaved4;
+using hwy::HWY_NAMESPACE::LowerHalf;
+using hwy::HWY_NAMESPACE::ShiftLeft;
+using hwy::HWY_NAMESPACE::ShiftRight;
+using hwy::HWY_NAMESPACE::PromoteLowerTo;
+using hwy::HWY_NAMESPACE::PromoteUpperTo;
+using hwy::HWY_NAMESPACE::UpperHalf;
+using hwy::HWY_NAMESPACE::LoadInterleaved4;
+using hwy::HWY_NAMESPACE::StoreU;
+using hwy::HWY_NAMESPACE::Or;
+using hwy::HWY_NAMESPACE::ApproximateReciprocal;
+using hwy::HWY_NAMESPACE::Mul;
+using hwy::HWY_NAMESPACE::Div;
+using hwy::HWY_NAMESPACE::TFromV;
+using hwy::HWY_NAMESPACE::TFromD;
+using hwy::EnableIf;
+using hwy::IsSame;
+using hwy::float16_t;
+using hwy::float32_t;
 
-    template<typename D, typename V = Vec<D>, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 16)>
-    HWY_ATTENUATE_INLINE V
-    AttenuateVec(D d, V vec, V alpha) {
-        const FixedTag<uint32_t, 4> du32x4;
-        const FixedTag<uint16_t, 8> du16x8;
-        const FixedTag<uint8_t, 8> du8x8;
-        const FixedTag<uint8_t, 4> du8x4;
-        const FixedTag<float, 4> df32x4;
-        using VF32x4 = Vec<decltype(df32x4)>;
-        const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
+template<typename D, typename V = Vec<D>, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 16)>
+HWY_ATTENUATE_INLINE V
+AttenuateVec(D d, V vec, V alpha) {
+  const FixedTag<uint32_t, 4> du32x4;
+  const FixedTag<uint16_t, 8> du16x8;
+  const FixedTag<uint8_t, 8> du8x8;
+  const FixedTag<uint8_t, 4> du8x4;
+  const FixedTag<float, 4> df32x4;
+  using VF32x4 = Vec<decltype(df32x4)>;
+  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
 
-        const auto vecLow = LowerHalf(vec);
-        const auto alphaLow = LowerHalf(alpha);
-        auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
-        auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  const auto vecLow = LowerHalf(vec);
+  const auto alphaLow = LowerHalf(alpha);
+  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
+  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
 
-        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
-        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
+  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
 
-        auto vecHigh = UpperHalf(du8x8, vec);
-        auto alphaHigh = UpperHalf(du8x8, alpha);
+  auto vecHigh = UpperHalf(du8x8, vec);
+  auto alphaHigh = UpperHalf(du8x8, alpha);
 
-        vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
-        mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
+  mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
 
-        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
-        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-        auto low = Combine(du8x8, lowhigh, lowlow);
-        auto high = Combine(du8x8, highhigh, highlow);
-        return Combine(d, high, low);
-    }
+  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
+  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  auto low = Combine(du8x8, lowhigh, lowlow);
+  auto high = Combine(du8x8, highhigh, highlow);
+  return Combine(d, high, low);
+}
 
-    template<class D, typename V = Vec<D>, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 8)>
-    HWY_ATTENUATE_INLINE V
-    AttenuateVec(D d, V vec, V alpha) {
-        const FixedTag<uint32_t, 4> du32x4;
-        const FixedTag<uint16_t, 8> du16x8;
-        const FixedTag<uint8_t, 8> du8x8;
-        const FixedTag<uint8_t, 4> du8x4;
-        const FixedTag<float, 4> df32x4;
-        using VF32x4 = Vec<decltype(df32x4)>;
-        const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
+template<class D, typename V = Vec<D>, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 8)>
+HWY_ATTENUATE_INLINE V
+AttenuateVec(D d, V vec, V alpha) {
+  const FixedTag<uint32_t, 4> du32x4;
+  const FixedTag<uint16_t, 8> du16x8;
+  const FixedTag<uint8_t, 8> du8x8;
+  const FixedTag<uint8_t, 4> du8x4;
+  const FixedTag<float, 4> df32x4;
+  using VF32x4 = Vec<decltype(df32x4)>;
+  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
 
-        const auto promotedVec = PromoteTo(du16x8, vec);
-        const auto promotedAlpha = PromoteTo(du16x8, alpha);
-        auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedVec));
-        auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedAlpha));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto low = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  const auto promotedVec = PromoteTo(du16x8, vec);
+  const auto promotedAlpha = PromoteTo(du16x8, alpha);
+  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedVec));
+  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedAlpha));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto low = DemoteTo(du8x4, ConvertTo(du32x4, vk));
 
-        vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, promotedVec));
-        mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, promotedAlpha));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto high = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, promotedVec));
+  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, promotedAlpha));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto high = DemoteTo(du8x4, ConvertTo(du32x4, vk));
 
-        auto attenuated = Combine(du8x8, high, low);
-        return attenuated;
-    }
+  auto attenuated = Combine(du8x8, high, low);
+  return attenuated;
+}
 
-    template<class D, typename V = Vec<D>, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 4)>
-    HWY_ATTENUATE_INLINE V
-    AttenuateVec(D d, V vec, V alpha) {
-        const FixedTag<uint32_t, 4> du32x4;
-        const FixedTag<uint16_t, 4> du16x8;
-        const FixedTag<uint8_t, 4> du8x8;
-        const FixedTag<uint8_t, 4> du8x4;
-        const FixedTag<float, 4> df32x4;
-        using VF32x4 = Vec<decltype(df32x4)>;
-        const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
+template<class D, typename V = Vec<D>, HWY_IF_U8_D(D), HWY_IF_LANES_D(D, 4)>
+HWY_ATTENUATE_INLINE V
+AttenuateVec(D d, V vec, V alpha) {
+  const FixedTag<uint32_t, 4> du32x4;
+  const FixedTag<uint16_t, 4> du16x8;
+  const FixedTag<uint8_t, 4> du8x8;
+  const FixedTag<uint8_t, 4> du8x4;
+  const FixedTag<float, 4> df32x4;
+  using VF32x4 = Vec<decltype(df32x4)>;
+  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
 
-        const auto promotedVec = PromoteTo(du16x8, vec);
-        const auto promotedAlpha = PromoteTo(du16x8, alpha);
-        auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedVec));
-        auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedAlpha));
-        vk = Round(Mul(Mul(vk, mul), mult255));
-        auto low = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-        return low;
-    }
+  const auto promotedVec = PromoteTo(du16x8, vec);
+  const auto promotedAlpha = PromoteTo(du16x8, alpha);
+  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedVec));
+  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, promotedAlpha));
+  vk = Round(Mul(Mul(vk, mul), mult255));
+  auto low = DemoteTo(du8x4, ConvertTo(du32x4, vk));
+  return low;
+}
 }
 
 HWY_AFTER_NAMESPACE();

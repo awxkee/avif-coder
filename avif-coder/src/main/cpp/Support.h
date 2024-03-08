@@ -31,7 +31,7 @@
 
 #include <jni.h>
 #include "SizeScaler.h"
-#include "HDRTransferAdapter.h"
+#include "GamutAdapter.h"
 
 enum PreferredColorConfig {
     Default = 1,

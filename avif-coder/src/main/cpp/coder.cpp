@@ -45,7 +45,7 @@
 #include "imagebits/RgbaF16bitToNBitU16.h"
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
-#include "colorspace/HDRTransferAdapter.h"
+#include "colorspace/GamutAdapter.h"
 #include "imagebits/RGBAlpha.h"
 #include "imagebits/Rgb565.h"
 #include "DataSpaceToNCLX.hpp"
@@ -53,213 +53,233 @@
 using namespace std;
 
 struct AvifMemEncoder {
-    std::vector<char> buffer;
+  std::vector<char> buffer;
 };
 
 struct heif_error writeHeifData(struct heif_context *ctx,
                                 const void *data,
                                 size_t size,
                                 void *userdata) {
-    auto *p = (struct AvifMemEncoder *) userdata;
-    p->buffer.insert(p->buffer.end(), (char *) data, (char *) ((char *) data + size));
+  auto *p = (struct AvifMemEncoder *) userdata;
+  p->buffer.insert(p->buffer.end(), (char *) data, (char *) ((char *) data + size));
 
-    struct heif_error
-            error_ok;
-    error_ok.code = heif_error_Ok;
-    error_ok.subcode = heif_suberror_Unspecified;
-    error_ok.message = "ok";
-    return (error_ok);
+  struct heif_error
+      error_ok;
+  error_ok.code = heif_error_Ok;
+  error_ok.subcode = heif_suberror_Unspecified;
+  error_ok.message = "ok";
+  return (error_ok);
 }
 
 jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                         jobject bitmap, heif_compression_format heifCompressionFormat,
                         int quality, int dataSpace) {
-    std::shared_ptr<heif_context> ctx(heif_context_alloc(),
-                                      [](heif_context *c) { heif_context_free(c); });
-    if (!ctx) {
-        std::string exception = "Can't create HEIF/AVIF encoder due to unknown reason";
-        throwException(env, exception);
-        return static_cast<jbyteArray>(nullptr);
-    }
+  std::shared_ptr<heif_context> ctx(heif_context_alloc(),
+                                    [](heif_context *c) { heif_context_free(c); });
+  if (!ctx) {
+    std::string exception = "Can't create HEIF/AVIF encoder due to unknown reason";
+    throwException(env, exception);
+    return static_cast<jbyteArray>(nullptr);
+  }
 
-    heif_encoder *mEncoder;
-    auto result = heif_context_get_encoder_for_format(ctx.get(), heifCompressionFormat, &mEncoder);
-    if (result.code != heif_error_Ok) {
+  heif_encoder *mEncoder;
+  auto result = heif_context_get_encoder_for_format(ctx.get(), heifCompressionFormat, &mEncoder);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create encoder with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+  std::shared_ptr<heif_encoder> encoder(mEncoder,
+                                        [](heif_encoder *he) { heif_encoder_release(he); });
+  if (quality < 100) {
+    heif_encoder_set_lossy_quality(encoder.get(), quality);
+  }
+
+  AndroidBitmapInfo info;
+  if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
+    throwPixelsException(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  if (info.flags & ANDROID_BITMAP_FLAGS_IS_HARDWARE) {
+    throwHardwareBitmapException(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 &&
+      info.format != ANDROID_BITMAP_FORMAT_RGB_565 &&
+      info.format != ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+      info.format != ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+    throwInvalidPixelsFormat(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  void *addr;
+  if (AndroidBitmap_lockPixels(env, bitmap, &addr) != 0) {
+    throwPixelsException(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  std::vector<uint8_t> sourceData(info.height * info.stride);
+  std::copy(reinterpret_cast<uint8_t *>(addr),
+            reinterpret_cast<uint8_t *>(addr) + info.height * info.stride, sourceData.data());
+
+  AndroidBitmap_unlockPixels(env, bitmap);
+
+  heif_image *image;
+  heif_chroma chroma = heif_chroma_interleaved_RGBA;
+  if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+      heifCompressionFormat == heif_compression_AV1) ||
+      (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
+          heifCompressionFormat == heif_compression_AV1)) {
+    chroma = heif_chroma_interleaved_RRGGBBAA_LE;
+  }
+
+  result = heif_image_create((int) info.width, (int) info.height,
+                             heif_colorspace_RGB, chroma, &image);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create encoded image with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  std::shared_ptr<heif_color_profile_nclx> profile(heif_nclx_color_profile_alloc(), [](auto x) {
+    heif_nclx_color_profile_free(x);
+  });
+
+  int bitDepth = 8;
+  if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+    bitDepth = 8;
+  } else if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+      heifCompressionFormat == heif_compression_AV1) ||
+      (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
+          heifCompressionFormat == heif_compression_AV1)) {
+    bitDepth = 10;
+  }
+
+  result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
+                                (int) info.height, bitDepth);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create add plane to encoded image with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+  int stride;
+  uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
+  if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
+    coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
+                             imgData,
+                             stride, (int) info.width, (int) info.height);
+    heif_image_set_premultiplied_alpha(image, false);
+  } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+    coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
+                             imgData, stride, (int) info.width, (int) info.height, 8, 255);
+  } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+    if (heifCompressionFormat == heif_compression_HEVC) {
+      coder::RGBA1010102ToUnsigned(reinterpret_cast<const uint8_t *>(sourceData.data()),
+                                   (int) info.stride,
+                                   reinterpret_cast<uint8_t *>(imgData), stride,
+                                   (int) info.width, (int) info.height, 8);
+      heif_image_set_premultiplied_alpha(image, true);
+    } else {
+      coder::RGBA1010102ToUnsigned(reinterpret_cast<uint8_t *>(sourceData.data()),
+                                   (int) info.stride,
+                                   reinterpret_cast<uint16_t *>(imgData), stride,
+                                   (int) info.width, (int) info.height, 10);
+    }
+  } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+    if (heifCompressionFormat == heif_compression_AV1) {
+      coder::RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
+                                 (int) info.stride,
+                                 reinterpret_cast<uint16_t *>(imgData), stride,
+                                 (int) info.width,
+                                 (int) info.height, 10);
+    } else {
+      coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
+                                (int) info.stride,
+                                reinterpret_cast<uint8_t *>(imgData), stride,
+                                (int) info.width,
+                                (int) info.height, 8, true);
+    }
+  }
+
+  std::vector<uint8_t> iccProfile(0);
+
+  bool nclxResult = coder::colorProfileFromDataSpace(imgData,
+                                                     stride,
+                                                     info.width,
+                                                     info.height,
+                                                     bitDepth == 8,
+                                                     bitDepth,
+                                                     dataSpace,
+                                                     profile.get(),
+                                                     iccProfile);
+  if (nclxResult) {
+    if (iccProfile.size() < 1) {
+      result = heif_image_set_nclx_color_profile(image, profile.get());
+      if (result.code != heif_error_Ok) {
         std::string choke(result.message);
-        std::string str = "Can't create encoder with exception: " + choke;
+        std::string str = "Can't set required color profiel: " + choke;
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
-    }
-    std::shared_ptr<heif_encoder> encoder(mEncoder,
-                                          [](heif_encoder *he) { heif_encoder_release(he); });
-    if (quality < 100) {
-        heif_encoder_set_lossy_quality(encoder.get(), quality);
-    }
-
-    AndroidBitmapInfo info;
-    if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
-        throwPixelsException(env);
-        return static_cast<jbyteArray>(nullptr);
-    }
-
-    if (info.flags & ANDROID_BITMAP_FLAGS_IS_HARDWARE) {
-        throwHardwareBitmapException(env);
-        return static_cast<jbyteArray>(nullptr);
-    }
-
-    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 &&
-        info.format != ANDROID_BITMAP_FORMAT_RGB_565 &&
-        info.format != ANDROID_BITMAP_FORMAT_RGBA_F16 &&
-        info.format != ANDROID_BITMAP_FORMAT_RGBA_1010102) {
-        throwInvalidPixelsFormat(env);
-        return static_cast<jbyteArray>(nullptr);
-    }
-
-
-    void *addr;
-    if (AndroidBitmap_lockPixels(env, bitmap, &addr) != 0) {
-        throwPixelsException(env);
-        return static_cast<jbyteArray>(nullptr);
-    }
-
-    std::vector<uint8_t> sourceData(info.height * info.stride);
-    std::copy(reinterpret_cast<uint8_t *>(addr),
-              reinterpret_cast<uint8_t *>(addr) + info.height * info.stride, sourceData.data());
-
-    AndroidBitmap_unlockPixels(env, bitmap);
-
-    heif_image *image;
-    heif_chroma chroma = heif_chroma_interleaved_RGBA;
-    if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
-         heifCompressionFormat == heif_compression_AV1) ||
-        (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
-         heifCompressionFormat == heif_compression_AV1)) {
-        chroma = heif_chroma_interleaved_RRGGBBAA_LE;
-    }
-
-    result = heif_image_create((int) info.width, (int) info.height,
-                               heif_colorspace_RGB, chroma, &image);
-    if (result.code != heif_error_Ok) {
+      }
+    } else {
+      result =
+          heif_image_set_raw_color_profile(image, "prof", iccProfile.data(), iccProfile.size());
+      if (result.code != heif_error_Ok) {
         std::string choke(result.message);
-        std::string str = "Can't create encoded image with exception: " + choke;
+        std::string str = "Can't set required color profiel: " + choke;
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
+      }
     }
+  }
 
-    std::shared_ptr<heif_color_profile_nclx> profile(heif_nclx_color_profile_alloc(), [](auto x) {
-        heif_nclx_color_profile_free(x);
-    });
+  heif_image_handle *handle;
+  std::shared_ptr<heif_encoding_options> options(heif_encoding_options_alloc(),
+                                                 [](heif_encoding_options *o) {
+                                                   heif_encoding_options_free(o);
+                                                 });
+  options->version = 5;
+  options->image_orientation = heif_orientation_normal;
 
-    bool nclxResult = coder::nclxFromDataSpace(dataSpace, profile.get());
-    if (nclxResult) {
-        result = heif_image_set_nclx_color_profile(image, profile.get());
-        if (result.code != heif_error_Ok) {
-            std::string choke(result.message);
-            std::string str = "Can't set required color profiel: " + choke;
-            throwException(env, str);
-            return static_cast<jbyteArray>(nullptr);
-        }
-    }
+  result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
+  options.reset();
+  if (handle && result.code == heif_error_Ok) {
+    heif_context_set_primary_image(ctx.get(), handle);
+    heif_image_handle_release(handle);
+  }
+  heif_image_release(image);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Encoding an image failed with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
 
-    int bitDepth = 8;
-    if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
-        bitDepth = 8;
-    } else if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
-                heifCompressionFormat == heif_compression_AV1) ||
-               (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
-                heifCompressionFormat == heif_compression_AV1)) {
-        bitDepth = 10;
-    }
+  encoder.reset();
 
-    result = heif_image_add_plane(image, heif_channel_interleaved, (int) info.width,
-                                  (int) info.height, bitDepth);
-    if (result.code != heif_error_Ok) {
-        std::string choke(result.message);
-        std::string str = "Can't create add plane to encoded image with exception: " + choke;
-        throwException(env, str);
-        return static_cast<jbyteArray>(nullptr);
-    }
-    int stride;
-    uint8_t *imgData = heif_image_get_plane(image, heif_channel_interleaved, &stride);
-    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
-        coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
-                                 imgData,
-                                 stride, (int) info.width, (int) info.height);
-        heif_image_set_premultiplied_alpha(image, false);
-    } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
-        coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
-                                 imgData, stride, (int) info.width, (int) info.height, 8, 255);
-    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
-        if (heifCompressionFormat == heif_compression_HEVC) {
-            coder::RGBA1010102ToUnsigned(reinterpret_cast<const uint8_t *>(sourceData.data()),
-                                         (int) info.stride,
-                                         reinterpret_cast<uint8_t *>(imgData), stride,
-                                         (int) info.width, (int) info.height, 8);
-            heif_image_set_premultiplied_alpha(image, true);
-        } else {
-            coder::RGBA1010102ToUnsigned(reinterpret_cast<uint8_t *>(sourceData.data()),
-                                         (int) info.stride,
-                                         reinterpret_cast<uint16_t *>(imgData), stride,
-                                         (int) info.width, (int) info.height, 10);
-        }
-    } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
-        if (heifCompressionFormat == heif_compression_AV1) {
-            coder::RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
-                                       (int) info.stride,
-                                       reinterpret_cast<uint16_t *>(imgData), stride,
-                                       (int) info.width,
-                                       (int) info.height, 10);
-        } else {
-            coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
-                                      (int) info.stride,
-                                      reinterpret_cast<uint8_t *>(imgData), stride,
-                                      (int) info.width,
-                                      (int) info.height, 8, true);
-        }
-    }
+  std::vector<char> buf;
+  heif_writer writer = {};
+  writer.writer_api_version = 1;
+  writer.write = writeHeifData;
+  AvifMemEncoder memEncoder;
+  result = heif_context_write(ctx.get(), &writer, &memEncoder);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Writing encoded image has failed with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
 
-    heif_image_handle *handle;
-    std::shared_ptr<heif_encoding_options> options(heif_encoding_options_alloc(),
-                                                   [](heif_encoding_options *o) {
-                                                       heif_encoding_options_free(o);
-                                                   });
-    options->version = 5;
-    options->image_orientation = heif_orientation_normal;
-
-    result = heif_context_encode_image(ctx.get(), image, encoder.get(), options.get(), &handle);
-    options.reset();
-    if (handle && result.code == heif_error_Ok) {
-        heif_context_set_primary_image(ctx.get(), handle);
-        heif_image_handle_release(handle);
-    }
-    heif_image_release(image);
-    if (result.code != heif_error_Ok) {
-        std::string choke(result.message);
-        std::string str = "Encoding an image failed with exception: " + choke;
-        throwException(env, str);
-        return static_cast<jbyteArray>(nullptr);
-    }
-
-    encoder.reset();
-
-    std::vector<char> buf;
-    heif_writer writer = {};
-    writer.writer_api_version = 1;
-    writer.write = writeHeifData;
-    AvifMemEncoder memEncoder;
-    result = heif_context_write(ctx.get(), &writer, &memEncoder);
-    if (result.code != heif_error_Ok) {
-        std::string choke(result.message);
-        std::string str = "Writing encoded image has failed with exception: " + choke;
-        throwException(env, str);
-        return static_cast<jbyteArray>(nullptr);
-    }
-
-    jbyteArray byteArray = env->NewByteArray((jsize) memEncoder.buffer.size());
-    char *memBuf = (char *) ((void *) memEncoder.buffer.data());
-    env->SetByteArrayRegion(byteArray, 0, (jint) memEncoder.buffer.size(),
-                            reinterpret_cast<const jbyte *>(memBuf));
-    return byteArray;
+  jbyteArray byteArray = env->NewByteArray((jsize) memEncoder.buffer.size());
+  char *memBuf = (char *) ((void *) memEncoder.buffer.data());
+  env->SetByteArrayRegion(byteArray, 0, (jint) memEncoder.buffer.size(),
+                          reinterpret_cast<const jbyte *>(memBuf));
+  return byteArray;
 }
 
 extern "C"
@@ -267,13 +287,13 @@ JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, jobject thiz,
                                                                 jobject bitmap, jint quality,
                                                                 jint dataSpace) {
-    try {
-        return encodeBitmap(env, thiz, bitmap, heif_compression_AV1, quality, dataSpace);
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to encode this image";
-        throwException(env, exception);
-        return static_cast<jbyteArray>(nullptr);
-    }
+  try {
+    return encodeBitmap(env, thiz, bitmap, heif_compression_AV1, quality, dataSpace);
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to encode this image";
+    throwException(env, exception);
+    return static_cast<jbyteArray>(nullptr);
+  }
 }
 
 extern "C"
@@ -281,127 +301,127 @@ JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, jobject thiz,
                                                                 jobject bitmap, jint quality,
                                                                 jint dataSpace) {
-    try {
-        return encodeBitmap(env, thiz, bitmap, heif_compression_HEVC, quality, dataSpace);
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to encode this image";
-        throwException(env, exception);
-        return static_cast<jbyteArray>(nullptr);
-    }
+  try {
+    return encodeBitmap(env, thiz, bitmap, heif_compression_HEVC, quality, dataSpace);
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to encode this image";
+    throwException(env, exception);
+    return static_cast<jbyteArray>(nullptr);
+  }
 }
 
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isHeifImageImpl(JNIEnv *env, jobject thiz,
                                                                  jbyteArray byte_array) {
-    try {
-        auto totalLength = env->GetArrayLength(byte_array);
-        std::vector<uint8_t> srcBuffer(totalLength);
-        env->GetByteArrayRegion(byte_array, 0, totalLength,
-                                reinterpret_cast<jbyte *>(srcBuffer.data()));
-        auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
-                                             totalLength);
-        std::string mime(cMime);
-        return mime == "image/heic" || mime == "image/heif" ||
-               mime == "image/heic-sequence" || mime == "image/heif-sequence";
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to check this image";
-        throwException(env, exception);
-        return false;
-    }
+  try {
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::vector<uint8_t> srcBuffer(totalLength);
+    env->GetByteArrayRegion(byte_array, 0, totalLength,
+                            reinterpret_cast<jbyte *>(srcBuffer.data()));
+    auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
+                                         totalLength);
+    std::string mime(cMime);
+    return mime == "image/heic" || mime == "image/heif" ||
+        mime == "image/heic-sequence" || mime == "image/heif-sequence";
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to check this image";
+    throwException(env, exception);
+    return false;
+  }
 }
 
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isAvifImageImpl(JNIEnv *env, jobject thiz,
                                                                  jbyteArray byte_array) {
-    try {
-        auto totalLength = env->GetArrayLength(byte_array);
-        std::vector<uint8_t> srcBuffer(totalLength);
-        env->GetByteArrayRegion(byte_array, 0, totalLength,
-                                reinterpret_cast<jbyte *>(srcBuffer.data()));
-        auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
-                                             totalLength);
-        std::string mime(cMime);
-        return mime == "image/avif" || mime == "image/avif-sequence";
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to check this image";
-        throwException(env, exception);
-        return false;
-    }
+  try {
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::vector<uint8_t> srcBuffer(totalLength);
+    env->GetByteArrayRegion(byte_array, 0, totalLength,
+                            reinterpret_cast<jbyte *>(srcBuffer.data()));
+    auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
+                                         totalLength);
+    std::string mime(cMime);
+    return mime == "image/avif" || mime == "image/avif-sequence";
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to check this image";
+    throwException(env, exception);
+    return false;
+  }
 }
 
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImpl(JNIEnv *env, jobject thiz,
                                                                       jbyteArray byte_array) {
-    try {
-        auto totalLength = env->GetArrayLength(byte_array);
-        std::vector<uint8_t> srcBuffer(totalLength);
-        env->GetByteArrayRegion(byte_array, 0, totalLength,
-                                reinterpret_cast<jbyte *>(srcBuffer.data()));
-        auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
-                                             totalLength);
-        std::string mime(cMime);
-        return mime == "image/heic" || mime == "image/heif" ||
-               mime == "image/heic-sequence" || mime == "image/heif-sequence" ||
-               mime == "image/avif" || mime == "image/avif-sequence";
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to check this image";
-        throwException(env, exception);
-        return false;
-    }
+  try {
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::vector<uint8_t> srcBuffer(totalLength);
+    env->GetByteArrayRegion(byte_array, 0, totalLength,
+                            reinterpret_cast<jbyte *>(srcBuffer.data()));
+    auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
+                                         totalLength);
+    std::string mime(cMime);
+    return mime == "image/heic" || mime == "image/heif" ||
+        mime == "image/heic-sequence" || mime == "image/heif-sequence" ||
+        mime == "image/avif" || mime == "image/avif-sequence";
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to check this image";
+    throwException(env, exception);
+    return false;
+  }
 }
 
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobject thiz,
                                                              jbyteArray byte_array) {
-    try {
-        std::shared_ptr<heif_context> ctx(heif_context_alloc(),
-                                          [](heif_context *c) { heif_context_free(c); });
-        if (!ctx) {
-            return static_cast<jobject>(nullptr);
-        }
-        auto totalLength = env->GetArrayLength(byte_array);
-        std::vector<uint8_t> srcBuffer(totalLength);
-        env->GetByteArrayRegion(byte_array, 0, totalLength,
-                                reinterpret_cast<jbyte *>(srcBuffer.data()));
-        auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
-                                                                 totalLength,
-                                                                 nullptr);
-        if (result.code != heif_error_Ok) {
-            std::string exception = "Reading an file buffer has failed";
-            throwException(env, exception);
-            return static_cast<jobject>(nullptr);
-        }
-
-        heif_image_handle *handle;
-        result = heif_context_get_primary_image_handle(ctx.get(), &handle);
-        if (result.code != heif_error_Ok) {
-            std::string exception = "Acquiring an image from buffer has failed";
-            throwException(env, exception);
-            return static_cast<jobject>(nullptr);
-        }
-        int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle);
-        if (bitDepth < 0) {
-            heif_image_handle_release(handle);
-            throwBitDepthException(env);
-            return static_cast<jobject>(nullptr);
-        }
-        auto width = heif_image_handle_get_width(handle);
-        auto height = heif_image_handle_get_height(handle);
-        heif_image_handle_release(handle);
-
-        jclass sizeClass = env->FindClass("android/util/Size");
-        jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
-        auto sizeObject = env->NewObject(sizeClass, methodID, width, height);
-        return sizeObject;
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to load size of this image";
-        throwException(env, exception);
-        return static_cast<jobject>(nullptr);
+  try {
+    std::shared_ptr<heif_context> ctx(heif_context_alloc(),
+                                      [](heif_context *c) { heif_context_free(c); });
+    if (!ctx) {
+      return static_cast<jobject>(nullptr);
     }
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::vector<uint8_t> srcBuffer(totalLength);
+    env->GetByteArrayRegion(byte_array, 0, totalLength,
+                            reinterpret_cast<jbyte *>(srcBuffer.data()));
+    auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
+                                                             totalLength,
+                                                             nullptr);
+    if (result.code != heif_error_Ok) {
+      std::string exception = "Reading an file buffer has failed";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+
+    heif_image_handle *handle;
+    result = heif_context_get_primary_image_handle(ctx.get(), &handle);
+    if (result.code != heif_error_Ok) {
+      std::string exception = "Acquiring an image from buffer has failed";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+    int bitDepth = heif_image_handle_get_chroma_bits_per_pixel(handle);
+    if (bitDepth < 0) {
+      heif_image_handle_release(handle);
+      throwBitDepthException(env);
+      return static_cast<jobject>(nullptr);
+    }
+    auto width = heif_image_handle_get_width(handle);
+    auto height = heif_image_handle_get_height(handle);
+    heif_image_handle_release(handle);
+
+    jclass sizeClass = env->FindClass("android/util/Size");
+    jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
+    auto sizeObject = env->NewObject(sizeClass, methodID, width, height);
+    return sizeObject;
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to load size of this image";
+    throwException(env, exception);
+    return static_cast<jobject>(nullptr);
+  }
 }
 
 
@@ -409,25 +429,25 @@ extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImplBB(JNIEnv *env, jobject thiz,
                                                                         jobject byteBuffer) {
-    try {
-        auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
-        int length = (int) env->GetDirectBufferCapacity(byteBuffer);
-        if (!bufferAddress || length <= 0) {
-            std::string errorString = "Only direct byte buffers are supported";
-            throwException(env, errorString);
-            return (jboolean) false;
-        }
-        std::vector<uint8_t> srcBuffer(length);
-        std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
-        auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
-                                             (int) srcBuffer.size());
-        std::string mime(cMime);
-        return mime == "image/heic" || mime == "image/heif" ||
-               mime == "image/heic-sequence" || mime == "image/heif-sequence" ||
-               mime == "image/avif" || mime == "image/avif-sequence";
-    } catch (std::bad_alloc &err) {
-        std::string exception = "Not enough memory to check this image";
-        throwException(env, exception);
-        return false;
+  try {
+    auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
+    int length = (int) env->GetDirectBufferCapacity(byteBuffer);
+    if (!bufferAddress || length <= 0) {
+      std::string errorString = "Only direct byte buffers are supported";
+      throwException(env, errorString);
+      return (jboolean) false;
     }
+    std::vector<uint8_t> srcBuffer(length);
+    std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
+    auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
+                                         (int) srcBuffer.size());
+    std::string mime(cMime);
+    return mime == "image/heic" || mime == "image/heif" ||
+        mime == "image/heic-sequence" || mime == "image/heif-sequence" ||
+        mime == "image/avif" || mime == "image/avif-sequence";
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to check this image";
+    throwException(env, exception);
+    return false;
+  }
 }

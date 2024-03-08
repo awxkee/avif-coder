@@ -70,7 +70,7 @@ void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
                        transfer == heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
                 colorSpaceName = "DISPLAY_P3_PQ";
             } else if (colorPrimaries == heif_color_primaries_SMPTE_EG_432_1 &&
-                       transfer == heif_transfer_characteristic_IEC_61966_2_1) {
+                       transfer == heif_transfer_characteristic_ITU_R_BT_709_5) {
                 colorSpaceName = "DISPLAY_P3";
             } else if (colorPrimaries == heif_color_primaries_ITU_R_BT_2020_2_and_2100_0) {
                 colorSpaceName = "BT2020";

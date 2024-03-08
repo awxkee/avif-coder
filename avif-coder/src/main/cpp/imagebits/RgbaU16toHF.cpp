@@ -44,72 +44,72 @@ HWY_BEFORE_NAMESPACE();
 
 namespace coder::HWY_NAMESPACE {
 
-    using namespace hwy::HWY_NAMESPACE;
-    using hwy::float16_t;
-    using hwy::float32_t;
+using namespace hwy::HWY_NAMESPACE;
+using hwy::float16_t;
+using hwy::float32_t;
 
-    void RgbaU16ToFHWYRow(const uint16_t *src,
-                          uint16_t *dst,
-                          const int width, const float scale) {
-        int x = 0;
-        const ScalableTag<float16_t> df16;
-        const ScalableTag<uint16_t> du16;
-        const Rebind<uint32_t, Half<decltype(df16)>> du32;
-        const Rebind<float32_t, Half<decltype(df16)>> df32;
-        const Rebind<float16_t, Half<decltype(df16)>> df16h;
-        const int lanes = df16.MaxLanes();
-        using VF16 = Vec<decltype(df16)>;
-        using VU16 = Vec<decltype(du16)>;
-        using VF32 = Vec<decltype(df32)>;
-        const VF32 vScale = Set(df32, scale);
-        for (; x + lanes < width; x += lanes) {
-            VU16 ulane;
-            ulane = LoadU(du16, reinterpret_cast<const uint16_t *>(src));
-            VF16 lane = Combine(df16,
-                                DemoteTo(df16h,
-                                         Mul(ConvertTo(df32, PromoteUpperTo(du32, ulane)), vScale)),
-                                DemoteTo(df16h, Mul(ConvertTo(df32, PromoteLowerTo(du32, ulane)),
-                                                    vScale)));
-            StoreU(lane, df16, reinterpret_cast<float16_t *>(dst));
-            src += lanes;
-            dst += lanes;
-        }
+void RgbaU16ToFHWYRow(const uint16_t *src,
+                      uint16_t *dst,
+                      const int width, const float scale) {
+  int x = 0;
+  const ScalableTag<float16_t> df16;
+  const ScalableTag<uint16_t> du16;
+  const Rebind<uint32_t, Half<decltype(df16)>> du32;
+  const Rebind<float32_t, Half<decltype(df16)>> df32;
+  const Rebind<float16_t, Half<decltype(df16)>> df16h;
+  const int lanes = df16.MaxLanes();
+  using VF16 = Vec<decltype(df16)>;
+  using VU16 = Vec<decltype(du16)>;
+  using VF32 = Vec<decltype(df32)>;
+  const VF32 vScale = Set(df32, scale);
+  for (; x + lanes < width; x += lanes) {
+    VU16 ulane;
+    ulane = LoadU(du16, reinterpret_cast<const uint16_t *>(src));
+    VF16 lane = Combine(df16,
+                        DemoteTo(df16h,
+                                 Mul(ConvertTo(df32, PromoteUpperTo(du32, ulane)), vScale)),
+                        DemoteTo(df16h, Mul(ConvertTo(df32, PromoteLowerTo(du32, ulane)),
+                                            vScale)));
+    StoreU(lane, df16, reinterpret_cast<float16_t *>(dst));
+    src += lanes;
+    dst += lanes;
+  }
 
-        for (; x < width; ++x) {
-            uint16_t px = src[0];
-            float fpx = static_cast<float>(px) * scale;
-            uint16_t hpx = half_float::half(fpx).data_;
-            dst[0] = hpx;
-            src += 1;
-            dst += 1;
-        }
-    }
+  for (; x < width; ++x) {
+    uint16_t px = src[0];
+    float fpx = static_cast<float>(px) * scale;
+    uint16_t hpx = half_float::half(fpx).data_;
+    dst[0] = hpx;
+    src += 1;
+    dst += 1;
+  }
+}
 
-    void RgbaU16ToF_HWY(const uint16_t *src, const int srcStride,
-                        uint16_t *dst, const int dstStride, const int width,
-                        const int height, const int bitDepth) {
-        const float scale = 1.0f / (std::powf(2.0f, static_cast<float>(bitDepth)) - 1.0f);
+void RgbaU16ToF_HWY(const uint16_t *src, const int srcStride,
+                    uint16_t *dst, const int dstStride, const int width,
+                    const int height, const int bitDepth) {
+  const float scale = 1.0f / (std::powf(2.0f, static_cast<float>(bitDepth)) - 1.0f);
 
-        concurrency::parallel_for(2, height, [&](int y) {
-            RgbaU16ToFHWYRow(
-                    reinterpret_cast<const uint16_t *>(reinterpret_cast<const uint8_t *>(src) +
-                                                       y * srcStride),
-                    reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) + y * dstStride),
-                    width, scale);
-        });
-    }
+  concurrency::parallel_for(2, height, [&](int y) {
+    RgbaU16ToFHWYRow(
+        reinterpret_cast<const uint16_t *>(reinterpret_cast<const uint8_t *>(src) +
+            y * srcStride),
+        reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) + y * dstStride),
+        width, scale);
+  });
+}
 }
 
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace coder {
-    HWY_EXPORT(RgbaU16ToF_HWY);
-    HWY_DLLEXPORT void RgbaU16ToF(const uint16_t *src, const int srcStride,
-                                  uint16_t *dst, const int dstStride, const int width,
-                                  const int height, const int bitDepth) {
-        HWY_DYNAMIC_DISPATCH(RgbaU16ToF_HWY)(src, srcStride, dst, dstStride, width,
-                                             height, bitDepth);
-    }
+HWY_EXPORT(RgbaU16ToF_HWY);
+HWY_DLLEXPORT void RgbaU16ToF(const uint16_t *src, const int srcStride,
+                              uint16_t *dst, const int dstStride, const int width,
+                              const int height, const int bitDepth) {
+  HWY_DYNAMIC_DISPATCH(RgbaU16ToF_HWY)(src, srcStride, dst, dstStride, width,
+                                       height, bitDepth);
+}
 }
 #endif
