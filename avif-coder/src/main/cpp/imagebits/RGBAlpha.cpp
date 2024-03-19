@@ -74,7 +74,7 @@ RearrangeVecAlpha(Vec<FixedTag<uint16_t, 8>> vec, Vec<FixedTag<uint16_t, 8>> alp
 void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                            uint8_t *dst, int dstStride, int width,
                            int height) {
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     const FixedTag<uint8_t, 16> du8x16;
     const FixedTag<uint16_t, 8> du16x8;
     const FixedTag<uint8_t, 8> du8x8;
@@ -147,7 +147,7 @@ void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
       mSrc += 4;
       mDst += 4;
     }
-  });
+  }
 }
 
 void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,

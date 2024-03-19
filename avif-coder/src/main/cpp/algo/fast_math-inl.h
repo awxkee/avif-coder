@@ -89,7 +89,7 @@ Exp2f(const DF df, V x) {
 }
 
 template<class D, HWY_IF_U16_D(D)>
-HWY_INLINE Vec<D> DivBy255(D d, Vec<D> x) {
+HWY_FAST_MATH_INLINE Vec<D> DivBy255(D d, Vec<D> x) {
   const auto rounding = Set(d, 1 << 7);
   x = Add(x, rounding);
   const auto multiplier = Set(d, 0x8080);
