@@ -40,34 +40,13 @@ using namespace std;
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
+#include "fast_math-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 
 namespace coder::HWY_NAMESPACE {
 
-using hwy::HWY_NAMESPACE::Set;
-using hwy::HWY_NAMESPACE::FixedTag;
-using hwy::HWY_NAMESPACE::Vec;
-using hwy::HWY_NAMESPACE::Mul;
-using hwy::HWY_NAMESPACE::Max;
-using hwy::HWY_NAMESPACE::Min;
-using hwy::HWY_NAMESPACE::Zero;
-using hwy::HWY_NAMESPACE::BitCast;
-using hwy::HWY_NAMESPACE::Round;
-using hwy::HWY_NAMESPACE::ConvertTo;
-using hwy::HWY_NAMESPACE::PromoteTo;
-using hwy::HWY_NAMESPACE::DemoteTo;
-using hwy::HWY_NAMESPACE::PromoteLowerTo;
-using hwy::HWY_NAMESPACE::PromoteUpperTo;
-using hwy::HWY_NAMESPACE::Combine;
-using hwy::HWY_NAMESPACE::Rebind;
-using hwy::HWY_NAMESPACE::LowerHalf;
-using hwy::HWY_NAMESPACE::ShiftLeft;
-using hwy::HWY_NAMESPACE::ShiftRight;
-using hwy::HWY_NAMESPACE::UpperHalf;
-using hwy::HWY_NAMESPACE::LoadInterleaved4;
-using hwy::HWY_NAMESPACE::StoreU;
-using hwy::HWY_NAMESPACE::Or;
+using namespace hwy::HWY_NAMESPACE;
 using hwy::float16_t;
 
 void
@@ -120,9 +99,9 @@ Rgb565ToU8HWYRow(const uint16_t *source, uint8_t *destination, int width,
     uint16_t blue8 = (color565 & 0b11111) << 3;
 
     uint8_t clr[4] = {bgColor,
-                      static_cast<uint8_t >(red8),
-                      static_cast<uint8_t >(green8),
-                      static_cast<uint8_t >(blue8)};
+                      static_cast<uint8_t>(red8),
+                      static_cast<uint8_t>(green8),
+                      static_cast<uint8_t>(blue8)};
 
     dst[0] = clr[permute0Value];
     dst[1] = clr[permute1Value];
@@ -134,44 +113,18 @@ Rgb565ToU8HWYRow(const uint16_t *source, uint8_t *destination, int width,
   }
 }
 
-template<typename D, typename I = Vec<D>>
-inline __attribute__((flatten)) I
-AttenuateVecR565(D d, I vec, I alpha) {
-  const FixedTag<uint32_t, 4> du32x4;
-  const FixedTag<uint16_t, 8> du16x8;
-  const FixedTag<uint8_t, 8> du8x8;
-  const FixedTag<uint8_t, 4> du8x4;
-  const FixedTag<float, 4> df32x4;
-  using VF32x4 = Vec<decltype(df32x4)>;
-  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
-
-  auto vecLow = LowerHalf(vec);
-  auto alphaLow = LowerHalf(alpha);
-  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
-  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  auto vecHigh = UpperHalf(du8x8, vec);
-  auto alphaHigh = UpperHalf(du8x8, alpha);
-
-  vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-  auto low = Combine(du8x8, lowhigh, lowlow);
-  auto high = Combine(du8x8, highhigh, highlow);
-  return Combine(d, high, low);
+template<typename D, typename V = Vec<D>>
+HWY_INLINE V AttenuateVecR565(D d, V vec, V alpha) {
+  const Half<decltype(d)> dh;
+  const Rebind<uint16_t, decltype(dh)> du16x8;
+  using VU16x8 = Vec<decltype(du16x8)>;
+  VU16x8 rh = PromoteUpperTo(du16x8, vec);
+  VU16x8 ah = PromoteUpperTo(du16x8, alpha);
+  rh = DivBy255(du16x8, Mul(rh, ah));
+  VU16x8 rl = PromoteLowerTo(du16x8, alpha);
+  VU16x8 al = PromoteLowerTo(du16x8, vec);
+  rl = DivBy255(du16x8, Mul(rl, al));
+  return Combine(d, DemoteTo(dh, rh), DemoteTo(dh, rl));
 }
 
 void
@@ -227,9 +180,9 @@ Rgba8To565HWYRow(const uint8_t *source, uint16_t *destination, int width,
     uint8_t b = src[2];
 
     if (attenuateAlpha) {
-      r = (r * alpha + 127) / 255;
-      g = (g * alpha + 127) / 255;
-      b = (b * alpha + 127) / 255;
+      r = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      g = (static_cast<uint16_t>(g) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      b = (static_cast<uint16_t>(b) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
     }
 
     uint16_t red565 = (r >> 3) << 11;
@@ -251,11 +204,11 @@ void Rgba8To565HWY(const uint8_t *sourceData, int srcStride,
   auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
   auto mDst = reinterpret_cast<uint8_t *>(dst);
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     Rgba8To565HWYRow(reinterpret_cast<const uint8_t *>(mSrc + y * srcStride),
                      reinterpret_cast<uint16_t *>(mDst + y * dstStride), width,
                      attenuateAlpha);
-  });
+  }
 }
 
 inline Vec<FixedTag<uint8_t, 8>>
@@ -360,11 +313,11 @@ void RGBAF16To565HWY(const uint16_t *sourceData, int srcStride,
   auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
   auto mDst = reinterpret_cast<uint8_t *>(dst);
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     RGBAF16To565RowHWY(reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
                        reinterpret_cast<uint16_t *>(mDst + y * dstStride), width,
                        maxColors);
-  });
+  }
 }
 
 void Rgb565ToU8HWY(const uint16_t *sourceData, int srcStride,
@@ -374,11 +327,11 @@ void Rgb565ToU8HWY(const uint16_t *sourceData, int srcStride,
   auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
   auto mDst = reinterpret_cast<uint8_t *>(dst);
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     Rgb565ToU8HWYRow(reinterpret_cast<const uint16_t *>(mSrc + srcStride * y),
                      reinterpret_cast<uint8_t *>(mDst + dstStride * y),
                      width, permuteMap, bgColor);
-  });
+  }
 }
 }
 

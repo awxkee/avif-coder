@@ -236,7 +236,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
         heif_transfer_characteristic_ITU_R_BT_601_6) {
       function = EOTF_BT601;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_709_5) {
-      function = EOTF_SRGB;
+      function = EOTF_BT709;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
         nclx->transfer_characteristics ==
@@ -250,16 +250,16 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_logarithmic_100_sqrt10) {
       function = EOTF_LOG100SRT10;
-    } else if (
-        nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_1 ||
-            nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_4) {
+    } else if (nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_1) {
+      function = EOTF_SRGB;
+    } else if (nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_4) {
       function = EOTF_IEC_61966;
-    } else if (nclx->transfer_characteristics ==
-        heif_transfer_characteristic_ITU_R_BT_1361) {
+    } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_1361) {
       function = EOTF_BT1361;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_unspecified) {
       function = EOTF_SRGB;
     }
+    ITURColorCoefficients coeffs = colorPrimariesComputeYCoeffs(primaries, whitePoint);
     if (useBitmapHalf16Floats) {
       coder::GamutAdapter<hwy::float16_t> hdrTransferAdapter(
           reinterpret_cast<hwy::float16_t *>(dstARGB.data()),
@@ -268,7 +268,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
           toneMapper,
           &conversion,
           gamma,
-          getIlluminantD65() != whitePoint);
+          getIlluminantD65() != whitePoint,
+          coeffs);
       hdrTransferAdapter.transfer();
     } else {
       coder::GamutAdapter<uint8_t> hdrTransferAdapter(
@@ -278,7 +279,8 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
           toneMapper,
           &conversion,
           gamma,
-          getIlluminantD65() != whitePoint);
+          getIlluminantD65() != whitePoint,
+          coeffs);
       hdrTransferAdapter.transfer();
     }
   }

@@ -40,6 +40,7 @@ using namespace std;
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
+#include "attenuate-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 
@@ -200,46 +201,6 @@ F16ToRGBA1010102HWYRow(const uint16_t *HWY_RESTRICT data, uint32_t *HWY_RESTRICT
   }
 }
 
-template<typename D, typename I = Vec<D>>
-inline __attribute__((flatten)) I
-AttenuateVecR1010102(D d, I vec, I alpha) {
-  const FixedTag<uint32_t, 4> du32x4;
-  const FixedTag<uint16_t, 8> du16x8;
-  const FixedTag<uint8_t, 8> du8x8;
-  const FixedTag<uint8_t, 4> du8x4;
-  const FixedTag<float, 4> df32x4;
-  using VF32x4 = Vec<decltype(df32x4)>;
-  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
-
-  auto vecLow = LowerHalf(vec);
-  auto alphaLow = LowerHalf(alpha);
-  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
-  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  auto vecHigh = UpperHalf(du8x8, vec);
-  auto alphaHigh = UpperHalf(du8x8, alpha);
-
-  vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-  auto low = Combine(du8x8, lowhigh, lowlow);
-  auto high = Combine(du8x8, highhigh, highlow);
-  return Combine(d, high, low);
-}
-
 template<typename D, typename R, typename T = Vec<D>, typename I = Vec<R>>
 inline __attribute__((flatten)) Vec<D>
 ConvertPixelsTo(D d, R rd, I r, I g, I b, I a, const int *permuteMap) {
@@ -300,9 +261,9 @@ Rgba8ToRGBA1010102HWYRow(const uint8_t *HWY_RESTRICT data, uint32_t *HWY_RESTRIC
                      upixels4);
 
     if (attenuateAlpha) {
-      upixels1 = AttenuateVecR1010102(du8x16, upixels1, upixels4);
-      upixels2 = AttenuateVecR1010102(du8x16, upixels2, upixels4);
-      upixels3 = AttenuateVecR1010102(du8x16, upixels3, upixels4);
+      upixels1 = AttenuateVec(du8x16, upixels1, upixels4);
+      upixels2 = AttenuateVec(du8x16, upixels2, upixels4);
+      upixels3 = AttenuateVec(du8x16, upixels3, upixels4);
     }
 
     VU final = ConvertPixelsTo(du, di32,
@@ -348,9 +309,9 @@ Rgba8ToRGBA1010102HWYRow(const uint8_t *HWY_RESTRICT data, uint32_t *HWY_RESTRIC
     uint8_t b = data[permute3Value];
 
     if (attenuateAlpha) {
-      r = (r * alpha + 127) / 255;
-      g = (g * alpha + 127) / 255;
-      b = (b * alpha + 127) / 255;
+      r = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      g = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      b = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
     }
 
     auto A16 = ((uint32_t) alpha * 3 + 127) >> 8;
@@ -376,11 +337,11 @@ Rgba8ToRGBA1010102HWY(const uint8_t *source,
   auto src = reinterpret_cast<const uint8_t *>(source);
   auto dst = reinterpret_cast<uint8_t *>(destination);
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     Rgba8ToRGBA1010102HWYRow(reinterpret_cast<const uint8_t *>(src + srcStride * y),
                              reinterpret_cast<uint32_t *>(dst + dstStride * y),
                              width, &permuteMap[0], attenuateAlpha);
-  });
+  }
 }
 
 void
@@ -446,9 +407,9 @@ void RGBA1010102ToUnsigned(const uint8_t *__restrict__ src, const int srcStride,
                         static_cast<V>(0), static_cast<V>(maxColors));
 
       if (std::is_same<V, uint8_t>::value) {
-        ru = (ru * au + 127) / 255;
-        gu = (gu * au + 127) / 255;
-        bu = (bu * au + 127) / 255;
+        ru = (static_cast<uint16_t>(ru) * static_cast<uint16_t>(au)) / static_cast<uint16_t >(255);
+        gu = (static_cast<uint16_t>(gu) * static_cast<uint16_t>(au)) / static_cast<uint16_t >(255);
+        bu = (static_cast<uint16_t>(bu) * static_cast<uint16_t>(au)) / static_cast<uint16_t >(255);
       }
 
       dstPointer[0] = ru;

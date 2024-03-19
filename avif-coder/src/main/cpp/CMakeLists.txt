@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
 
-add_library(coder SHARED coder.cpp JniException.cpp SizeScaler.cpp
+add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         icc/cmsalpha.c icc/cmscam02.c
         icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
         icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c

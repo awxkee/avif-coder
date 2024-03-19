@@ -222,7 +222,15 @@ ReformatColorConfig(JNIEnv *env, vector<uint8_t> &imageData, string &imageConfig
       imageConfig = "HARDWARE";
     }
       break;
-    default:break;
+    default: {
+      if (!(*useFloats) && !alphaPremultiplied) {
+        coder::PremultiplyRGBA(imageData.data(), *stride,
+                               imageData.data(), *stride,
+                               imageWidth,
+                               imageHeight);
+      }
+    }
+      break;
   }
 }
 }

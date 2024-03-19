@@ -36,6 +36,7 @@ using namespace std;
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
+#include "fast_math-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 
@@ -43,27 +44,6 @@ namespace coder::HWY_NAMESPACE {
 
 using namespace hwy;
 using namespace hwy::HWY_NAMESPACE;
-
-template<typename D, typename I = Vec<D>>
-HWY_INLINE HWY_FLATTEN I
-RearrangeVec(D df, I vec) {
-  const FixedTag<uint16_t, 4> du16x4;
-  const FixedTag<uint32_t, 4> du32x4;
-  const FixedTag<float, 4> df32x4;
-  Rebind<int32_t, decltype(df32x4)> ru32;
-  using VU32x4 = Vec<decltype(df32x4)>;
-  const VU32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
-  return Combine(df, DemoteTo(du16x4, ConvertTo(ru32, Round(Mul(ConvertTo(df32x4,
-                                                                          PromoteUpperTo(
-                                                                              du32x4,
-                                                                              vec)),
-                                                                mult255)))),
-                 DemoteTo(du16x4, ConvertTo(ru32, Round(Mul(ConvertTo(df32x4,
-                                                                      PromoteLowerTo(
-                                                                          du32x4,
-                                                                          vec)),
-                                                            mult255)))));
-}
 
 HWY_INLINE HWY_FLATTEN Vec<FixedTag<uint16_t, 8>>
 RearrangeVecAlpha(Vec<FixedTag<uint16_t, 8>> vec, Vec<FixedTag<uint16_t, 8>> alphas) {
@@ -119,11 +99,11 @@ void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
       VU16x8 gLow = PromoteLowerTo(du16x8, g8);
       VU16x8 bLow = PromoteLowerTo(du16x8, b8);
       auto lowADivider = ShiftRight<1>(aLow);
-      VU16x8 tmp = Add(Mul(Min(rLow, aLow), mult255), lowADivider);
+      VU16x8 tmp = Add(Mul(rLow, mult255), lowADivider);
       rLow = RearrangeVecAlpha(tmp, aLow);
-      tmp = Add(Mul(Min(gLow, aLow), mult255), lowADivider);
+      tmp = Add(Mul(gLow, mult255), lowADivider);
       gLow = RearrangeVecAlpha(tmp, aLow);
-      tmp = Add(Mul(Min(bLow, aLow), mult255), lowADivider);
+      tmp = Add(Mul(bLow, mult255), lowADivider);
       bLow = RearrangeVecAlpha(tmp, aLow);
 
       VU16x8 aHigh = PromoteUpperTo(du16x8, a8);
@@ -131,11 +111,11 @@ void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
       VU16x8 gHigh = PromoteUpperTo(du16x8, g8);
       VU16x8 bHigh = PromoteUpperTo(du16x8, b8);
       auto highADivider = ShiftRight<1>(aHigh);
-      tmp = Add(Mul(Min(rHigh, aHigh), mult255), highADivider);
+      tmp = Add(Mul(rHigh, mult255), highADivider);
       rHigh = RearrangeVecAlpha(tmp, aHigh);
-      tmp = Add(Mul(Min(gHigh, aHigh), mult255), highADivider);
+      tmp = Add(Mul(gHigh, mult255), highADivider);
       gHigh = RearrangeVecAlpha(tmp, aHigh);
-      tmp = Add(Mul(Min(bHigh, aHigh), mult255), highADivider);
+      tmp = Add(Mul(bHigh, mult255), highADivider);
       bHigh = RearrangeVecAlpha(tmp, aHigh);
 
       r8 = Combine(du8x16, DemoteTo(du8x8, rHigh), DemoteTo(du8x8, rLow));
@@ -150,10 +130,18 @@ void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
 
     for (; x < width; ++x) {
       uint8_t alpha = mSrc[3];
+
       if (alpha != 0) {
-        mDst[0] = (std::min(mSrc[0], alpha) * 255 + alpha / 2) / alpha;
-        mDst[1] = (std::min(mSrc[1], alpha) * 255 + alpha / 2) / alpha;
-        mDst[2] = (std::min(mSrc[2], alpha) * 255 + alpha / 2) / alpha;
+        mDst[0] = (static_cast<uint16_t >(mSrc[0]) * static_cast<uint16_t >(255)
+            + static_cast<uint16_t>(alpha >> 1)) / static_cast<uint16_t >(alpha);
+        mDst[1] = (static_cast<uint16_t >(mSrc[1]) * static_cast<uint16_t >(255)
+            + static_cast<uint16_t>(alpha >> 1)) / static_cast<uint16_t >(alpha);
+        mDst[2] = (static_cast<uint16_t >(mSrc[2]) * static_cast<uint16_t >(255)
+            + static_cast<uint16_t>(alpha >> 1)) / static_cast<uint16_t >(alpha);
+      } else {
+        mDst[0] = 0;
+        mDst[1] = 0;
+        mDst[2] = 0;
       }
       mDst[3] = alpha;
       mSrc += 4;
@@ -162,50 +150,10 @@ void UnpremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
   });
 }
 
-template<typename D, typename I = Vec<D>>
-inline __attribute__((flatten)) I
-RGBAlphaAttenuate(D d, I vec, I alpha) {
-  const FixedTag<uint32_t, 4> du32x4;
-  const FixedTag<uint16_t, 8> du16x8;
-  const FixedTag<uint8_t, 8> du8x8;
-  const FixedTag<uint8_t, 4> du8x4;
-  const FixedTag<float, 4> df32x4;
-  using VF32x4 = Vec<decltype(df32x4)>;
-  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
-
-  auto vecLow = LowerHalf(vec);
-  auto alphaLow = LowerHalf(alpha);
-  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
-  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  auto vecHigh = UpperHalf(du8x8, vec);
-  auto alphaHigh = UpperHalf(du8x8, alpha);
-
-  vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-  auto low = Combine(du8x8, lowhigh, lowlow);
-  auto high = Combine(du8x8, highhigh, highlow);
-  return Combine(d, high, low);
-}
-
 void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
                          uint8_t *dst, int dstStride, int width,
                          int height) {
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     const FixedTag<uint8_t, 16> du8x16;
     const FixedTag<uint16_t, 8> du16x8;
     const FixedTag<uint8_t, 8> du8x8;
@@ -213,21 +161,37 @@ void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
     using VU8x16 = Vec<decltype(du8x16)>;
     using VU16x8 = Vec<decltype(du16x8)>;
 
-    VU16x8 mult255d2 = Set(du16x8, 255 / 2);
-
-    auto mSrc = reinterpret_cast<const uint8_t *>(src + y * srcStride);
-    auto mDst = reinterpret_cast<uint8_t *>(dst + y * dstStride);
+    auto mSrc = reinterpret_cast<const uint8_t *>(src);
+    auto mDst = reinterpret_cast<uint8_t *>(dst);
 
     int x = 0;
-    int pixels = 16;
+    const int pixels = 16;
 
     for (; x + pixels < width; x += pixels) {
       VU8x16 r8, g8, b8, a8;
       LoadInterleaved4(du8x16, mSrc, r8, g8, b8, a8);
 
-      r8 = RGBAlphaAttenuate(du8x16, r8, a8);
-      g8 = RGBAlphaAttenuate(du8x16, g8, a8);
-      b8 = RGBAlphaAttenuate(du8x16, b8, a8);
+      VU16x8 rh = PromoteUpperTo(du16x8, r8);
+      VU16x8 gh = PromoteUpperTo(du16x8, g8);
+      VU16x8 bh = PromoteUpperTo(du16x8, b8);
+      VU16x8 ah = PromoteUpperTo(du16x8, a8);
+
+      rh = DivBy255(du16x8, Mul(rh, ah));
+      gh = DivBy255(du16x8, Mul(gh, ah));
+      bh = DivBy255(du16x8, Mul(bh, ah));
+
+      VU16x8 rl = PromoteLowerTo(du16x8, r8);
+      VU16x8 gl = PromoteLowerTo(du16x8, g8);
+      VU16x8 bl = PromoteLowerTo(du16x8, b8);
+      VU16x8 al = PromoteLowerTo(du16x8, a8);
+
+      rl = DivBy255(du16x8, Mul(rl, al));
+      gl = DivBy255(du16x8, Mul(gl, al));
+      bl = DivBy255(du16x8, Mul(bl, al));
+
+      r8 = Combine(du8x16, DemoteTo(du8x8, rh), DemoteTo(du8x8, rl));
+      g8 = Combine(du8x16, DemoteTo(du8x8, gh), DemoteTo(du8x8, gl));
+      b8 = Combine(du8x16, DemoteTo(du8x8, bh), DemoteTo(du8x8, bl));
 
       StoreInterleaved4(r8, g8, b8, a8, du8x16, mDst);
 
@@ -237,14 +201,20 @@ void PremultiplyRGBA_HWY(const uint8_t *src, int srcStride,
 
     for (; x < width; ++x) {
       uint8_t alpha = mSrc[3];
-      mDst[0] = (mSrc[0] * alpha + 127) / 255;
-      mDst[1] = (mSrc[1] * alpha + 127) / 255;
-      mDst[2] = (mSrc[2] * alpha + 127) / 255;
+      mDst[0] = (static_cast<uint16_t>(mSrc[0]) * static_cast<uint16_t>(alpha))
+          / static_cast<uint16_t >(255);
+      mDst[1] = (static_cast<uint16_t>(mSrc[1]) * static_cast<uint16_t>(alpha))
+          / static_cast<uint16_t >(255);
+      mDst[2] = (static_cast<uint16_t>(mSrc[2]) * static_cast<uint16_t>(alpha))
+          / static_cast<uint16_t >(255);
       mDst[3] = alpha;
       mSrc += 4;
       mDst += 4;
     }
-  });
+
+    src += srcStride;
+    dst += dstStride;
+  }
 }
 }
 

@@ -90,13 +90,13 @@ void RgbaU16ToF_HWY(const uint16_t *src, const int srcStride,
                     const int height, const int bitDepth) {
   const float scale = 1.0f / (std::powf(2.0f, static_cast<float>(bitDepth)) - 1.0f);
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     RgbaU16ToFHWYRow(
         reinterpret_cast<const uint16_t *>(reinterpret_cast<const uint8_t *>(src) +
             y * srcStride),
         reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) + y * dstStride),
         width, scale);
-  });
+  }
 }
 }
 

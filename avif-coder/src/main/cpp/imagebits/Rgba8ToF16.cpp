@@ -40,35 +40,13 @@ using namespace half_float;
 
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"
+#include "attenuate-inl.h"
 
 HWY_BEFORE_NAMESPACE();
 
 namespace coder::HWY_NAMESPACE {
 
-using hwy::HWY_NAMESPACE::Set;
-using hwy::HWY_NAMESPACE::FixedTag;
-using hwy::HWY_NAMESPACE::Vec;
-using hwy::HWY_NAMESPACE::Mul;
-using hwy::HWY_NAMESPACE::Max;
-using hwy::HWY_NAMESPACE::Min;
-using hwy::HWY_NAMESPACE::Zero;
-using hwy::HWY_NAMESPACE::BitCast;
-using hwy::HWY_NAMESPACE::ConvertTo;
-using hwy::HWY_NAMESPACE::PromoteTo;
-using hwy::HWY_NAMESPACE::DemoteTo;
-using hwy::HWY_NAMESPACE::Combine;
-using hwy::HWY_NAMESPACE::Rebind;
-using hwy::HWY_NAMESPACE::LowerHalf;
-using hwy::HWY_NAMESPACE::UpperHalf;
-using hwy::HWY_NAMESPACE::PromoteLowerTo;
-using hwy::HWY_NAMESPACE::PromoteUpperTo;
-using hwy::HWY_NAMESPACE::Round;
-using hwy::HWY_NAMESPACE::LoadInterleaved4;
-using hwy::HWY_NAMESPACE::StoreInterleaved4;
-using hwy::HWY_NAMESPACE::Store;
-using hwy::HWY_NAMESPACE::Add;
-using hwy::HWY_NAMESPACE::Div;
-using hwy::HWY_NAMESPACE::Load;
+using namespace hwy::HWY_NAMESPACE;
 using hwy::float16_t;
 using hwy::float32_t;
 
@@ -88,46 +66,6 @@ ConvertRow(D d, T v, const Vec<FixedTag<float32_t, 4>> vScale) {
                                                     PromoteUpperTo(di32x4, v)),
                                           vScale)));
   return Combine(d, upper, lower);
-}
-
-template<typename D, typename I = Vec<D>>
-inline __attribute__((flatten)) I
-AttenuateVecR8toBF16(D d, I vec, I alpha) {
-  const FixedTag<uint32_t, 4> du32x4;
-  const FixedTag<uint16_t, 8> du16x8;
-  const FixedTag<uint8_t, 8> du8x8;
-  const FixedTag<uint8_t, 4> du8x4;
-  const FixedTag<float, 4> df32x4;
-  using VF32x4 = Vec<decltype(df32x4)>;
-  const VF32x4 mult255 = ApproximateReciprocal(Set(df32x4, 255));
-
-  auto vecLow = LowerHalf(vec);
-  auto alphaLow = LowerHalf(alpha);
-  auto vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecLow)));
-  auto mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecLow)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaLow)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto lowhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  auto vecHigh = UpperHalf(du8x8, vec);
-  auto alphaHigh = UpperHalf(du8x8, alpha);
-
-  vk = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteLowerTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highlow = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-
-  vk = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, vecHigh)));
-  mul = ConvertTo(df32x4, PromoteUpperTo(du32x4, PromoteTo(du16x8, alphaHigh)));
-  vk = Round(Mul(Mul(vk, mul), mult255));
-  auto highhigh = DemoteTo(du8x4, ConvertTo(du32x4, vk));
-  auto low = Combine(du8x8, lowhigh, lowlow);
-  auto high = Combine(du8x8, highhigh, highlow);
-  return Combine(d, high, low);
 }
 
 void
@@ -161,9 +99,9 @@ Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width, const 
                      ru8Row, gu8Row, bu8Row, au8Row);
 
     if (attenuateAlpha) {
-      ru8Row = AttenuateVecR8toBF16(du8x16, ru8Row, au8Row);
-      gu8Row = AttenuateVecR8toBF16(du8x16, gu8Row, au8Row);
-      bu8Row = AttenuateVecR8toBF16(du8x16, bu8Row, au8Row);
+      ru8Row = AttenuateVec(du8x16, ru8Row, au8Row);
+      gu8Row = AttenuateVec(du8x16, gu8Row, au8Row);
+      bu8Row = AttenuateVec(du8x16, bu8Row, au8Row);
     }
 
     auto r16Row = ConvertRow(du16, PromoteLowerTo(du16, ru8Row), vScale);
@@ -203,9 +141,9 @@ Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width, const 
     uint8_t b = src[2];
 
     if (attenuateAlpha) {
-      r = (r * alpha + 127) / 255;
-      g = (g * alpha + 127) / 255;
-      b = (b * alpha + 127) / 255;
+      r = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      g = (static_cast<uint16_t>(g) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      b = (static_cast<uint16_t>(b) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
     }
 
     uint16_t tmpR = (uint16_t) half(static_cast<float>(r) * scale).data_;
@@ -233,12 +171,14 @@ void Rgba8ToF16HWY(const uint8_t *sourceData, int srcStride,
 
   const float scale = 1.0f / float(std::powf(2.f, bitDepth) - 1.f);
 
-  concurrency::parallel_for(2, height, [&](int y) {
-    Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc + y * srcStride),
-                     reinterpret_cast<uint16_t *>(mDst + y * dstStride), width,
+  for (uint32_t y = 0; y < height; ++y) {
+    Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc),
+                     reinterpret_cast<uint16_t *>(mDst), width,
                      scale, permuteMap, attenuateAlpha);
-  });
 
+    mSrc += srcStride;
+    mDst += dstStride;
+  }
 }
 }
 

@@ -132,7 +132,7 @@ void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
   const float scale = 1.0f / float((1 << bitDepth) - 1);
   const float maxColors = (float) std::powf(2.0f, static_cast<float>(bitDepth)) - 1.f;
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     auto srcPtr = reinterpret_cast<const uint16_t *>(srcData);
     auto dstPtr = reinterpret_cast<uint16_t *>(data64Ptr);
     for (int x = 0; x < width; ++x) {
@@ -156,7 +156,7 @@ void RGBAF16BitToNU16C(const uint16_t *sourceData, int srcStride,
 
     srcData += srcStride;
     data64Ptr += dstStride;
-  });
+  }
 }
 
 }

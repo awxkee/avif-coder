@@ -45,6 +45,7 @@ using namespace std;
 #include "eotf-inl.h"
 #include "imagebits/half.hpp"
 #include "CmsApply-inl.h"
+#include "ITUR.h"
 
 HWY_BEFORE_NAMESPACE();
 
@@ -63,17 +64,18 @@ struct ChromaAdaptation {
                    CurveToneMapper curveToneMapper,
                    const float gamma,
                    const bool useChromaticAdaptation,
-                   const float maxColors) :
+                   const float maxColors,
+                   ITURColorCoefficients colorCoefficients) :
       d(d),
       conversion(conversion),
       gamma(gamma),
       useChromaticAdaptation(useChromaticAdaptation),
       maxColors(maxColors),
       scaleColors(1.f / maxColors) {
-    const float lumaPrimaries[3] = {0.2627f, 0.6780f, 0.0593f};
+    const float
+        lumaPrimaries[3] = {colorCoefficients.kr, colorCoefficients.kg, colorCoefficients.kb};
     if (curveToneMapper == LOGARITHMIC) {
-      mapper.reset(new LogarithmicToneMapper<Rebind<hwy::float32_t, decltype(d)>>(
-          lumaPrimaries));
+      mapper.reset(new LogarithmicToneMapper<Rebind<hwy::float32_t, decltype(d)>>(lumaPrimaries));
     } else if (curveToneMapper == REC2408) {
       mapper.reset(new Rec2408PQToneMapper<Rebind<hwy::float32_t, decltype(d)>>(1000,
                                                                                 250.0f,
@@ -254,7 +256,8 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
                  Eigen::Matrix3f *conversion,
                  const float gamma,
                  const bool useChromaticAdaptation,
-                 const float maxColors) {
+                 const float maxColors,
+                 const ITURColorCoefficients coeffs) {
   const Rebind<TFromD<D>, Half<decltype(d)>> dHalf;
   const FixedTag<hwy::float32_t, 4> df32;
   const Rebind<hwy::float32_t, decltype(dHalf)> rebind32;
@@ -265,7 +268,7 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
 
   ChromaAdaptation<decltype(dHalf)> chromaAdaptation(dHalf, conversion, curveToneMapper,
                                                      gamma,
-                                                     useChromaticAdaptation, maxColors);
+                                                     useChromaticAdaptation, maxColors, coeffs);
 
   auto ptr16 = reinterpret_cast<TFromD<D> *>(data);
 
@@ -311,7 +314,7 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
 
   ChromaAdaptation<decltype(dFixed1)> chromaAdaptation1(dFixed1, conversion, curveToneMapper,
                                                         gamma,
-                                                        useChromaticAdaptation, maxColors);
+                                                        useChromaticAdaptation, maxColors, coeffs);
 
   for (; x < width; ++x) {
     V1 RURow;
@@ -344,7 +347,8 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
                  Eigen::Matrix3f *conversion,
                  const float gamma,
                  const bool useChromaticAdaptation,
-                 const float maxColors) {
+                 const float maxColors,
+                 const ITURColorCoefficients coeffs) {
   const Rebind<TFromD<D>, Half<decltype(d)>> dHalf;
   const FixedTag<hwy::float32_t, 4> df32;
   const Rebind<hwy::float32_t, decltype(dHalf)> rebind32;
@@ -357,7 +361,7 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
 
   ChromaAdaptation<decltype(dHalf)> chromaAdaptation(dHalf, conversion, curveToneMapper,
                                                      gamma,
-                                                     useChromaticAdaptation, maxColors);
+                                                     useChromaticAdaptation, maxColors, coeffs);
 
   auto ptr16 = reinterpret_cast<TFromD<D> *>(data);
 
@@ -369,8 +373,7 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
     VStore GURow;
     VStore BURow;
     VStore AURow;
-    LoadInterleaved4(dStore, reinterpret_cast<uint16_t *>(ptr16), RURow, GURow, BURow,
-                     AURow);
+    LoadInterleaved4(dStore, reinterpret_cast<uint16_t *>(ptr16), RURow, GURow, BURow, AURow);
 
     VFull rFull = BitCast(d, RURow);
     VFull gFull = BitCast(d, GURow);
@@ -411,7 +414,7 @@ ProcessDoubleRow(D d, TFromD<D> *HWY_RESTRICT data, const int width,
 
   ChromaAdaptation<decltype(dFixed1)> chromaAdaptation1(dFixed1, conversion, curveToneMapper,
                                                         gamma,
-                                                        useChromaticAdaptation, maxColors);
+                                                        useChromaticAdaptation, maxColors, coeffs);
 
   for (; x < width; ++x) {
     VU1 RURow;
@@ -445,7 +448,8 @@ void ProcessUSRow(uint8_t *HWY_RESTRICT data, const int width, const float maxCo
                   CurveToneMapper curveToneMapper,
                   Eigen::Matrix3f *conversion,
                   const float gamma,
-                  const bool useChromaticAdaptation) {
+                  const bool useChromaticAdaptation,
+                  const ITURColorCoefficients coeffs) {
   const FixedTag<float32_t, 4> df32;
   const FixedTag<uint8_t, 16> d;
   const FixedTag<uint16_t, 8> du16;
@@ -473,7 +477,8 @@ void ProcessUSRow(uint8_t *HWY_RESTRICT data, const int width, const float maxCo
 
   ChromaAdaptation<decltype(du8x4)> chromaAdaptation(du8x4, conversion, curveToneMapper,
                                                      gamma,
-                                                     useChromaticAdaptation, maxColors);
+                                                     useChromaticAdaptation, maxColors,
+                                                     coeffs);
 
   int x = 0;
   for (; x + pixels < width; x += pixels) {
@@ -565,7 +570,8 @@ void ProcessUSRow(uint8_t *HWY_RESTRICT data, const int width, const float maxCo
 
   ChromaAdaptation<decltype(du8x1)> chromaAdaptation1Pixel(du8x1, conversion, curveToneMapper,
                                                            gamma,
-                                                           useChromaticAdaptation, maxColors);
+                                                           useChromaticAdaptation, maxColors,
+                                                           coeffs);
 
   for (; x < width; ++x) {
     VU8x1 RURow;
@@ -602,7 +608,8 @@ void ProcessGamutHighwayU16(uint16_t *data, const int width, const int height,
                             CurveToneMapper curveToneMapper,
                             Eigen::Matrix3f *conversion,
                             const float gamma,
-                            const bool useChromaticAdaptation) {
+                            const bool useChromaticAdaptation,
+                            const ITURColorCoefficients coeffs) {
   const int threadCount = std::clamp(
       std::min(static_cast<int>(std::thread::hardware_concurrency()),
                height * width / (256 * 256)), 1, 12);
@@ -612,7 +619,7 @@ void ProcessGamutHighwayU16(uint16_t *data, const int width, const int height,
     const FixedTag<uint16_t, 8> df;
     ProcessDoubleRow(df, reinterpret_cast<uint16_t *>(ptr16), width,
                      gammaCorrection, function, curveToneMapper,
-                     conversion, gamma, useChromaticAdaptation, maxColors);
+                     conversion, gamma, useChromaticAdaptation, maxColors, coeffs);
   });
 }
 
@@ -624,7 +631,8 @@ ProcessGamutHighwayF16(hwy::float16_t *data, const int width, const int height,
                        CurveToneMapper curveToneMapper,
                        Eigen::Matrix3f *conversion,
                        const float gamma,
-                       const bool useChromaticAdaptation) {
+                       const bool useChromaticAdaptation,
+                       const ITURColorCoefficients coeffs) {
   const int threadCount = std::clamp(
       std::min(static_cast<int>(std::thread::hardware_concurrency()),
                height * width / (256 * 256)), 1, 12);
@@ -634,7 +642,7 @@ ProcessGamutHighwayF16(hwy::float16_t *data, const int width, const int height,
     const FixedTag<hwy::float16_t, 8> df;
     ProcessDoubleRow(df, reinterpret_cast<hwy::float16_t *>(ptr16), width,
                      gammaCorrection, function, curveToneMapper,
-                     conversion, gamma, useChromaticAdaptation, maxColors);
+                     conversion, gamma, useChromaticAdaptation, maxColors, coeffs);
   });
 }
 
@@ -645,7 +653,8 @@ void ProcessGamutHighwayU8(uint8_t *data, const int width, const int height,
                            const CurveToneMapper curveToneMapper,
                            Eigen::Matrix3f *conversion,
                            const float gamma,
-                           const bool useChromaticAdaptation) {
+                           const bool useChromaticAdaptation,
+                           const ITURColorCoefficients coeffs) {
   const int threadCount = std::clamp(
       std::min(static_cast<int>(std::thread::hardware_concurrency()),
                height * width / (256 * 256)), 1, 12);
@@ -655,7 +664,7 @@ void ProcessGamutHighwayU8(uint8_t *data, const int width, const int height,
                  width,
                  (float) maxColors, gammaCorrection, function,
                  curveToneMapper, conversion, gamma,
-                 useChromaticAdaptation);
+                 useChromaticAdaptation, coeffs);
   });
 }
 }
@@ -678,25 +687,26 @@ ProcessCPUDispatcher(T *data, const int width, const int height,
                      const CurveToneMapper curveToneMapper,
                      Eigen::Matrix3f *conversion,
                      const float gamma,
-                     const bool useChromaticAdaptation) {
+                     const bool useChromaticAdaptation,
+                     const ITURColorCoefficients coeffs) {
   if (std::is_same<T, uint8_t>::value) {
     HWY_DYNAMIC_DISPATCH(ProcessGamutHighwayU8)(reinterpret_cast<uint8_t *>(data),
                                                 width, height, stride,
                                                 maxColors, gammaCorrection,
                                                 function, curveToneMapper, conversion, gamma,
-                                                useChromaticAdaptation);
+                                                useChromaticAdaptation, coeffs);
   } else if (std::is_same<T, uint16_t>::value) {
     HWY_DYNAMIC_DISPATCH(ProcessGamutHighwayU16)(reinterpret_cast<uint16_t *>(data),
                                                  width, height, stride,
                                                  maxColors, gammaCorrection,
                                                  function, curveToneMapper, conversion, gamma,
-                                                 useChromaticAdaptation);
+                                                 useChromaticAdaptation, coeffs);
   } else if (std::is_same<T, hwy::float16_t>::value) {
     HWY_DYNAMIC_DISPATCH(ProcessGamutHighwayF16)(reinterpret_cast<hwy::float16_t *>(data),
                                                  width, height, stride,
                                                  maxColors, gammaCorrection,
                                                  function, curveToneMapper, conversion, gamma,
-                                                 useChromaticAdaptation);
+                                                 useChromaticAdaptation, coeffs);
   }
 }
 
@@ -709,7 +719,7 @@ ProcessCPUDispatcher(uint8_t *data, const int width, const int height,
                      const CurveToneMapper curveToneMapper,
                      Eigen::Matrix3f *conversion,
                      const float gamma,
-                     const bool useChromaticAdaptation);
+                     const bool useChromaticAdaptation, const ITURColorCoefficients coeffs);
 
 template void
 ProcessCPUDispatcher(uint16_t *data, const int width, const int height,
@@ -720,7 +730,7 @@ ProcessCPUDispatcher(uint16_t *data, const int width, const int height,
                      const CurveToneMapper curveToneMapper,
                      Eigen::Matrix3f *conversion,
                      const float gamma,
-                     const bool useChromaticAdaptation);
+                     const bool useChromaticAdaptation, const ITURColorCoefficients coeffs);
 
 template void
 ProcessCPUDispatcher(hwy::float16_t *data, const int width, const int height,
@@ -731,7 +741,7 @@ ProcessCPUDispatcher(hwy::float16_t *data, const int width, const int height,
                      const CurveToneMapper curveToneMapper,
                      Eigen::Matrix3f *conversion,
                      const float gamma,
-                     const bool useChromaticAdaptation);
+                     const bool useChromaticAdaptation, const ITURColorCoefficients coeffs);
 }
 
 #endif

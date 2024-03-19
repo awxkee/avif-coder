@@ -81,7 +81,7 @@ CopyUnalignedRGBA(const uint8_t *HWY_RESTRICT src, int srcStride, uint8_t *HWY_R
                   int width,
                   int height,
                   int pixelSize) {
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     if (pixelSize == 1) {
       const ScalableTag<uint8_t> du8;
       Copy1Row<decltype(du8), uint8_t>(du8,
@@ -112,7 +112,7 @@ CopyUnalignedRGBA(const uint8_t *HWY_RESTRICT src, int srcStride, uint8_t *HWY_R
                                              reinterpret_cast<uint8_t *>(dst) +
                                                  (y * dstStride)), width);
     }
-  });
+  }
 }
 }
 
@@ -127,8 +127,7 @@ CopyUnaligned(const uint8_t *HWY_RESTRICT src, int srcStride, uint8_t *HWY_RESTR
               int dstStride, int width,
               int height,
               int pixelSize) {
-  HWY_DYNAMIC_DISPATCH(CopyUnalignedRGBA)(src, srcStride, dst, dstStride, width, height,
-                                          pixelSize);
+  HWY_DYNAMIC_DISPATCH(CopyUnalignedRGBA)(src, srcStride, dst, dstStride, width, height, pixelSize);
 }
 
 }

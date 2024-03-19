@@ -71,7 +71,7 @@ using hwy::HWY_NAMESPACE::Rebind;
 using hwy::float16_t;
 using hwy::float32_t;
 
-inline __attribute__((flatten)) Vec<FixedTag<uint8_t, 8>>
+HWY_INLINE Vec<FixedTag<uint8_t, 8>>
 ConvertRow(Vec<FixedTag<uint16_t, 8>> v, const float maxColors) {
   FixedTag<hwy::float16_t, 4> df16;
   FixedTag<uint16_t, 4> dfu416;
@@ -150,9 +150,9 @@ RGBAF16BitToNBitRowU8(const uint16_t *source, uint8_t *destination, const int wi
     auto tmpA = (uint8_t) std::clamp(std::roundf(LoadHalf(src[3]) * maxColors), 0.0f, maxColors);
 
     if (attenuateAlpha) {
-      tmpR = (tmpR * tmpA + 127) / 255;
-      tmpG = (tmpG * tmpA + 127) / 255;
-      tmpB = (tmpB * tmpA + 127) / 255;
+      tmpR = (static_cast<uint16_t>(tmpR) * static_cast<uint16_t>(tmpA)) / static_cast<uint16_t >(255);
+      tmpG = (static_cast<uint16_t>(tmpG) * static_cast<uint16_t>(tmpA)) / static_cast<uint16_t >(255);
+      tmpB = (static_cast<uint16_t>(tmpB) * static_cast<uint16_t>(tmpA)) / static_cast<uint16_t >(255);
     }
 
     dst[0] = tmpR;
@@ -176,11 +176,11 @@ void RGBAF16BitToNBitU8(const uint16_t *sourceData, int srcStride,
 
   const float scale = 1.0f / float((1 << bitDepth) - 1);
 
-  concurrency::parallel_for(2, height, [&](int y) {
+  for (uint32_t y = 0; y < height; ++y) {
     RGBAF16BitToNBitRowU8(reinterpret_cast<const uint16_t *>(mSrc + y * srcStride),
                           reinterpret_cast<uint8_t *>(mDst + y * dstStride), width, scale,
                           maxColors, attenuateAlpha);
-  });
+  }
 }
 }
 
