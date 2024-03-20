@@ -44,15 +44,6 @@ static const float alphaRec2020 = 1.09929682680944f;
 using namespace hwy;
 using namespace hwy::HWY_NAMESPACE;
 
-HWY_FAST_MATH_INLINE float bt2020GammaCorrection(float linear) {
-  if (0 <= betaRec2020 && linear < betaRec2020) {
-    return 4.5f * linear;
-  } else if (betaRec2020 <= linear && linear < 1) {
-    return alphaRec2020 * powf(linear, 0.45f) - (alphaRec2020 - 1.0f);
-  }
-  return linear;
-}
-
 HWY_FAST_MATH_INLINE float ToLinearPQ(float v, const float sdrReferencePoint) {
   float o = v;
   v = std::max(0.0f, v);
@@ -111,44 +102,33 @@ HWY_FAST_MATH_INLINE V ToLinearPQ(const D df, V v, const TFromD<D> sdrReferenceP
 }
 
 template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
-HWY_FAST_MATH_INLINE V bt2020GammaCorrection(const D d, V color) {
-  const V bt2020 = Set(d, betaRec2020);
-  const V alpha2020 = Set(d, alphaRec2020);
-  using T = hwy::HWY_NAMESPACE::TFromD<D>;
-  const auto cmp = color < bt2020;
-  const auto fourAndHalf = Set(d, static_cast<T>(4.5f));
-  const auto branch1 = Mul(color, fourAndHalf);
-  const V power1 = Set(d, static_cast<T>(0.45f));
-  const V ones = Set(d, static_cast<T>(1.0f));
-  const V power2 = Sub(alpha2020, ones);
-  const auto branch2 =
-      Sub(Mul(alpha2020, coder::HWY_NAMESPACE::Pow(d, color, power1)), power2);
-  return IfThenElse(cmp, branch1, branch2);
-}
-
-template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
-HWY_FAST_MATH_INLINE V LinearITUR709ToITUR709(const D df, V value) {
-  const auto minCurve = Set(df, static_cast<TFromD<D>>(0.018f));
+HWY_FAST_MATH_INLINE V Rec709Oetf(const D df, V value) {
+  const auto minCutOff = Set(df, static_cast<TFromD<D>>(0.018053968510807f));
   const auto minPowValue = Set(df, static_cast<TFromD<D>>(4.5f));
-  const auto minLane = Mul(value, minPowValue);
-  const auto subValue = Set(df, static_cast<TFromD<D>>(0.099f));
-  const auto scalePower = Set(df, static_cast<TFromD<D>>(1.099f));
+  const auto lo = Mul(value, minPowValue);
+  const auto zeros = Zero(df);
+  const auto ones = Set(df, 1.0f);
+  const auto subValue = Set(df, static_cast<TFromD<D>>(0.09929682680944f));
+  const auto scalePower = Set(df, static_cast<TFromD<D>>(1.09929682680944f));
   const auto pwrValue = Set(df, static_cast<TFromD<D>>(0.45f));
-  const auto maxLane = MulSub(coder::HWY_NAMESPACE::Pow(df, value, pwrValue), scalePower,
-                              subValue);
-  return IfThenElse(value < minCurve, minLane, maxLane);
+  const auto ho = MulSub(coder::HWY_NAMESPACE::Pow(df, value, pwrValue), scalePower, subValue);
+  auto Lc = IfThenElse(And(value < minCutOff, value >= zeros), lo, zeros);
+  Lc = IfThenZeroElse(value < zeros, Lc);
+  Lc = IfThenElse(And(value >= minCutOff, value <= ones), ho, Lc);
+  Lc = IfThenElse(value > ones, ones, Lc);
+  return Lc;
 }
 
 HWY_FAST_MATH_INLINE float SRGBEotf(float v) {
-  if (v < 0) {
-    return 0;
-  }
-  if (v <= 0.045f) {
+  if (v < 0.0f) {
+    return 0.0f;
+  } else if (v < 12.92f * 0.0030412825601275209f) {
     return v / 12.92f;
-  } else if (v <= 1.f) {
-    return std::powf((v + 0.055f) / 1.055f, 2.4f);
+  } else if (v < 1.0f) {
+    return std::powf((v + 0.0550107189475866f) / 1.0550107189475866f, 2.4f);
+  } else {
+    return 1.0f;
   }
-  return 1.f;
 }
 
 HWY_FAST_MATH_INLINE float Rec709Eotf(float v) {
@@ -162,7 +142,7 @@ HWY_FAST_MATH_INLINE float Rec709Eotf(float v) {
   return 1.f;
 }
 
-HWY_FAST_MATH_INLINE float FromLinear709(float linear) {
+HWY_FAST_MATH_INLINE float Rec709Oetf(float linear) {
   if (linear < 0.f) {
     return 0.f;
   } else if (linear < 0.018053968510807f) {
@@ -177,13 +157,13 @@ template<class D, HWY_IF_F32_D(D), typename T = TFromD<D>, typename V = VFromD<D
 HWY_FAST_MATH_INLINE V SRGBEotf(D d, V v) {
   const auto highCutOff = Set(d, static_cast<T>(1.0f));
   const auto zeros = Zero(d);
-  const auto lowerValueThreshold = Set(d, T(0.045f));
+  const auto lowerValueThreshold = Set(d, static_cast<T>(12.92f * 0.0030412825601275209f));
   const auto lowValueDivider = Set(d, static_cast<T>(1.0f) / static_cast<T>(12.92f));
   const auto lowMask = v <= lowerValueThreshold;
   const auto lowValue = Mul(v, lowValueDivider);
   const auto powerStatic = Set(d, T(2.4f));
-  const auto addStatic = Set(d, T(0.055f));
-  const auto scaleStatic = ApproximateReciprocal(Set(d, T(1.055f)));
+  const auto addStatic = Set(d, T(0.0550107189475866f));
+  const auto scaleStatic = ApproximateReciprocal(Set(d, T(1.0550107189475866f)));
   const auto highValue = Pow(d, Mul(Add(v, addStatic), scaleStatic), powerStatic);
   auto result = IfThenElse(And(lowMask, v >= zeros), lowValue, v);
   result = IfThenElse(And(v > lowerValueThreshold, v <= highCutOff), highValue, result);
@@ -193,10 +173,14 @@ HWY_FAST_MATH_INLINE V SRGBEotf(D d, V v) {
 }
 
 HWY_FAST_MATH_INLINE float SRGBOetf(const float linear) {
-  if (linear <= 0.0031308f) {
-    return 12.92f * linear;
+  if (linear < 0.0f) {
+    return 0.0f;
+  } else if (linear < 0.0030412825601275209f) {
+    return linear * 12.92f;
+  } else if (linear < 1.0f) {
+    return 1.0550107189475866f * powf(linear, 1.0f / 2.4f) - 0.0550107189475866f;
   } else {
-    return 1.055f * std::powf(linear, 1.0f / 2.4f) - 0.055f;
+    return 1.0f;
   }
 }
 
@@ -204,28 +188,18 @@ template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
 HWY_FAST_MATH_INLINE V SRGBOetf(const D df, V v) {
   const auto zeros = Zero(df);
   const auto highCutOff = Set(df, static_cast<TFromD<D>>(1.0f));
-  const auto minCutOff = Set(df, static_cast<TFromD<D>>(0.0031308f));
+  const auto minCutOff = Set(df, static_cast<TFromD<D>>(0.0030412825601275209f));
   const auto minPowValue = Set(df, static_cast<TFromD<D>>(12.92f));
   const auto lowValue = Mul(v, minPowValue);
-  const auto subValue = Set(df, static_cast<TFromD<D>>(0.055f));
-  const auto scalePower = Set(df, static_cast<TFromD<D>>(1.055f));
+  const auto subValue = Set(df, static_cast<TFromD<D>>(0.0550107189475866f));
+  const auto scalePower = Set(df, static_cast<TFromD<D>>(1.0550107189475866f));
   const auto pwrValue = Set(df, static_cast<TFromD<D>>(1.0f / 2.4f));
-  const auto highValue = MulSub(coder::HWY_NAMESPACE::Pow(df, v, pwrValue), scalePower,
-                              subValue);
-
+  const auto highValue = MulSub(coder::HWY_NAMESPACE::Pow(df, v, pwrValue), scalePower, subValue);
   auto result = IfThenElse(And(v <= minCutOff, v >= zeros), lowValue, v);
   result = IfThenElse(And(v > minCutOff, v <= highCutOff), highValue, result);
   result = IfThenElse(v > highCutOff, highCutOff, result);
-  result = IfThenElse(v < zeros, zeros, result);
+  result = IfThenZeroElse(v < zeros, result);
   return result;
-}
-
-HWY_FAST_MATH_INLINE float LinearITUR709ToITUR709(const float linear) {
-  if (linear <= 0.018053968510807f) {
-    return 4.5f * linear;
-  } else {
-    return 1.09929682680944f * std::powf(linear, 0.45f) - 0.09929682680944f;
-  }
 }
 
 template<class D, typename V = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
@@ -282,17 +256,24 @@ HWY_FAST_MATH_INLINE float Rec601Oetf(float intensity) {
 
 template<class D, typename T = Vec<D>, HWY_IF_FLOAT(TFromD<D>)>
 HWY_FAST_MATH_INLINE T Rec601Eotf(const D d, T intensity) {
-  const auto topValue = Set(d, 4.5f * 0.018053968510807f);
-  const auto fourAnd5 = Set(d, 4.5f);
-  const auto lowMask = intensity < topValue;
-  const auto lowValues = Div(intensity, fourAnd5);
+  const auto lowCutOff = Set(d, 4.5f * 0.018053968510807f);
+  const auto fourAnd5 = Set(d, 1.f / 4.5f);
+  const auto lowCutOffMask = intensity < lowCutOff;
+  const auto tressPassCutOffMask = intensity >= lowCutOff;
+  const auto zeros = Zero(d);
+  const auto ones = Set(d, 1.f);
+  const auto lowValues = Mul(intensity, fourAnd5);
 
   const auto addComp = Set(d, 0.09929682680944f);
   const auto div1099 = Set(d, 1.f / 1.09929682680944f);
   const auto pwScale = Set(d, 1.0f / 0.45f);
 
   const auto high = coder::HWY_NAMESPACE::Pow(d, Mul(Add(intensity, addComp), div1099), pwScale);
-  return IfThenElse(lowMask, lowValues, high);
+  auto Lc = IfThenElseZero(And(lowCutOffMask, intensity >= zeros), lowValues);
+  Lc = IfThenZeroElse(intensity < zeros, Lc);
+  Lc = IfThenElse(And(tressPassCutOffMask, intensity <= ones), high, Lc);
+  Lc = IfThenElse(intensity > ones, ones, Lc);
+  return Lc;
 }
 
 HWY_FAST_MATH_INLINE float Rec601Eotf(float intensity) {
