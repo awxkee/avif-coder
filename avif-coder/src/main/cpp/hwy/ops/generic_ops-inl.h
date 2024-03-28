@@ -2599,38 +2599,14 @@ HWY_API VFromD<DN> ReorderDemote2To(DN dn, V a, V b) {
 
 template<class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df, Vec<Rebind<uint16_t, D>> v) {
-    const RebindToUnsigned<decltype(df)> du32;
-
-    // Floats have 23 bits of mantissa.
-    // We want least significant 8 bits to be shifted to [ 0 .. 255 ], therefore need to add 2^23
-    // See this page for details: https://www.h-schmidt.net/FloatConverter/IEEE754.html
-    // If you want output floats in [ 0 .. 255.0 / 256.0 ] interval, change into 2^15 = 0x47000000
-    constexpr uint32_t offsetValue = 0x4b000000;
-    // Check disassembly & verify your compiler has moved this initialization outside the loop
-    const auto offsetInt = Set(du32, offsetValue);
-    // Bitwise is probably slightly faster than addition, delivers same results for our input
-    auto u32 = PromoteTo(du32, v);
-    u32 = Or(u32, offsetInt);
-    // The only FP operation required is subtraction, hopefully faster than UCVTF
-    return Sub(BitCast(df, u32), BitCast(df, offsetInt));
+  const RebindToUnsigned<decltype(df)> du32;
+  return ConvertTo(df, PromoteTo(du32, v));
 }
 
 template<class D, HWY_IF_F32_D(D)>
 HWY_API VFromD<D> PromoteTo(D df, Vec<Rebind<uint8_t, D>> v) {
-    const RebindToUnsigned<decltype(df)> du32;
-
-    // Floats have 23 bits of mantissa.
-    // We want least significant 8 bits to be shifted to [ 0 .. 255 ], therefore need to add 2^23
-    // See this page for details: https://www.h-schmidt.net/FloatConverter/IEEE754.html
-    // If you want output floats in [ 0 .. 255.0 / 256.0 ] interval, change into 2^15 = 0x47000000
-    constexpr uint32_t offsetValue = 0x4b000000;
-    // Check disassembly & verify your compiler has moved this initialization outside the loop
-    const auto offsetInt = Set(du32, offsetValue);
-    // Bitwise is probably slightly faster than addition, delivers same results for our input
-    auto u32 = PromoteTo(du32, v);
-    u32 = Or(u32, offsetInt);
-    // The only FP operation required is subtraction, hopefully faster than UCVTF
-    return Sub(BitCast(df, u32), BitCast(df, offsetInt));
+  const RebindToUnsigned<decltype(df)> du32;
+  return ConvertTo(df, PromoteTo(du32, v));
 }
 
 template<class D, HWY_IF_U8_D(D)>

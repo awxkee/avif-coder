@@ -192,10 +192,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
   int bitDepth = 8;
   if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
     bitDepth = 8;
-  } else if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
-      heifCompressionFormat == heif_compression_AV1) ||
-      (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
-          heifCompressionFormat == heif_compression_AV1)) {
+  } else if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 && heifCompressionFormat == heif_compression_AV1) ||
+      (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 && heifCompressionFormat == heif_compression_AV1)) {
     bitDepth = 10;
   }
 

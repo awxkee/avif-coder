@@ -172,13 +172,33 @@ HWY_FAST_MATH_INLINE V SRGBEotf(D d, V v) {
   return result;
 }
 
+HWY_FAST_MATH_INLINE float TransferFunction(float v,
+                                            const float c0,
+                                            const float c1,
+                                            const float c2,
+                                            const float c3,
+                                            const float cutoff,
+                                            const float gamma,
+                                            const float c4,
+                                            const float c5) {
+  if (v < 0) {
+    return 0.f;
+  } else if (v >= cutoff) {
+    return c0 * std::powf(c1 * v + c2, gamma) + c3;
+  } else if (v < 1) {
+    return c4 * v + c5;
+  } else {
+    return 1.f;
+  }
+}
+
 HWY_FAST_MATH_INLINE float SRGBOetf(const float linear) {
   if (linear < 0.0f) {
     return 0.0f;
   } else if (linear < 0.0030412825601275209f) {
     return linear * 12.92f;
   } else if (linear < 1.0f) {
-    return 1.0550107189475866f * powf(linear, 1.0f / 2.4f) - 0.0550107189475866f;
+    return 1.0550107189475866f * std::powf(linear, 1.0f / 2.4f) - 0.0550107189475866f;
   } else {
     return 1.0f;
   }

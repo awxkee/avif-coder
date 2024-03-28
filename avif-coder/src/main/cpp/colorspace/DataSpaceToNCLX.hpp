@@ -83,8 +83,8 @@ bool colorProfileFromDataSpace(uint8_t *data,
     profile->full_range_flag = true;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_DISPLAY_P3) {
-    profile->transfer_characteristics = heif_transfer_characteristic_ITU_R_BT_709_5;
-    profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_2020_2_non_constant_luminance;
+    profile->transfer_characteristics = heif_transfer_characteristic_IEC_61966_2_1;
+    profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_601_6;
     profile->color_primaries = heif_color_primaries_SMPTE_EG_432_1;
     profile->full_range_flag = true;
     isResolved = true;
