@@ -30,7 +30,7 @@ package com.radzivon.bartoshyk.avif.coder
 
 /**
  * Enum representing speed values from 0 to 10 (slowest-fastest).
- * Default iis 6.
+ * Default is 6.
  * https://github.com/AOMediaCodec/libavif/blob/main/doc/avifenc.1.md
  */
 enum class AvifSpeed(internal val value: Int) {
@@ -45,4 +45,7 @@ enum class AvifSpeed(internal val value: Int) {
     EIGHT(8), // Speed 8
     NINE(9),  // Speed 9
     TEN(10)   // Speed 10
+
+    // Not using speed parameter, fallback to use x265 instead of aom
+    USE_X265(-1)
 }

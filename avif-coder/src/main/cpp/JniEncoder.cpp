@@ -114,7 +114,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
       }
-      if(speed > 0 && speed < 10){
+      if(speed > -1 && speed <= 10){
         result = heif_encoder_set_parameter_string(encoder.get(), "speed", speed)
         if (result.code != heif_error_Ok) {
           std::string choke(result.message);
