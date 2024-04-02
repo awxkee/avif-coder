@@ -114,7 +114,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
       }
-      if(speed > 0 && speed < 20){
+      if(speed > 0 && speed < 10){
         result = heif_encoder_set_parameter_string(encoder.get(), "speed", speed)
         if (result.code != heif_error_Ok) {
           std::string choke(result.message);
@@ -361,7 +361,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, job
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality, jint speed,
+                                                                jobject bitmap, jint quality,
                                                                 jint dataSpace, jint qualityMode) {
   try {
     return encodeBitmap(env,
@@ -369,7 +369,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, job
                         bitmap,
                         heif_compression_HEVC,
                         quality,
-                        speed,
+                        0,
                         dataSpace,
                         static_cast<AvifQualityMode>(qualityMode));
   } catch (std::bad_alloc &err) {
