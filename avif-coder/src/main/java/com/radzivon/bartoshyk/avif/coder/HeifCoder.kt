@@ -116,25 +116,25 @@ class HeifCoder(
         )
     }
 
-    fun encodeAvif(bitmap: Bitmap, quality: Int = 80, preciseMode: PreciseMode = PreciseMode.LOSSY): ByteArray {
+    fun encodeAvif(bitmap: Bitmap, quality: Int = 80, speed: Int = 0, preciseMode: PreciseMode = PreciseMode.LOSSY): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeAvifImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value)
+            encodeAvifImpl(bitmap, quality, speed, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value)
         } else {
-            encodeAvifImpl(bitmap, quality, -1, preciseMode.value)
+            encodeAvifImpl(bitmap, quality, speed, -1, preciseMode.value)
         }
     }
 
-    fun encodeHeic(bitmap: Bitmap, quality: Int = 80, preciseMode: PreciseMode = PreciseMode.LOSSY): ByteArray {
+    fun encodeHeic(bitmap: Bitmap, quality: Int = 80, speed: Int = 0, preciseMode: PreciseMode = PreciseMode.LOSSY): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeHeicImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value)
+            encodeHeicImpl(bitmap, quality, speed, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value)
         } else {
-            encodeHeicImpl(bitmap, quality, -1, preciseMode.value)
+            encodeHeicImpl(bitmap, quality, speed, -1, preciseMode.value)
         }
     }
 
@@ -163,8 +163,8 @@ class HeifCoder(
         toneMapper: Int,
     ): Bitmap
 
-    private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int, dataSpace: Int, qualityMode: Int): ByteArray
-    private external fun encodeHeicImpl(bitmap: Bitmap, quality: Int, dataSpace: Int, qualityMode: Int): ByteArray
+    private external fun encodeAvifImpl(bitmap: Bitmap, quality: Int, speed: Int, dataSpace: Int, qualityMode: Int): ByteArray
+    private external fun encodeHeicImpl(bitmap: Bitmap, quality: Int, speed: Int, dataSpace: Int, qualityMode: Int): ByteArray
 
     @SuppressLint("ObsoleteSdkInt")
     companion object {

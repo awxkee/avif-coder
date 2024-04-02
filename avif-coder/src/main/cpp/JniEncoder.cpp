@@ -79,7 +79,7 @@ struct heif_error writeHeifData(struct heif_context *ctx,
 
 jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                         jobject bitmap, heif_compression_format heifCompressionFormat,
-                        const int quality, const int dataSpace, const AvifQualityMode qualityMode) {
+                        const int quality, const int speed, const int dataSpace, const AvifQualityMode qualityMode) {
   std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                     [](heif_context *c) { heif_context_free(c); });
   if (!ctx) {
@@ -113,6 +113,15 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         std::string str = "Can't set encoder chroma: " + choke;
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
+      }
+      if(speed > 0 && speed < 20){
+        result = heif_encoder_set_parameter_string(encoder.get(), "speed", speed)
+        if (result.code != heif_error_Ok) {
+          std::string choke(result.message);
+          std::string str = "Can't set speed/effort: " + choke;
+          throwException(env, str);
+          return static_cast<jbyteArray>(nullptr);
+        }
       }
     }
   } else if (qualityMode == AVIF_LOSELESS_MODE) {
@@ -331,7 +340,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality,
+                                                                jobject bitmap, jint quality, jint speed,
                                                                 jint dataSpace, jint qualityMode) {
   try {
     return encodeBitmap(env,
@@ -339,6 +348,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, job
                         bitmap,
                         heif_compression_AV1,
                         quality,
+                        speed,
                         dataSpace,
                         static_cast<AvifQualityMode>(qualityMode));
   } catch (std::bad_alloc &err) {
@@ -351,7 +361,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, job
 extern "C"
 JNIEXPORT jbyteArray JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality,
+                                                                jobject bitmap, jint quality, jint speed,
                                                                 jint dataSpace, jint qualityMode) {
   try {
     return encodeBitmap(env,
@@ -359,6 +369,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, job
                         bitmap,
                         heif_compression_HEVC,
                         quality,
+                        speed,
                         dataSpace,
                         static_cast<AvifQualityMode>(qualityMode));
   } catch (std::bad_alloc &err) {
