@@ -29,7 +29,7 @@
 package com.radzivon.bartoshyk.avif.coder
 
 /**
- * Enum representing speed values from 0 to 10 (slowest-fastest).
+ * Enum representing speed values from 0 to 9 (slowest-fastest). Where 9 is almost realtime encoding speed with worse compression ration
  * Default is 6.
  * https://github.com/AOMediaCodec/libavif/blob/main/doc/avifenc.1.md
  */
@@ -44,8 +44,4 @@ enum class AvifSpeed(internal val value: Int) {
     SEVEN(7), // Speed 7
     EIGHT(8), // Speed 8
     NINE(9),  // Speed 9
-    TEN(10)   // Speed 10
-
-    // Not using speed parameter, fallback to use x265 instead of aom
-    USE_X265(-1)
 }

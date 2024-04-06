@@ -33,6 +33,7 @@ import android.util.Log
 import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.radzivon.bartoshyk.avif.coder.AvifSpeed
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
@@ -95,7 +96,7 @@ class MainActivity : AppCompatActivity() {
             val coder = HeifCoder()
             val buffer = assets.open("screenshot_test.png").source().buffer().readByteArray()
             val bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size)
-            val encoded = coder.encodeAvif(bitmap, quality = 99, preciseMode = PreciseMode.LOSSLESS)
+            val encoded = coder.encodeAvif(bitmap, quality = 99, preciseMode = PreciseMode.LOSSLESS, speed = AvifSpeed.ONE)
             val decoded = coder.decode(encoded)
             lifecycleScope.launch(Dispatchers.Main) {
                 val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)

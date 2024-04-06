@@ -44,6 +44,8 @@ using hwy::HWY_NAMESPACE::Sub;
 using hwy::HWY_NAMESPACE::Xor;
 using hwy::HWY_NAMESPACE::Vec;
 using hwy::float32_t;
+using namespace hwy;
+using namespace hwy;
 
 template<class DF, class V>
 HWY_FAST_MATH_INLINE V TaylorPolyExp(const DF df, V x, const V *coeffs) {
@@ -55,6 +57,37 @@ HWY_FAST_MATH_INLINE V TaylorPolyExp(const DF df, V x, const V *coeffs) {
   auto x4 = Mul(x2, x2);
   auto res = MulAdd(MulAdd(D, x2, C), x4, MulAdd(B, x2, A));
   return res;
+}
+
+template<class DF, class V, HWY_IF_F16_D(DF)>
+HWY_FAST_MATH_INLINE V
+Exp2f(const DF df, V x) {
+  using VF = Vec<decltype(df)>;
+  using T = hwy::HWY_NAMESPACE::TFromD<DF>;
+  static const VF expTab[8] =
+      {
+          Set(df, hwy::F16FromF32(1.f)),
+          Set(df, hwy::F16FromF32(0.0416598916054f)),
+          Set(df, hwy::F16FromF32(0.500000596046f)),
+          Set(df, hwy::F16FromF32(0.0014122662833f)),
+          Set(df, hwy::F16FromF32(1.00000011921f)),
+          Set(df, hwy::F16FromF32(0.00833693705499f)),
+          Set(df, hwy::F16FromF32(0.166665703058f)),
+          Set(df, hwy::F16FromF32(0.000195780929062f)),
+      };
+  Rebind<int32_t, decltype(df)> s32;
+  using VS32 = Vec<decltype(s32)>;
+  Rebind<float, decltype(s32)> fs32;
+  static const VF CONST_LN2 = Set(df, static_cast<T>(0.6931471805f)); // ln(2)
+  static const VF CONST_INV_LN2 = Set(df, static_cast<T>(1.4426950408f)); // 1/ln(2)
+  // Perform range reduction [-log(2),log(2)]
+  VS32 m = ConvertTo(s32, Mul(x, CONST_INV_LN2));
+  auto val = NegMulAdd(ConvertTo(fs32, m), CONST_LN2, x);
+  // Polynomial Approximation
+  auto poly = TaylorPolyExp(df, val, &expTab[0]);
+  // Reconstruct
+  poly = BitCast(fs32, Add(BitCast(s32, poly), ShiftLeft<23>(m)));
+  return poly;
 }
 
 template<class DF, class V>

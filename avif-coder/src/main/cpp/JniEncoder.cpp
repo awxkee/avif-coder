@@ -114,15 +114,6 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
         throwException(env, str);
         return static_cast<jbyteArray>(nullptr);
       }
-      if(speed > -1 && speed <= 10){
-        result = heif_encoder_set_parameter_string(encoder.get(), "speed", speed)
-        if (result.code != heif_error_Ok) {
-          std::string choke(result.message);
-          std::string str = "Can't set speed/effort: " + choke;
-          throwException(env, str);
-          return static_cast<jbyteArray>(nullptr);
-        }
-      }
     }
   } else if (qualityMode == AVIF_LOSELESS_MODE) {
     result = heif_encoder_set_lossless(encoder.get(), true);
@@ -136,6 +127,16 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     if (result.code != heif_error_Ok) {
       std::string choke(result.message);
       std::string str = "Can't set encoder chroma: " + choke;
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
+  }
+
+  if (speed > -1 && speed <= 9) {
+    result = heif_encoder_set_parameter_integer(encoder.get(), "speed", speed);
+    if (result.code != heif_error_Ok) {
+      std::string choke(result.message);
+      std::string str = "Can't set speed/effort: " + choke;
       throwException(env, str);
       return static_cast<jbyteArray>(nullptr);
     }
@@ -369,7 +370,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, job
                         bitmap,
                         heif_compression_HEVC,
                         quality,
-                        0,
+                        -1,
                         dataSpace,
                         static_cast<AvifQualityMode>(qualityMode));
   } catch (std::bad_alloc &err) {
