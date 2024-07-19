@@ -26,20 +26,20 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         hwy/timer.cc
         algo/sleef-hwy.cpp)
 
-add_library(libaom STATIC IMPORTED)
-add_library(libx265 STATIC IMPORTED)
-add_library(libheif STATIC IMPORTED)
+add_library(libaom SHARED IMPORTED)
+add_library(libx265 SHARED IMPORTED)
+add_library(libheif SHARED IMPORTED)
 add_library(libyuv STATIC IMPORTED)
-add_library(libde265 STATIC IMPORTED)
-add_library(libdav1d STATIC IMPORTED)
+add_library(libde265 SHARED IMPORTED)
+add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
 
-set_target_properties(libaom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.a)
-set_target_properties(libx265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.a)
-set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.a)
+set_target_properties(libaom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.so)
+set_target_properties(libx265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.so)
+set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.so)
 set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libyuv.a)
-set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.a)
-set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.a)
+set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.so)
+set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.so)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
@@ -81,5 +81,5 @@ include_directories(icc)
 
 target_link_libraries( # Specifies the target library.
         coder
-        ${log-lib} libaom libx265 libheif cpufeatures libyuv -ljnigraphics
+        ${log-lib} libx265 libheif cpufeatures libyuv -ljnigraphics libaom
         libde265 libdav1d libsharpyuv ${android-lib})

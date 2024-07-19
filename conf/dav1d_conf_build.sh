@@ -109,7 +109,7 @@ c     = '${CROSS_PREFIX}/${ARCH_TRIPLET_VARIANT}${ANDROID_API}-clang'
 cpp   = '${CROSS_PREFIX}/${ARCH_TRIPLET_VARIANT}${ANDROID_API}-clang++'
 ar    = '${CROSS_PREFIX}/llvm-ar'
 ld    = '${CROSS_PREFIX}/${ARCH_TRIPLET}-ld'
-strip = '${CROSS_PREFIX}/${ARCH_TRIPLET}-strip'
+strip = '${CROSS_PREFIX}/llvm-strip'
 
 [properties]
 needs_exe_wrapper = true
@@ -137,10 +137,14 @@ fi
 #git checkout 191f79d5a914c647fa941ee8c72f807ca2bd1fcb
 
 echo "Build: calling meson..."
-meson --buildtype release --cross-file ./android_cross_${ABI}.txt -Denable_tools=false --default-library=static -Denable_tests=false ./${dir_name}-${ABI}
+meson setup --buildtype release --cross-file ./android_cross_${ABI}.txt -Denable_tools=false --default-library=shared -Denable_tests=false ./${dir_name}-${ABI}
 
 echo "Building with Ninja"
 #cd ${dir_name}-${ABI}
 ninja -C  ./${dir_name}-${ABI}
+
+#mv ./${dir_name}-${ABI}/src/libdav1d.so.7 ./${dir_name}-${ABI}/src/libdav1d.so
+
+${NDK_PATH}/toolchains/llvm/prebuilt/${os}-x86_64/bin/llvm-strip ./${dir_name}-${ABI}/src/libdav1d.so
 
 echo "Done!"

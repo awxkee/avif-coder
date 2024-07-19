@@ -42,7 +42,7 @@ import java.nio.ByteBuffer
 @Keep
 class HeifCoder(
     private val context: Context? = null,
-    private val toneMapper: ToneMapper = ToneMapper.LOGARITHMIC
+    private val toneMapper: ToneMapper = ToneMapper.REC2408
 ) {
 
     fun isAvif(byteArray: ByteArray): Boolean {

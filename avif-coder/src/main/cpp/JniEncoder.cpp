@@ -123,7 +123,8 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
       throwException(env, str);
       return static_cast<jbyteArray>(nullptr);
     }
-    result = heif_encoder_set_parameter_string(encoder.get(), "chroma", "444");
+    // SVT-AV1 do not supports 444, so chroma is always 4:2:0
+    result = heif_encoder_set_parameter_string(encoder.get(), "chroma", "420");
     if (result.code != heif_error_Ok) {
       std::string choke(result.message);
       std::string str = "Can't set encoder chroma: " + choke;
@@ -271,7 +272,7 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
                                                      profile.get(),
                                                      iccProfile);
   if (nclxResult) {
-    if (iccProfile.size() < 1) {
+    if (iccProfile.empty()) {
       result = heif_image_set_nclx_color_profile(image.get(), profile.get());
       if (result.code != heif_error_Ok) {
         std::string choke(result.message);

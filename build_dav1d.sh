@@ -25,10 +25,10 @@
 #
 
 set -e
-
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
 destination_directory=dav1d
 if [ ! -d "$destination_directory" ]; then
-    git clone https://code.videolan.org/videolan/dav1d
+    git clone https://code.videolan.org/videolan/dav1d -b 1.4.3
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
@@ -37,14 +37,8 @@ cp -r ./conf/dav1d_conf_build.sh ./dav1d/build.sh
 
 cd dav1d
 
-if [ -z "$INCLUDE_X86" ]; then
-  ABI_LIST="arm arm64 x86_64"
-  ARMEABI_LIST="armeabi-v7a arm64-v8a x86_64"
-  echo "X86 won't be included into a build"
-else
-  ABI_LIST="arm arm64 x86 x86_64"
-  ARMEABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
-fi
+ABI_LIST="arm arm64 x86 x86_64"
+ARMEABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
 
 for ARCH in ${ABI_LIST}; do
   case "${ARCH}" in
@@ -66,7 +60,7 @@ done
 
 for abi in ${ARMEABI_LIST}; do
   mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
-  cp -r "build-${abi}/src/libdav1d.a" "../avif-coder/src/main/cpp/lib/${abi}/libdav1d.a"
-  echo "build-${abi}/src/libdav1d.a was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libdav1d.a!"
+  cp -r "build-${abi}/src/libdav1d.so" "../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so"
+  echo "build-${abi}/src/libdav1d.so was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so!"
 done
 

@@ -26,21 +26,18 @@
 
 set -e
 
+export NDK=$NDK_PATH
+
 destination_directory=aom
 if [ ! -d "$destination_directory" ]; then
-    git clone https://aomedia.googlesource.com/aom
+    git clone https://aomedia.googlesource.com/aom -b v3.9.1
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
 
 cd aom
 
-if [ -z "$INCLUDE_X86" ]; then
-  ABI_LIST="armeabi-v7a arm64-v8a x86_64"
-  echo "X86 won't be included into a build"
-else
-  ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
-fi
+ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
 
 for abi in ${ABI_LIST}; do
   rm -rf "build-${abi}"
@@ -53,42 +50,51 @@ for abi in ${ABI_LIST}; do
           -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
           -DANDROID_PLATFORM=android-24 \
           -DCMAKE_BUILD_TYPE=Release \
-          -DBUILD_SHARED_LIBS=OFF \
+          -DBUILD_SHARED_LIBS=ON \
           -DCMAKE_BUILD_TYPE=Release \
           -DENABLE_DOCS=0 \
+          -DAOM_TARGET_CPU=generic \
           -DENABLE_EXAMPLES=0 \
           -DENABLE_TESTDATA=0 \
+          -DCONFIG_AV1_DECODER=OFF \
+          -DCONFIG_MULTITHREAD=1 \
           -DENABLE_TESTS=0 \
           -DENABLE_TOOLS=0 \
+          -DCONFIG_PIC=1 \
+          -DCONFIG_AV1_DECODER=0 \
           -DANDROID_ABI=${abi} \
-          -DCMAKE_ASM_NASM_COMPILER=yasm
+          -DCMAKE_ASM_NASM_COMPILER=/opt/homebrew/bin/nasm
   else
     cmake .. \
       -G Ninja \
       -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
       -DANDROID_PLATFORM=android-24 \
       -DCMAKE_BUILD_TYPE=Release \
-      -DBUILD_SHARED_LIBS=OFF \
+      -DBUILD_SHARED_LIBS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -DENABLE_DOCS=0 \
+      -DCONFIG_AV1_DECODER=OFF \
       -DENABLE_EXAMPLES=0 \
       -DENABLE_TESTDATA=0 \
+      -DCONFIG_MULTITHREAD=1 \
       -DENABLE_TESTS=0 \
       -DENABLE_TOOLS=0 \
+      -DCONFIG_PIC=1 \
+      -DDCONFIG_AV1_DECODER=0 \
       -DANDROID_ABI=${abi} \
-      -DCMAKE_ASM_COMPILER=nasm
+      -DCMAKE_ASM_COMPILER=/opt/homebrew/bin/nasm
   fi
   ninja
 
   # shellcheck disable=SC2116
   current_folder=$(echo pwd)
   echo "libaom has built for arch ${abi} at path ${current_folder}"
-
+  $NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip libaom.so
   cd ..
 done
 
 for abi in ${ABI_LIST}; do
   mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
-  cp -r "build-${abi}/libaom.a" "../avif-coder/src/main/cpp/lib/${abi}/libaom.a"
-  echo "build-${abi}/libaom.a was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libaom.a!"
+  cp -r "build-${abi}/libaom.so" "../avif-coder/src/main/cpp/lib/${abi}/libaom.so"
+  echo "build-${abi}/libaom.so was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libaom.so!"
 done
