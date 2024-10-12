@@ -32,167 +32,68 @@
 #include "half.hpp"
 #include "concurrency.hpp"
 
+#if HAVE_NEON
+#include "arm_neon.h"
+#endif
+
 using namespace std;
 using namespace half_float;
 
-#undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "imagebits/Rgba8ToF16.cpp"
-
-#include "hwy/foreach_target.h"
-#include "hwy/highway.h"
-#include "attenuate-inl.h"
-
-HWY_BEFORE_NAMESPACE();
-
-namespace coder::HWY_NAMESPACE {
-
-using namespace hwy::HWY_NAMESPACE;
-using hwy::float16_t;
-using hwy::float32_t;
-
-template<typename D, typename T = Vec<D>>
-inline __attribute__((flatten)) T
-ConvertRow(D d, T v, const Vec<FixedTag<float32_t, 4>> vScale) {
-  FixedTag<int32_t, 4> di32x4;
-  Rebind<float32_t, decltype(di32x4)> df32;
-  Rebind<float16_t, decltype(df32)> dff16;
-  Rebind<uint16_t, decltype(dff16)> du16;
-
-  auto lower = BitCast(du16, DemoteTo(dff16,
-                                      Mul(ConvertTo(df32, PromoteLowerTo(di32x4, v)),
-                                          vScale)));
-  auto upper = BitCast(du16, DemoteTo(dff16,
-                                      Mul(ConvertTo(df32,
-                                                    PromoteUpperTo(di32x4, v)),
-                                          vScale)));
-  return Combine(d, upper, lower);
-}
-
-void
-Rgba8ToF16HWYRow(const uint8_t *source, uint16_t *destination, int width, const float scale,
-                 const int *permuteMap, const bool attenuateAlpha) {
-  const FixedTag<uint16_t, 8> du16;
-  const FixedTag<uint8_t, 16> du8x16;
-  using VU16 = Vec<decltype(du16)>;
-  using VU8x16 = Vec<decltype(du8x16)>;
-
-  int x = 0;
-  const int pixels = 16;
-
-  auto src = reinterpret_cast<const uint8_t *>(source);
-  auto dst = reinterpret_cast<uint16_t *>(destination);
-
-  const FixedTag<float32_t, 4> df32x4;
-  const auto vScale = Set(df32x4, scale);
-
-  const int permute0Value = permuteMap[0];
-  const int permute1Value = permuteMap[1];
-  const int permute2Value = permuteMap[2];
-  const int permute3Value = permuteMap[3];
-
-  for (; x + pixels < width; x += pixels) {
-    VU8x16 ru8Row;
-    VU8x16 gu8Row;
-    VU8x16 bu8Row;
-    VU8x16 au8Row;
-    LoadInterleaved4(du8x16, reinterpret_cast<const uint8_t *>(src),
-                     ru8Row, gu8Row, bu8Row, au8Row);
-
-    if (attenuateAlpha) {
-      ru8Row = AttenuateVec(du8x16, ru8Row, au8Row);
-      gu8Row = AttenuateVec(du8x16, gu8Row, au8Row);
-      bu8Row = AttenuateVec(du8x16, bu8Row, au8Row);
-    }
-
-    auto r16Row = ConvertRow(du16, PromoteLowerTo(du16, ru8Row), vScale);
-    auto g16Row = ConvertRow(du16, PromoteLowerTo(du16, gu8Row), vScale);
-    auto b16Row = ConvertRow(du16, PromoteLowerTo(du16, bu8Row), vScale);
-    auto a16Row = ConvertRow(du16, PromoteLowerTo(du16, au8Row), vScale);
-
-    VU16 pixelsStore[4] = {r16Row, g16Row, b16Row, a16Row};
-    VU16 AV = pixelsStore[permute0Value];
-    VU16 RV = pixelsStore[permute1Value];
-    VU16 GV = pixelsStore[permute2Value];
-    VU16 BV = pixelsStore[permute3Value];
-
-    StoreInterleaved4(AV, RV, GV, BV, du16, dst);
-
-    r16Row = ConvertRow(du16, PromoteUpperTo(du16, ru8Row), vScale);
-    g16Row = ConvertRow(du16, PromoteUpperTo(du16, gu8Row), vScale);
-    b16Row = ConvertRow(du16, PromoteUpperTo(du16, bu8Row), vScale);
-    a16Row = ConvertRow(du16, PromoteUpperTo(du16, au8Row), vScale);
-
-    VU16 pixelsStore1[4] = {r16Row, g16Row, b16Row, a16Row};
-    AV = pixelsStore1[permute0Value];
-    RV = pixelsStore1[permute1Value];
-    GV = pixelsStore1[permute2Value];
-    BV = pixelsStore1[permute3Value];
-
-    StoreInterleaved4(AV, RV, GV, BV, du16, dst + 8 * 4);
-
-    src += 4 * pixels;
-    dst += 4 * pixels;
-  }
-
-  for (; x < width; ++x) {
-    uint8_t alpha = src[3];
-    uint8_t r = src[0];
-    uint8_t g = src[1];
-    uint8_t b = src[2];
-
-    if (attenuateAlpha) {
-      r = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
-      g = (static_cast<uint16_t>(g) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
-      b = (static_cast<uint16_t>(b) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
-    }
-
-    uint16_t tmpR = (uint16_t) half(static_cast<float>(r) * scale).data_;
-    uint16_t tmpG = (uint16_t) half(static_cast<float>(g) * scale).data_;
-    uint16_t tmpB = (uint16_t) half(static_cast<float>(b) * scale).data_;
-    uint16_t tmpA = (uint16_t) half(static_cast<float>(alpha) * scale).data_;
-
-    uint16_t clr[4] = {tmpR, tmpG, tmpB, tmpA};
-
-    dst[0] = clr[permute0Value];
-    dst[1] = clr[permute1Value];
-    dst[2] = clr[permute2Value];
-    dst[3] = clr[permute3Value];
-
-    src += 4;
-    dst += 4;
-  }
-}
-
-void Rgba8ToF16HWY(const uint8_t *sourceData, int srcStride,
-                   uint16_t *dst, int dstStride, int width,
-                   int height, int bitDepth, const int *permuteMap, const bool attenuateAlpha) {
-  auto mSrc = reinterpret_cast<const uint8_t *>(sourceData);
-  auto mDst = reinterpret_cast<uint8_t *>(dst);
-
-  const float scale = 1.0f / float(std::powf(2.f, bitDepth) - 1.f);
+namespace coder {
+void Rgba8ToF16(const uint8_t *sourceData, uint32_t srcStride,
+                uint16_t *dst, uint32_t dstStride, uint32_t width,
+                uint32_t height, const bool attenuateAlpha) {
+  const float scale = 1.0f / float((1 << 8) - 1);
 
   for (uint32_t y = 0; y < height; ++y) {
-    Rgba8ToF16HWYRow(reinterpret_cast<const uint8_t *>(mSrc),
-                     reinterpret_cast<uint16_t *>(mDst), width,
-                     scale, permuteMap, attenuateAlpha);
 
-    mSrc += srcStride;
-    mDst += dstStride;
+    auto vSrc = reinterpret_cast<const uint8_t *>(reinterpret_cast<const uint8_t *>(sourceData)
+        + y * srcStride);
+    auto vDst =
+        reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(dst) + y * dstStride);
+
+    for (uint32_t x = 0; x < width; ++x) {
+      uint8_t alpha = vSrc[3];
+      uint8_t r = vSrc[0];
+      uint8_t g = vSrc[1];
+      uint8_t b = vSrc[2];
+
+      if (attenuateAlpha) {
+        r = (static_cast<uint16_t>(r) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+        g = (static_cast<uint16_t>(g) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+        b = (static_cast<uint16_t>(b) * static_cast<uint16_t>(alpha)) / static_cast<uint16_t >(255);
+      }
+
+#if HAVE_NEON
+      auto vF16Dst = reinterpret_cast<float16_t *>(vDst);
+      auto tmpR = static_cast<float16_t>(static_cast<float>(r) * scale);
+      auto tmpG = static_cast<float16_t>(static_cast<float>(g) * scale);
+      auto tmpB = static_cast<float16_t>(static_cast<float>(b) * scale);
+      auto tmpA = static_cast<float16_t>(static_cast<float>(alpha) * scale);
+
+      float16_t clr[4] = {tmpR, tmpG, tmpB, tmpA};
+
+      vF16Dst[0] = clr[0];
+      vF16Dst[1] = clr[1];
+      vF16Dst[2] = clr[2];
+      vF16Dst[3] = clr[3];
+#else
+      uint16_t tmpR = (uint16_t) half(static_cast<float>(r) * scale).data_;
+      uint16_t tmpG = (uint16_t) half(static_cast<float>(g) * scale).data_;
+      uint16_t tmpB = (uint16_t) half(static_cast<float>(b) * scale).data_;
+      uint16_t tmpA = (uint16_t) half(static_cast<float>(alpha) * scale).data_;
+
+      uint16_t clr[4] = {tmpR, tmpG, tmpB, tmpA};
+
+      vDst[0] = clr[0];
+      vDst[1] = clr[1];
+      vDst[2] = clr[2];
+      vDst[3] = clr[3];
+#endif
+
+      vSrc += 4;
+      vDst += 4;
+    }
   }
 }
 }
-
-HWY_AFTER_NAMESPACE();
-
-#if HWY_ONCE
-namespace coder {
-HWY_EXPORT(Rgba8ToF16HWY);
-HWY_DLLEXPORT void Rgba8ToF16(const uint8_t *sourceData, int srcStride,
-                              uint16_t *dst, int dstStride, int width,
-                              int height, const bool attenuateAlpha) {
-  int permuteMap[4] = {0, 1, 2, 3};
-  HWY_DYNAMIC_DISPATCH(Rgba8ToF16HWY)(sourceData, srcStride, dst, dstStride, width,
-                                      height, 8, permuteMap, attenuateAlpha);
-}
-}
-#endif

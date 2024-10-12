@@ -32,13 +32,17 @@
 #include <cstdint>
 
 namespace coder {
-void UnpremultiplyRGBA(const uint8_t *src, int srcStride,
-                       uint8_t *dst, int dstStride, int width,
-                       int height);
+void UnpremultiplyRGBA(const uint8_t *src, uint32_t srcStride,
+                       uint8_t *dst, uint32_t dstStride, uint32_t width,
+                       uint32_t height);
 
-void PremultiplyRGBA(const uint8_t *src, int srcStride,
-                     uint8_t *dst, int dstStride, int width,
-                     int height);
+void AssociateAlphaRgba8(const uint8_t *src, uint32_t srcStride,
+                         uint8_t *dst, uint32_t dstStride, uint32_t width,
+                         uint32_t height);
+
+void AssociateAlphaRgba16(const uint16_t *src, uint32_t srcStride,
+                          uint16_t *dst, uint32_t dstStride, uint32_t width,
+                          uint32_t height, uint32_t bitDepth);
 }
 
 #endif //JXLCODER_RGBALPHA_H

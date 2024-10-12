@@ -16,31 +16,30 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
         icc/cmswtpnt.c icc/cmsxform.c colorspace/colorspace.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
-        colorspace/GamutAdapter.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp
         HardwareBuffersCompat.cpp imagebits/half.cpp
         imagebits/half.hpp imagebits/RgbaU16toHF.cpp
         imagebits/RGBAlpha.cpp
-        hwy/aligned_allocator.cc hwy/nanobenchmark.cc hwy/per_target.cc hwy/print.cc hwy/targets.cc
-        hwy/timer.cc
-        algo/sleef-hwy.cpp)
+        colorspace/Trc.cpp YuvConversion.cpp
+        colorspace/Rec2408ToneMapper.cpp colorspace/LogarithmicToneMapper.cpp
+        colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp)
 
-add_library(libaom SHARED IMPORTED)
-add_library(libx265 SHARED IMPORTED)
+add_library(libkvazaar SHARED IMPORTED)
 add_library(libheif SHARED IMPORTED)
 add_library(libyuv STATIC IMPORTED)
 add_library(libde265 SHARED IMPORTED)
 add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
+add_library(svt SHARED IMPORTED)
 
-set_target_properties(libaom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.so)
-set_target_properties(libx265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.so)
+set_target_properties(libkvazaar PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libkvazaar.so)
 set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.so)
 set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libyuv.a)
 set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.so)
 set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.so)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
+set_target_properties(svt PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libSvtAv1Enc.so)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
 target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpufeatures)
@@ -50,6 +49,9 @@ list(APPEND EXTRA_LIBS cpufeatures)
 include(CheckCXXCompilerFlag)
 if (ANDROID_ABI STREQUAL arm64-v8a)
     add_definitions("-DHAVE_NEON=1")
+    if (CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon -mfloat-abi=hard -ftree-vectorize")
+    endif ()
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -79,7 +81,9 @@ find_library(
 
 include_directories(icc)
 
+add_subdirectory(avif)
+
 target_link_libraries( # Specifies the target library.
-        coder
-        ${log-lib} libx265 libheif cpufeatures libyuv -ljnigraphics libaom
+        coder PRIVATE
+        ${log-lib} libheif cpufeatures libyuv -ljnigraphics libkvazaar svt avif_shared
         libde265 libdav1d libsharpyuv ${android-lib})

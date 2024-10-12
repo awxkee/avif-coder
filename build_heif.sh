@@ -30,7 +30,8 @@ export NDK=$NDK_PATH
 
 destination_directory=libheif
 if [ ! -d "$destination_directory" ]; then
-    git clone --depth 1 --branch v1.16.0 https://github.com/strukturag/libheif -b v1.18.0
+   # git clone --depth 1 --branch v1.16.0 https://github.com/strukturag/libheif -b v1.18.0
+     git clone --depth 1 https://github.com/strukturag/libheif
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
@@ -56,14 +57,14 @@ for abi in ${ABI_LIST}; do
     -DBUILD_SHARED_LIBS=ON \
     -DWITH_EXAMPLES=0 \
     -DENABLE_PLUGIN_LOADING=0 \
-    -DWITH_AOM=ON \
+    -DWITH_AOM=OFF \
     -DWITH_DAV1D=ON \
-    -DAOM_INCLUDE_DIR=../../aom \
-    -DAOM_LIBRARY=../../aom/build-${abi}/libaom.so \
     -DAOM_DECODER=OFF \
+    -DAOM_ENCODER=OFF \
     -DWITH_AOM_DECODER=OFF \
-    -DX265_INCLUDE_DIR=../../x265_git/source \
-    -DX265_LIBRARY=../../x265_git/build-${abi}/libx265.so \
+    -DWITH_KVAZAAR=ON \
+    -DKVAZAAR_INCLUDE_DIR=../../kvazaar/src \
+    -DKVAZAAR_LIBRARY=../../kvazaar/build-${abi}/libkvazaar.so \
     -DLIBDE265_LIBRARY=../../libde265/build-${abi}/libde265/libde265.so \
     -DLIBDE265_INCLUDE_DIR=../../libde265 \
     -DDAV1D_INCLUDE_DIR=../../dav1d/include \

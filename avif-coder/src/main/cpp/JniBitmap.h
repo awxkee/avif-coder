@@ -31,9 +31,10 @@
 
 #include <jni.h>
 #include <vector>
+#include "definitions.h"
 
 jobject
-createBitmap(JNIEnv *env, std::vector<uint8_t> &data, std::string &colorConfig, int stride,
+createBitmap(JNIEnv *env, aligned_uint8_vector &data, std::string &colorConfig, int stride,
              int imageWidth, int imageHeight, bool use16Floats, jobject hwBuffer);
 
 #endif //AVIF_JNIBITMAP_H

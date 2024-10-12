@@ -33,6 +33,7 @@
 #include <vector>
 #include <string>
 #include "Support.h"
+#include "definitions.h"
 
 namespace coder {
 class ReformatBitmapError : public std::runtime_error {
@@ -47,7 +48,7 @@ class ReformatBitmapError : public std::runtime_error {
 };
 
 void
-ReformatColorConfig(JNIEnv *env, std::vector<uint8_t> &imageData, std::string &imageConfig,
+ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, int depth,
                     int imageWidth, int imageHeight, int *stride, bool *useFloats,
                     jobject *hwBuffer, bool alphaPremultiplied);

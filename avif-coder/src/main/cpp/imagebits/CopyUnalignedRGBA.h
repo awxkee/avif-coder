@@ -32,12 +32,11 @@
 #include <vector>
 
 namespace coder {
+template<typename T>
 void
-CopyUnaligned(const uint8_t *__restrict__ src, int srcStride, uint8_t *__restrict__ dst,
-              const int dstStride,
-              const int width,
-              const int height,
-              const int pixelSize);
+CopyUnaligned(const T *src, uint32_t srcStride, T *dst,
+              uint32_t dstStride, uint32_t width,
+              uint32_t height);
 }
 
 #endif //AVIF_COPYUNALIGNEDRGBA_H

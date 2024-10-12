@@ -31,7 +31,7 @@
 
 #include <jni.h>
 #include "SizeScaler.h"
-#include "GamutAdapter.h"
+#include "ToneMapper.h"
 
 enum PreferredColorConfig {
     Default = 1,

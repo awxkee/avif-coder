@@ -25,7 +25,7 @@
 #
 
 set -e
-
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
 export NDK=$NDK_PATH
 
 destination_directory=SVT-AV1
@@ -37,12 +37,14 @@ fi
 
 cd $destination_directory
 
-if [ -z "$INCLUDE_X86" ]; then
-  ABI_LIST="armeabi-v7a arm64-v8a x86_64"
-  echo "X86 won't be included into a build"
-else
-  ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
-fi
+#if [ -z "$INCLUDE_X86" ]; then
+#  ABI_LIST="armeabi-v7a arm64-v8a x86_64"
+#  echo "X86 won't be included into a build"
+#else
+#  ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
+#fi
+
+ABI_LIST="arm64-v8a armeabi-v7a x86 x86_64"
 
 for abi in ${ABI_LIST}; do
   rm -rf "build-${abi}"
@@ -51,22 +53,46 @@ for abi in ${ABI_LIST}; do
 
   echo $ARCH_OPTIONS
 
-  cmake .. \
-    -G "Ninja" \
-    -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
-    -DANDROID_PLATFORM=android-24 \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DENABLE_DOCS=0 \
-    -DENABLE_EXAMPLES=0 \
-    -DMINIMAL_BUILD=1 \
-    -DENABLE_TESTDATA=0 \
-    -DENABLE_TESTS=0 \
-    -DENABLE_TOOLS=0 \
-    -DBUILD_APPS=0 \
-    -DBUILD_TESTING=0 \
-    -DANDROID_ABI=${abi}
+  if [ "$abi" == "arm64-v8a" ]; then
+      cmake .. \
+        -G "Ninja" \
+        -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+        -DANDROID_PLATFORM=android-24 \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_DEBUG=OFF \
+        -DENABLE_DOCS=0 \
+        -DENABLE_EXAMPLES=0 \
+        -DENABLE_TESTDATA=0 \
+        -DENABLE_TESTS=0 \
+        -DENABLE_TOOLS=0 \
+        -DBUILD_APPS=0 \
+        -DBUILD_TESTING=0 \
+        -DCMAKE_C_FLAGS="-O2" \
+        -DCMAKE_CXX_FLAGS="-O2" \
+        -DANDROID_ABI=${abi}
+  else
+      cmake .. \
+        -G "Ninja" \
+        -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+        -DANDROID_PLATFORM=android-24 \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_DOCS=0 \
+        -DENABLE_DEBUG=OFF \
+        -DENABLE_EXAMPLES=0 \
+        -DENABLE_TESTDATA=0 \
+        -DENABLE_TESTS=0 \
+        -DENABLE_TOOLS=0 \
+        -DBUILD_APPS=0 \
+        -DBUILD_TESTING=0 \
+        -DCMAKE_C_FLAGS="-Os" \
+        -DCMAKE_CXX_FLAGS="-Os" \
+        -DCOMPILE_C_ONLY=ON \
+        -DANDROID_ABI=${abi}
+  fi
 
   ninja
   cp ../Bin/Release/libSvtAv1Enc.so libSvtAv1Enc.so

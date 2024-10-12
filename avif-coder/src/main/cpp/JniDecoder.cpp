@@ -20,7 +20,6 @@
 #include "imagebits/RgbaF16bitToNBitU16.h"
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
-#include "colorspace/GamutAdapter.h"
 #include "imagebits/CopyUnalignedRGBA.h"
 #include "Support.h"
 #include "JniBitmap.h"
@@ -29,9 +28,10 @@
 #include "thread"
 #include <android/asset_manager_jni.h>
 #include "imagebits/RGBAlpha.h"
-#include "imagebits/RgbaU16toHF.h"
 #include "Eigen/Eigen"
-#include "hwy/highway.h"
+#include "colorspace/ColorMatrix.h"
+#include "definitions.h"
+#include "ColorSpaceProfile.h"
 
 using namespace std;
 
@@ -122,7 +122,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
   RecognizeICC(handle, img, profile, colorProfile, &nclx, &hasNCLX);
 
-  bool alphaPremultiplied = true;
+  bool alphaPremultiplied;
   if (heif_image_handle_has_alpha_channel(handle.get())) {
     alphaPremultiplied = heif_image_handle_is_premultiplied_alpha(handle.get()) != 0;
   } else {
@@ -132,7 +132,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
   int imageWidth;
   int imageHeight;
   int stride;
-  std::vector<uint8_t> initialData;
+  aligned_uint8_vector initialData;
 
   imageWidth = heif_image_get_width(img.get(), heif_channel_interleaved);
   imageHeight = heif_image_get_height(img.get(), heif_channel_interleaved);
@@ -155,19 +155,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
     alphaPremultiplied = false;
   }
 
-  vector<uint8_t> dstARGB(stride * imageHeight);
-
-  if (useBitmapHalf16Floats) {
-    coder::RgbaU16ToF(reinterpret_cast<const uint16_t *>(initialData.data()),
-                      stride,
-                      reinterpret_cast<uint16_t *>(dstARGB.data()),
-                      stride,
-                      imageWidth * 4, imageHeight,
-                      bitDepth);
-
-  } else {
-    dstARGB = initialData;
-  }
+  aligned_uint8_vector dstARGB = initialData;
 
   initialData.clear();
 
@@ -202,86 +190,82 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
     Eigen::Matrix3f conversion = destinationProfile.inverse() * sourceProfile;
 
-    GammaCurve gammaCurve = sRGB;
-    GamutTransferFunction function = SKIP;
-
-    float gamma = 1.0f;
-
     if (nclx->transfer_characteristics !=
         heif_transfer_characteristic_ITU_R_BT_2100_0_HLG &&
         nclx->transfer_characteristics != heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
       toneMapper = TONE_SKIP;
     }
 
+    TransferFunction forwardTrc = TransferFunction::Srgb;
+
     if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
-      function = HLG;
+      forwardTrc = TransferFunction::Hlg;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_SMPTE_ST_428_1) {
-      function = SMPTE428;
+      forwardTrc = TransferFunction::Smpte428;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
-      function = PQ;
+      forwardTrc = TransferFunction::Pq;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_linear) {
-      function = SKIP;
+      forwardTrc = TransferFunction::Linear;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_470_6_System_M) {
-      function = EOTF_GAMMA;
-      gamma = 2.2f;
+      forwardTrc = TransferFunction::Gamma2p2;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_470_6_System_B_G) {
-      function = EOTF_GAMMA;
-      gamma = 2.8f;
+      forwardTrc = TransferFunction::Gamma2p8;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_601_6) {
-      function = EOTF_BT601;
+      forwardTrc = TransferFunction::Itur709;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_709_5) {
-      function = EOTF_BT709;
+      forwardTrc = TransferFunction::Itur709;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
         nclx->transfer_characteristics ==
             heif_transfer_characteristic_ITU_R_BT_2020_2_12bit) {
-      function = EOTF_BT709;
+      forwardTrc = TransferFunction::Itur709;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_SMPTE_240M) {
-      function = EOTF_SMPTE240;
+      forwardTrc = TransferFunction::Smpte240;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_logarithmic_100) {
-      function = EOTF_LOG100;
+      forwardTrc = TransferFunction::Log100;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_logarithmic_100_sqrt10) {
-      function = EOTF_LOG100SRT10;
+      forwardTrc = TransferFunction::Log100Sqrt10;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_1) {
-      function = EOTF_SRGB;
+      forwardTrc = TransferFunction::Srgb;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_4) {
-      function = EOTF_IEC_61966;
+      forwardTrc = TransferFunction::Iec61966;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_1361) {
-      function = EOTF_BT1361;
+      forwardTrc = TransferFunction::Bt1361;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_unspecified) {
-      function = EOTF_SRGB;
+      forwardTrc = TransferFunction::Srgb;
     }
+
     ITURColorCoefficients coeffs = colorPrimariesComputeYCoeffs(primaries, whitePoint);
+
+    const float matrix[9] = {
+        conversion(0, 0), conversion(0, 1), conversion(0, 2),
+        conversion(1, 0), conversion(1, 1), conversion(1, 2),
+        conversion(2, 0), conversion(2, 1), conversion(2, 2),
+    };
+
     if (useBitmapHalf16Floats) {
-      coder::GamutAdapter<hwy::float16_t> hdrTransferAdapter(
-          reinterpret_cast<hwy::float16_t *>(dstARGB.data()),
-          stride, imageWidth, imageHeight,
-          16, gammaCurve, function,
-          toneMapper,
-          &conversion,
-          gamma,
-          getIlluminantD65() != whitePoint,
-          coeffs);
-      hdrTransferAdapter.transfer();
+      applyColorMatrix16Bit(reinterpret_cast<uint16_t *>(dstARGB.data()),
+                            stride,
+                            imageWidth,
+                            imageHeight,
+                            bitDepth,
+                            matrix,
+                            forwardTrc,
+                            TransferFunction::Srgb,
+                            toneMapper,
+                            coeffs);
     } else {
-      coder::GamutAdapter<uint8_t> hdrTransferAdapter(
-          reinterpret_cast<uint8_t *>(dstARGB.data()),
-          stride, imageWidth, imageHeight,
-          8, gammaCurve, function,
-          toneMapper,
-          &conversion,
-          gamma,
-          getIlluminantD65() != whitePoint,
-          coeffs);
-      hdrTransferAdapter.transfer();
+      applyColorMatrix(reinterpret_cast<uint8_t *>(dstARGB.data()), stride, imageWidth,
+                       imageHeight, matrix, forwardTrc, TransferFunction::Srgb, toneMapper,
+                       coeffs);
     }
   }
 

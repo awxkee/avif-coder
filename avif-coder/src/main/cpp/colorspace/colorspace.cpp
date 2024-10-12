@@ -305,7 +305,7 @@ cmsHPROFILE colorspacesCreateLinearInfraredProfile() {
 }
 
 void
-convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
+convertUseProfiles(aligned_uint8_vector &srcVector, int stride,
                    cmsHPROFILE srcProfile,
                    int width, int height,
                    cmsHPROFILE dstProfile,
@@ -315,11 +315,13 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
   });
   cmsHTRANSFORM transform = cmsCreateTransform(srcProfile,
-                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               image16Bits ? TYPE_RGBA_16_PREMUL : TYPE_RGBA_8,
                                                dstProfile,
-                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               image16Bits ? TYPE_RGBA_16_PREMUL : TYPE_RGBA_8,
                                                INTENT_ABSOLUTE_COLORIMETRIC,
-                                               cmsFLAGS_COPY_ALPHA);
+                                               cmsFLAGS_BLACKPOINTCOMPENSATION |
+                                                   cmsFLAGS_NOWHITEONWHITEFIXUP |
+                                                   cmsFLAGS_COPY_ALPHA);
   if (!transform) {
     // JUST RETURN without signalling error, better proceed with invalid photo than crash
     __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "ColorProfile Creation has hailed");
@@ -329,19 +331,13 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
     cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
   });
 
-  vector<uint8_t> iccARGB;
+  aligned_uint8_vector iccARGB;
   int lineWidth = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
   int alignment = 64;
   int padding = (alignment - (lineWidth % alignment)) % alignment;
   int dstStride = lineWidth + padding;
   int newLength = dstStride * height;
   iccARGB.resize(newLength);
-
-  const int threadCount = std::clamp(
-      std::min(static_cast<int>(std::thread::hardware_concurrency()),
-               height * width / (256 * 256)), 1, 12);
-
-  int segmentHeight = height / threadCount;
 
   auto mOutputBuffer = iccARGB.data();
   auto mInputBuffer = srcVector.data();
@@ -359,7 +355,7 @@ convertUseProfiles(std::vector<uint8_t> &srcVector, int stride,
 }
 
 void
-convertUseICC(vector<uint8_t> &vector, int stride, int width, int height,
+convertUseICC(aligned_uint8_vector &vector, int stride, int width, int height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
               bool image16Bits, int *newStride) {
   cmsContext context = cmsCreateContext(nullptr, nullptr);
@@ -381,9 +377,9 @@ convertUseICC(vector<uint8_t> &vector, int stride, int width, int height,
     cmsCloseProfile(reinterpret_cast<cmsHPROFILE>(profile));
   });
   cmsHTRANSFORM transform = cmsCreateTransform(ptrSrcProfile.get(),
-                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               image16Bits ? TYPE_RGBA_16_PREMUL : TYPE_RGBA_8,
                                                ptrDstProfile.get(),
-                                               image16Bits ? TYPE_RGBA_HALF_FLT : TYPE_RGBA_8,
+                                               image16Bits ? TYPE_RGBA_16_PREMUL : TYPE_RGBA_8,
                                                INTENT_PERCEPTUAL,
                                                cmsFLAGS_BLACKPOINTCOMPENSATION |
                                                    cmsFLAGS_NOWHITEONWHITEFIXUP |

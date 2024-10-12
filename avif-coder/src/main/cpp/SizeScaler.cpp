@@ -33,8 +33,9 @@
 #include <string>
 #include <jni.h>
 #include "JniException.h"
+#include "definitions.h"
 
-bool RescaleImage(std::vector<uint8_t> &initialData,
+bool RescaleImage(aligned_uint8_vector &initialData,
                   JNIEnv *env,
                   std::shared_ptr<heif_image_handle> &handle,
                   std::shared_ptr<heif_image> &img,
@@ -121,7 +122,7 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
           croppedWidth * 4 * (int) (useFloats ? sizeof(uint16_t) : sizeof(uint8_t));
       int srcStride = *stride;
 
-      std::vector<uint8_t> croppedImage(newStride * croppedHeight);
+      aligned_uint8_vector croppedImage(newStride * croppedHeight);
 
       uint8_t *dstData = croppedImage.data();
       auto srcData = reinterpret_cast<const uint8_t *>(data);
@@ -152,10 +153,17 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
 
     } else {
       initialData.resize(*stride * imageHeight);
-      coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
-                           reinterpret_cast<uint8_t *>(initialData.data()), *stride,
-                           imageWidth * 4,
-                           imageHeight, useFloats ? 2 : 1);
+      if (useFloats) {
+        coder::CopyUnaligned(reinterpret_cast<const uint16_t *>(data), *stride,
+                             reinterpret_cast<uint16_t *>(initialData.data()), *stride,
+                             imageWidth * 4,
+                             imageHeight);
+      } else {
+        coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
+                             reinterpret_cast<uint8_t *>(initialData.data()), *stride,
+                             imageWidth * 4,
+                             imageHeight);
+      }
     }
 
     *imageWidthPtr = imageWidth;
@@ -172,10 +180,17 @@ bool RescaleImage(std::vector<uint8_t> &initialData,
     imageHeight = heif_image_get_height(img.get(), heif_channel_interleaved);
     initialData.resize(*stride * imageHeight);
 
-    coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
-                         reinterpret_cast<uint8_t *>(initialData.data()), *stride,
-                         imageWidth * 4,
-                         imageHeight, useFloats ? 2 : 1);
+    if (useFloats) {
+      coder::CopyUnaligned(reinterpret_cast<const uint16_t *>(data), *stride,
+                           reinterpret_cast<uint16_t *>(initialData.data()), *stride,
+                           imageWidth * 4,
+                           imageHeight);
+    } else {
+      coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
+                           reinterpret_cast<uint8_t *>(initialData.data()), *stride,
+                           imageWidth * 4,
+                           imageHeight);
+    }
 
     *imageWidthPtr = imageWidth;
     *imageHeightPtr = imageHeight;

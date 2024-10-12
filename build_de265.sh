@@ -26,6 +26,7 @@
 
 set -e
 
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
 export NDK=$NDK_PATH
 
 destination_directory=libde265
@@ -61,6 +62,7 @@ for abi in ${ABI_LIST}; do
     -DENABLE_TESTS=0 \
     -DENABLE_TOOLS=0 \
     -DDISABLE_SSE=1 \
+    -DCMAKE_ANDROID_STL_TYPE=c++_shared \
     -DANDROID_ABI=${abi}
   ninja
   $NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip libde265/libde265.so

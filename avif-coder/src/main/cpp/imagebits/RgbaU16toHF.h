@@ -32,9 +32,9 @@
 #include <cstdint>
 
 namespace coder {
-void RgbaU16ToF(const uint16_t *src, const int srcStride,
-                uint16_t *dst, const int dstStride, const int width,
-                const int height, const int bitDepth);
+void RgbaU16ToF(const uint16_t *src, uint32_t srcStride,
+                uint16_t *dst, uint32_t dstStride, uint32_t width,
+                uint32_t height, uint32_t bitDepth);
 }
 
 #endif //AVIF_RGBAU16TOHF_H

@@ -125,7 +125,6 @@ class HeifCoder(
         bitmap: Bitmap,
         quality: Int = 80,
         preciseMode: PreciseMode = PreciseMode.LOSSY,
-        speed: AvifSpeed = AvifSpeed.SIX
     ): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
@@ -134,12 +133,11 @@ class HeifCoder(
             encodeAvifImpl(
                 bitmap,
                 quality,
-                speed.value,
                 bitmap.colorSpace?.dataSpace ?: -1,
                 preciseMode.value
             )
         } else {
-            encodeAvifImpl(bitmap, quality, speed.value, -1, preciseMode.value)
+            encodeAvifImpl(bitmap, quality, -1, preciseMode.value)
         }
     }
 
@@ -186,7 +184,6 @@ class HeifCoder(
     private external fun encodeAvifImpl(
         bitmap: Bitmap,
         quality: Int,
-        speed: Int,
         dataSpace: Int,
         qualityMode: Int
     ): ByteArray

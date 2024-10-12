@@ -35,7 +35,6 @@ import android.util.Log
 import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.radzivon.bartoshyk.avif.coder.AvifSpeed
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
@@ -48,6 +47,7 @@ import kotlinx.coroutines.launch
 import okio.buffer
 import okio.sink
 import okio.source
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
@@ -107,7 +107,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("wide_gamut.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("federico-beccari.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
@@ -123,20 +123,30 @@ class MainActivity : AppCompatActivity() {
 //                                PreferredColorConfig.RGBA_1010102,
 //                                ScaleMode.RESIZE
 //                        )
-                        val bitmap = coder.decode(
+
+                        val start = System.currentTimeMillis()
+
+                        val bitmap0 = coder.decode(
                             buffer,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
                         )
-                        val encoded = coder.encodeAvif(bitmap, 61, PreciseMode.LOSSY, AvifSpeed.SIX)
-                        val decodedEncoded = coder.decode(encoded);
+
+//                        bitmap0.setColorSpace(ColorSpace.getFromDataSpace(DataSpace.DATASPACE_BT2020_PQ)!!)
+
+                        Log.i("AVIF", "Decoding time ${System.currentTimeMillis() - start}")
+
+                        val encode = coder.encodeAvif(bitmap = bitmap0, quality = 64)
+                        val bitmap = coder.decode(encode)
+
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
+                            imageView.root.setImageBitmap(bitmap0)
+                            binding.scrollViewContainer.addView(imageView.root)
+                        }
                         lifecycleScope.launch(Dispatchers.Main) {
                             val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
                             imageView.root.setImageBitmap(bitmap)
                             binding.scrollViewContainer.addView(imageView.root)
-
-                            val imageView1 = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
-                            imageView1.root.setImageBitmap(decodedEncoded)
-                            binding.scrollViewContainer.addView(imageView1.root)
                         }
                     }
                 } catch (e: Exception) {

@@ -43,11 +43,15 @@
 #include "imagebits/RgbaF16bitToNBitU16.h"
 #include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
-#include "colorspace/GamutAdapter.h"
 #include "imagebits/RGBAlpha.h"
 #include "imagebits/Rgb565.h"
 #include "DataSpaceToNCLX.hpp"
 #include "imagebits/CopyUnalignedRGBA.h"
+#include "imagebits/ScanAlpha.h"
+#include "YuvConversion.h"
+#include "avif/avif.h"
+#include "avif/avif_cxx.h"
+#include <libyuv.h>
 
 using namespace std;
 
@@ -77,9 +81,12 @@ struct heif_error writeHeifData(struct heif_context *ctx,
   return (error_ok);
 }
 
-jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
-                        jobject bitmap, heif_compression_format heifCompressionFormat,
-                        const int quality, const int speed, const int dataSpace, const AvifQualityMode qualityMode) {
+jbyteArray encodeBitmapHevc(JNIEnv *env,
+                            jobject thiz,
+                            jobject bitmap,
+                            const int quality,
+                            const int dataSpace,
+                            const bool loseless) {
   std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                     [](heif_context *c) { heif_context_free(c); });
   if (!ctx) {
@@ -89,55 +96,31 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
   }
 
   heif_encoder *mEncoder;
-  auto result = heif_context_get_encoder_for_format(ctx.get(), heifCompressionFormat, &mEncoder);
+  auto result = heif_context_get_encoder_for_format(ctx.get(), heif_compression_HEVC, &mEncoder);
   if (result.code != heif_error_Ok) {
     std::string choke(result.message);
     std::string str = "Can't create encoder with exception: " + choke;
     throwException(env, str);
     return static_cast<jbyteArray>(nullptr);
   }
+
   std::shared_ptr<heif_encoder> encoder(mEncoder,
                                         [](heif_encoder *he) { heif_encoder_release(he); });
-  if (qualityMode == AVIF_LOSSY_MODE) {
-    if (quality <= 100 && quality > 0) {
-      result = heif_encoder_set_lossy_quality(encoder.get(), quality);
-      if (result.code != heif_error_Ok) {
-        std::string choke(result.message);
-        std::string str = "Can't set encoder quality: " + choke;
-        throwException(env, str);
-        return static_cast<jbyteArray>(nullptr);
-      }
-      result = heif_encoder_set_parameter_string(encoder.get(), "chroma", "420");
-      if (result.code != heif_error_Ok) {
-        std::string choke(result.message);
-        std::string str = "Can't set encoder chroma: " + choke;
-        throwException(env, str);
-        return static_cast<jbyteArray>(nullptr);
-      }
-    }
-  } else if (qualityMode == AVIF_LOSELESS_MODE) {
-    result = heif_encoder_set_lossless(encoder.get(), true);
-    if (result.code != heif_error_Ok) {
-      std::string choke(result.message);
-      std::string str = "Can't set encoder quality: " + choke;
-      throwException(env, str);
-      return static_cast<jbyteArray>(nullptr);
-    }
-    // SVT-AV1 do not supports 444, so chroma is always 4:2:0
-    result = heif_encoder_set_parameter_string(encoder.get(), "chroma", "420");
-    if (result.code != heif_error_Ok) {
-      std::string choke(result.message);
-      std::string str = "Can't set encoder chroma: " + choke;
-      throwException(env, str);
-      return static_cast<jbyteArray>(nullptr);
-    }
-  }
 
-  if (speed > -1 && speed <= 9) {
-    result = heif_encoder_set_parameter_integer(encoder.get(), "speed", speed);
+  if (loseless) {
+    result = heif_encoder_set_lossless(encoder.get(), loseless);
     if (result.code != heif_error_Ok) {
       std::string choke(result.message);
-      std::string str = "Can't set speed/effort: " + choke;
+      std::string str = "Can't create encoder with exception: " + choke;
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
+
+  } else {
+    result = heif_encoder_set_lossy_quality(encoder.get(), quality);
+    if (result.code != heif_error_Ok) {
+      std::string choke(result.message);
+      std::string str = "Can't create encoder with exception: " + choke;
       throwException(env, str);
       return static_cast<jbyteArray>(nullptr);
     }
@@ -175,16 +158,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
   AndroidBitmap_unlockPixels(env, bitmap);
 
   heif_image *imagePtr;
-  heif_chroma chroma = heif_chroma_interleaved_RGBA;
-  if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 &&
-      heifCompressionFormat == heif_compression_AV1) ||
-      (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 &&
-          heifCompressionFormat == heif_compression_AV1)) {
-    chroma = heif_chroma_interleaved_RRGGBBAA_LE;
-  }
 
   result = heif_image_create((int) info.width, (int) info.height,
-                             heif_colorspace_RGB, chroma, &imagePtr);
+                             heif_colorspace_YCbCr, heif_chroma_420, &imagePtr);
   if (result.code != heif_error_Ok) {
     std::string choke(result.message);
     std::string str = "Can't create encoded image with exception: " + choke;
@@ -201,15 +177,9 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
   });
 
   int bitDepth = 8;
-  if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
-    bitDepth = 8;
-  } else if ((info.format == ANDROID_BITMAP_FORMAT_RGBA_F16 && heifCompressionFormat == heif_compression_AV1) ||
-      (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102 && heifCompressionFormat == heif_compression_AV1)) {
-    bitDepth = 10;
-  }
 
   result = heif_image_add_plane(image.get(),
-                                heif_channel_interleaved,
+                                heif_channel_Y,
                                 (int) info.width,
                                 (int) info.height,
                                 bitDepth);
@@ -220,57 +190,106 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
     return static_cast<jbyteArray>(nullptr);
   }
 
-  int stride;
-  uint8_t *imgData = heif_image_get_plane(image.get(), heif_channel_interleaved, &stride);
+  int uvPlaneWidth = ((int) info.width + 1) / 2;
+  int uvPlaneHeight = ((int) info.height + 1) / 2;
+
+  result = heif_image_add_plane(image.get(),
+                                heif_channel_Cb,
+                                uvPlaneWidth,
+                                uvPlaneHeight,
+                                bitDepth);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create add plane to encoded image with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  result = heif_image_add_plane(image.get(),
+                                heif_channel_Cr,
+                                uvPlaneWidth,
+                                uvPlaneHeight,
+                                bitDepth);
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create add plane to encoded image with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  uint32_t stride = info.width * 4;
+  aligned_uint8_vector imageStore(stride * info.height);
   if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
     coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
-                             imgData, stride, (int) info.width, (int) info.height);
+                             imageStore.data(), stride, (int) info.width, (int) info.height);
     heif_image_set_premultiplied_alpha(image.get(), false);
   } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
     coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
-                             imgData, stride, (int) info.width, (int) info.height, 8, 255);
+                             imageStore.data(), stride, (int) info.width, (int) info.height, 255);
   } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
-    if (heifCompressionFormat == heif_compression_HEVC) {
-      coder::RGBA1010102ToUnsigned(reinterpret_cast<const uint8_t *>(sourceData.data()),
-                                   (int) info.stride,
-                                   reinterpret_cast<uint8_t *>(imgData), stride,
-                                   (int) info.width, (int) info.height, 8);
-      heif_image_set_premultiplied_alpha(image.get(), true);
-    } else {
-      coder::RGBA1010102ToUnsigned(reinterpret_cast<uint8_t *>(sourceData.data()),
-                                   (int) info.stride,
-                                   reinterpret_cast<uint16_t *>(imgData), stride,
-                                   (int) info.width, (int) info.height, 10);
-      heif_image_set_premultiplied_alpha(image.get(), true);
-    }
+    coder::RGBA1010102ToUnsigned(reinterpret_cast<uint8_t *>(sourceData.data()),
+                                 (uint32_t) info.stride,
+                                 reinterpret_cast<uint8_t *>(imageStore.data()), stride,
+                                 (uint32_t) info.width, (uint32_t) info.height, 8);
+    heif_image_set_premultiplied_alpha(image.get(), true);
   } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
-    if (heifCompressionFormat == heif_compression_AV1) {
-      coder::RGBAF16BitToNBitU16(reinterpret_cast<const uint16_t *>(sourceData.data()),
-                                 (int) info.stride,
-                                 reinterpret_cast<uint16_t *>(imgData), stride,
-                                 (int) info.width,
-                                 (int) info.height, 10);
-    } else {
-      coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
-                                (int) info.stride,
-                                reinterpret_cast<uint8_t *>(imgData), stride,
-                                (int) info.width,
-                                (int) info.height, 8, true);
-      heif_image_set_premultiplied_alpha(image.get(), true);
-    }
+    coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
+                              (int) info.stride,
+                              reinterpret_cast<uint8_t *>(imageStore.data()), stride,
+                              (int) info.width,
+                              (int) info.height, 8, true);
+    heif_image_set_premultiplied_alpha(image.get(), true);
+  }
+
+  int yStride;
+  uint8_t *yPlane = heif_image_get_plane(image.get(), heif_channel_Y, &yStride);
+  if (yPlane == nullptr) {
+    std::string str = "Can't add Y plane to an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  int uStride;
+  uint8_t *uPlane = heif_image_get_plane(image.get(), heif_channel_Cb, &uStride);
+  if (uPlane == nullptr) {
+    std::string str = "Can't add U plane to an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  int vStride;
+  uint8_t *vPlane = heif_image_get_plane(image.get(), heif_channel_Cr, &vStride);
+  if (vPlane == nullptr) {
+    std::string str = "Can't add V plane to an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
   }
 
   std::vector<uint8_t> iccProfile(0);
 
-  bool nclxResult = coder::colorProfileFromDataSpace(imgData,
-                                                     stride,
-                                                     info.width,
-                                                     info.height,
-                                                     bitDepth == 8,
-                                                     bitDepth,
-                                                     dataSpace,
+  YuvMatrix matrix = YuvMatrix::Bt709;
+
+  bool nclxResult = coder::colorProfileFromDataSpace(dataSpace,
                                                      profile.get(),
-                                                     iccProfile);
+                                                     iccProfile, matrix);
+
+  if (!nclxResult) {
+    profile->full_range_flag = 1;
+  }
+
+  RgbaToYuv420(imageStore.data(),
+               stride,
+               yPlane,
+               yStride,
+               uPlane,
+               uStride,
+               vPlane,
+               vStride,
+               info.width,
+               info.height,
+               profile->full_range_flag ? YuvRange::Full : YuvRange::Tv,
+               matrix);
+
   if (nclxResult) {
     if (iccProfile.empty()) {
       result = heif_image_set_nclx_color_profile(image.get(), profile.get());
@@ -339,20 +358,236 @@ jbyteArray encodeBitmap(JNIEnv *env, jobject thiz,
   return byteArray;
 }
 
+jbyteArray encodeBitmapAvif(JNIEnv *env,
+                            jobject thiz,
+                            jobject bitmap,
+                            const int quality,
+                            const int dataSpace,
+                            const AvifQualityMode qualityMode) {
+  avif::EncoderPtr encoder(avifEncoderCreate());
+  if (encoder == nullptr) {
+    std::string str = "Can't create encoder";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  if (qualityMode == AVIF_LOSSY_MODE) {
+    encoder->quality = quality;
+    encoder->qualityAlpha = quality;
+  } else if (qualityMode == AVIF_LOSELESS_MODE) {
+    encoder->quality = 100;
+    encoder->qualityAlpha = 100;
+  }
+
+  AndroidBitmapInfo info;
+  if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
+    throwPixelsException(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  if (info.flags & ANDROID_BITMAP_FLAGS_IS_HARDWARE) {
+    throwHardwareBitmapException(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 &&
+      info.format != ANDROID_BITMAP_FORMAT_RGB_565 &&
+      info.format != ANDROID_BITMAP_FORMAT_RGBA_F16 &&
+      info.format != ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+    throwInvalidPixelsFormat(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  void *addr;
+  if (AndroidBitmap_lockPixels(env, bitmap, &addr) != 0) {
+    throwPixelsException(env);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  std::vector<uint8_t> sourceData(info.height * info.stride);
+  std::copy(reinterpret_cast<uint8_t *>(addr),
+            reinterpret_cast<uint8_t *>(addr) + info.height * info.stride, sourceData.data());
+
+  AndroidBitmap_unlockPixels(env, bitmap);
+
+  avifPixelFormat pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV420;
+  avif::ImagePtr image(avifImageCreate(info.width, info.height, 8, pixelFormat));
+
+  if (image.get() == nullptr) {
+    std::string str = "Can't create image for encoding";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  uint32_t stride = info.width * 4;
+  aligned_uint8_vector imageStore(stride * info.height);
+  if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
+    coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
+                             imageStore.data(), stride, (int) info.width, (int) info.height);
+  } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+    coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
+                             imageStore.data(), stride, (int) info.width, (int) info.height, 255);
+  } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_1010102) {
+    coder::RGBA1010102ToUnsigned(reinterpret_cast<uint8_t *>(sourceData.data()),
+                                 (uint32_t) info.stride,
+                                 reinterpret_cast<uint8_t *>(imageStore.data()), stride,
+                                 (uint32_t) info.width, (uint32_t) info.height, 8);
+  } else if (info.format == ANDROID_BITMAP_FORMAT_RGBA_F16) {
+    coder::RGBAF16BitToNBitU8(reinterpret_cast<const uint16_t *>(sourceData.data()),
+                              (int) info.stride,
+                              reinterpret_cast<uint8_t *>(imageStore.data()), stride,
+                              (int) info.width,
+                              (int) info.height, 8, false);
+  }
+
+  bool hasAlpha = isImageHasAlpha(imageStore.data(), stride, info.width, info.height);
+  image->imageOwnsAlphaPlane = hasAlpha;
+
+  auto result = avifImageAllocatePlanes(image.get(),
+                                        hasAlpha ? avifPlanesFlag::AVIF_PLANES_ALL
+                                                 : avifPlanesFlag::AVIF_PLANES_YUV);
+
+  if (result != AVIF_RESULT_OK) {
+    std::string str = "Can't allocate planes";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  if (hasAlpha) {
+    uint32_t aStride = image->alphaRowBytes;
+    uint8_t *aPlane = image->alphaPlane;
+    if (aPlane == nullptr) {
+      std::string str = "Can't add A plane to an image";
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
+
+    for (uint32_t y = 0; y < info.height; ++y) {
+      auto vSrc = reinterpret_cast<uint8_t *>(imageStore.data()) + y * stride;
+      auto vDst = reinterpret_cast<uint8_t *>(aPlane) + y * aStride;
+      for (uint32_t x = 0; x < info.width; ++x) {
+        vDst[0] = vSrc[3];
+        vSrc += 4;
+        vDst += 1;
+      }
+    }
+
+  }
+
+  uint32_t yStride = image->yuvRowBytes[0];
+  uint8_t *yPlane = image->yuvPlanes[0];
+  if (yPlane == nullptr) {
+    std::string str = "Can't add Y plane to an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  uint32_t uStride = image->yuvRowBytes[1];
+  uint8_t *uPlane = image->yuvPlanes[1];
+  if (uPlane == nullptr) {
+    std::string str = "Can't add U plane to an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  uint32_t vStride = image->yuvRowBytes[2];
+  uint8_t *vPlane = image->yuvPlanes[2];
+  if (vPlane == nullptr) {
+    std::string str = "Can't add V plane to an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  std::vector<uint8_t> iccProfile(0);
+
+  YuvMatrix matrix = YuvMatrix::Bt709;
+
+  avifTransferCharacteristics transferCharacteristics = AVIF_TRANSFER_CHARACTERISTICS_BT709;
+  avifMatrixCoefficients matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT709;
+  avifColorPrimaries colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
+  avifRange yuvRange = AVIF_RANGE_LIMITED;
+
+  bool nclxResult = coder::colorProfileFromDataSpaceAvif(dataSpace,
+                                                         transferCharacteristics,
+                                                         matrixCoefficients,
+                                                         colorPrimaries,
+                                                         yuvRange,
+                                                         iccProfile,
+                                                         matrix);
+
+  RgbaToYuv420(imageStore.data(),
+               stride,
+               yPlane,
+               yStride,
+               uPlane,
+               uStride,
+               vPlane,
+               vStride,
+               info.width,
+               info.height,
+               yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+               matrix);
+
+  if (nclxResult) {
+    if (iccProfile.empty()) {
+      image->matrixCoefficients = matrixCoefficients;
+      image->colorPrimaries = colorPrimaries;
+      image->transferCharacteristics = transferCharacteristics;
+      image->yuvRange = yuvRange;
+    } else {
+      result = avifImageSetProfileICC(image.get(), iccProfile.data(), iccProfile.size());
+      if (result != AVIF_RESULT_OK) {
+        std::string str = "Can't set required color profile";
+        throwException(env, str);
+        return static_cast<jbyteArray>(nullptr);
+      }
+    }
+  }
+
+  result = avifEncoderAddImage(encoder.get(), image.get(), 0, AVIF_ADD_IMAGE_FLAG_SINGLE);
+  [[maybe_unused]] auto vrelease = image.release();
+  if (result != AVIF_RESULT_OK) {
+    [[maybe_unused]] auto erelease = encoder.release();
+    std::string str = "Can't add an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  avifRWData data;
+  result = avifEncoderFinish(encoder.get(), &data);
+  if (result != AVIF_RESULT_OK) {
+    [[maybe_unused]] auto erelease = encoder.release();
+    std::string str = "Can't encode an image";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  [[maybe_unused]] auto erelease = encoder.release();
+
+  jbyteArray byteArray = env->NewByteArray((jsize) data.size);
+  char *memBuf = (char *) ((void *) data.data);
+  env->SetByteArrayRegion(byteArray, 0, (jint) data.size,
+                          reinterpret_cast<const jbyte *>(memBuf));
+
+  avifRWDataFree(&data);
+  return byteArray;
+}
+
 extern "C"
 JNIEXPORT jbyteArray JNICALL
-Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality, jint speed,
-                                                                jint dataSpace, jint qualityMode) {
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env,
+                                                                jobject thiz,
+                                                                jobject bitmap,
+                                                                jint quality,
+                                                                jint dataSpace,
+                                                                jint qualityMode) {
   try {
-    return encodeBitmap(env,
-                        thiz,
-                        bitmap,
-                        heif_compression_AV1,
-                        quality,
-                        speed,
-                        dataSpace,
-                        static_cast<AvifQualityMode>(qualityMode));
+    return encodeBitmapAvif(env,
+                            thiz,
+                            bitmap,
+                            quality,
+                            dataSpace,
+                            static_cast<AvifQualityMode>(qualityMode));
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);
@@ -366,14 +601,12 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, job
                                                                 jobject bitmap, jint quality,
                                                                 jint dataSpace, jint qualityMode) {
   try {
-    return encodeBitmap(env,
-                        thiz,
-                        bitmap,
-                        heif_compression_HEVC,
-                        quality,
-                        -1,
-                        dataSpace,
-                        static_cast<AvifQualityMode>(qualityMode));
+    return encodeBitmapHevc(env,
+                            thiz,
+                            bitmap,
+                            quality,
+                            dataSpace,
+                            qualityMode == 2);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);

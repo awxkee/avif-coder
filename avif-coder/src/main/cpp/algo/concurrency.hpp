@@ -18,15 +18,15 @@ namespace concurrency {
     };
 
     template<typename Function, typename... Args>
-    void parallel_for(const int numThreads, const int numIterations, Function &&func, Args &&... args) {
+    void parallel_for(const int numThreads, const uint32_t numIterations, Function &&func, Args &&... args) {
         static_assert(std::is_invocable_v<Function, int, Args...>, "func must take an int parameter for iteration id");
 
         std::vector<std::thread> threads;
 
-        int segmentHeight = numIterations / numThreads;
+        uint32_t segmentHeight = numIterations / numThreads;
 
-        auto parallelWorker = [&](int start, int end) {
-            for (int y = start; y < end; ++y) {
+        auto parallelWorker = [&](uint32_t start, uint32_t end) {
+            for (uint32_t y = start; y < end; ++y) {
                 {
                     std::invoke(func, y, std::forward<Args>(args)...);
                 }
@@ -36,8 +36,8 @@ namespace concurrency {
         if (numThreads > 1) {
             // Launch N-1 worker threads
             for (int i = 1; i < numThreads; ++i) {
-                int start = i * segmentHeight;
-                int end = (i + 1) * segmentHeight;
+                uint32_t start = i * segmentHeight;
+                uint32_t end = (i + 1) * segmentHeight;
                 if (i == numThreads - 1) {
                     end = numIterations;
                 }
@@ -45,8 +45,8 @@ namespace concurrency {
             }
         }
 
-        int start = 0;
-        int end = segmentHeight;
+        uint32_t start = 0;
+        uint32_t end = segmentHeight;
         if (numThreads == 1) {
             end = numIterations;
         }

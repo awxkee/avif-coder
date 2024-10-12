@@ -32,15 +32,13 @@
 #include "libheif/heif.h"
 #include "Eigen/Eigen"
 #include "ColorSpaceProfile.h"
-#include "GamutAdapter.h"
 #include "colorspace.h"
+#include "YuvConversion.h"
+#include "avif/avif.h"
 
 namespace coder {
-bool colorProfileFromDataSpace(uint8_t *data,
-                               const int stride, const int width, const int height,
-                               const bool dataTypeUnsigned8, const int bitDepth,
-                               const int dataSpace, heif_color_profile_nclx *profile,
-                               std::vector<uint8_t> &iccProfile) {
+bool colorProfileFromDataSpace(const int dataSpace, heif_color_profile_nclx *profile,
+                               std::vector<uint8_t> &iccProfile, YuvMatrix &matrix) {
   if (dataSpace == -1) {
     return false;
   }
@@ -51,46 +49,50 @@ bool colorProfileFromDataSpace(uint8_t *data,
     profile->transfer_characteristics = heif_transfer_characteristic_IEC_61966_2_1;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_601_6;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_601_6;
+    matrix = YuvMatrix::Bt601;
     if (dataSpace == ADataSpace::ADATASPACE_SCRGB) {
       profile->full_range_flag = true;
     }
     isResolved = true;
-  } else if (dataSpace == ADataSpace::ADATASPACE_UNKNOWN || dataSpace == ADataSpace::ADATASPACE_BT601_525
+  } else if (dataSpace == ADataSpace::ADATASPACE_BT601_525
       || dataSpace == ADataSpace::ADATASPACE_BT601_625) {
     profile->transfer_characteristics = heif_transfer_characteristic_ITU_R_BT_601_6;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_601_6;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_601_6;
-    if (dataSpace == ADataSpace::ADATASPACE_JFIF) {
-      profile->full_range_flag = true;
-    }
+    matrix = YuvMatrix::Bt601;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_BT709) {
     profile->transfer_characteristics = heif_transfer_characteristic_ITU_R_BT_709_5;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_709_5;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_709_5;
+    matrix = YuvMatrix::Bt709;
     profile->full_range_flag = false;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_SRGB) {
     profile->transfer_characteristics = heif_transfer_characteristic_IEC_61966_2_1;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_709_5;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_709_5;
+    matrix = YuvMatrix::Bt709;
     profile->full_range_flag = true;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_BT2020) {
     profile->transfer_characteristics = heif_transfer_characteristic_ITU_R_BT_2020_2_10bit;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_2020_2_non_constant_luminance;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_2020_2_and_2100_0;
+    matrix = YuvMatrix::Bt2020;
     profile->full_range_flag = true;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_DISPLAY_P3) {
     profile->transfer_characteristics = heif_transfer_characteristic_IEC_61966_2_1;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_601_6;
     profile->color_primaries = heif_color_primaries_SMPTE_EG_432_1;
+    matrix = YuvMatrix::Bt601;
     profile->full_range_flag = true;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_DCI_P3) {
     auto dciP3Profile = colorspacesCreateDCIP3RgbProfile();
     auto icc = dciP3Profile.iccProfile();
+    matrix = YuvMatrix::Bt709;
     iccProfile = icc;
     profile->full_range_flag = true;
     isResolved = true;
@@ -98,6 +100,7 @@ bool colorProfileFromDataSpace(uint8_t *data,
     profile->transfer_characteristics = heif_transfer_characteristic_linear;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_709_5;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_709_5;
+    matrix = YuvMatrix::Bt709;
     profile->full_range_flag = true;
     isResolved = true;
   } else if ((dataSpace == ADataSpace::ADATASPACE_BT2020_ITU_PQ ||
@@ -112,13 +115,116 @@ bool colorProfileFromDataSpace(uint8_t *data,
     profile->transfer_characteristics = transfer;
     profile->matrix_coefficients = heif_matrix_coefficients_ITU_R_BT_2020_2_non_constant_luminance;
     profile->color_primaries = heif_color_primaries_ITU_R_BT_2020_2_and_2100_0;
-    if (dataSpace == ADataSpace::ADATASPACE_BT2020_HLG || dataSpace == ADataSpace::ADATASPACE_BT2020_PQ) {
+    matrix = YuvMatrix::Bt2020;
+    if (dataSpace == ADataSpace::ADATASPACE_BT2020_HLG
+        || dataSpace == ADataSpace::ADATASPACE_BT2020_PQ) {
       profile->full_range_flag = true;
     }
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_ADOBE_RGB) {
     auto adobe = colorspacesCreateAdobergbProfile();
     auto icc = adobe.iccProfile();
+    matrix = YuvMatrix::Bt709;
+    iccProfile = icc;
+    isResolved = true;
+  }
+
+  return isResolved;
+}
+
+bool colorProfileFromDataSpaceAvif(const int dataSpace,
+                                   avifTransferCharacteristics &transfer,
+                                   avifMatrixCoefficients &matrixCoefficients,
+                                   avifColorPrimaries &colorPrimaries,
+                                   avifRange &avifRange,
+                                   std::vector<uint8_t> &iccProfile, YuvMatrix &matrix) {
+  if (dataSpace == -1) {
+    return false;
+  }
+
+  bool isResolved = false;
+
+  avifRange = AVIF_RANGE_LIMITED;
+
+  if (dataSpace == ADataSpace::ADATASPACE_UNKNOWN || dataSpace == ADataSpace::ADATASPACE_SCRGB) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_SRGB;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT601;
+    matrix = YuvMatrix::Bt601;
+    if (dataSpace == ADataSpace::ADATASPACE_SCRGB) {
+      avifRange = AVIF_RANGE_FULL;
+    }
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_BT601_525
+      || dataSpace == ADataSpace::ADATASPACE_BT601_625) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_BT601;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT601;
+    matrix = YuvMatrix::Bt601;
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_BT709) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_BT709;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT709;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
+    matrix = YuvMatrix::Bt709;
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_SRGB) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_SRGB;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT709;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
+    matrix = YuvMatrix::Bt709;
+    avifRange = AVIF_RANGE_FULL;
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_BT2020) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_BT2020_10BIT;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT2020_NCL;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT2100;
+    matrix = YuvMatrix::Bt2020;
+    avifRange = AVIF_RANGE_FULL;
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_DISPLAY_P3) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_SRGB;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_SMPTE432;
+    matrix = YuvMatrix::Bt601;
+    avifRange = AVIF_RANGE_FULL;
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_DCI_P3) {
+    auto dciP3Profile = colorspacesCreateDCIP3RgbProfile();
+    auto icc = dciP3Profile.iccProfile();
+    matrix = YuvMatrix::Bt709;
+    iccProfile = icc;
+    avifRange = AVIF_RANGE_FULL;
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_SCRGB_LINEAR) {
+    transfer = AVIF_TRANSFER_CHARACTERISTICS_LINEAR;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT709;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
+    matrix = YuvMatrix::Bt709;
+    avifRange = AVIF_RANGE_FULL;
+    isResolved = true;
+  } else if ((dataSpace == ADataSpace::ADATASPACE_BT2020_ITU_PQ ||
+      dataSpace == ADataSpace::ADATASPACE_BT2020_PQ ||
+      dataSpace == ADataSpace::ADATASPACE_BT2020_HLG ||
+      dataSpace == ADataSpace::ADATASPACE_BT2020_ITU_HLG)) {
+    avifTransferCharacteristics vTransfer = AVIF_TRANSFER_CHARACTERISTICS_PQ;
+    if (dataSpace == ADataSpace::ADATASPACE_BT2020_HLG ||
+        dataSpace == ADataSpace::ADATASPACE_BT2020_ITU_HLG) {
+      vTransfer = AVIF_TRANSFER_CHARACTERISTICS_HLG;
+    }
+    transfer = vTransfer;
+    matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT2020_NCL;
+    colorPrimaries = AVIF_COLOR_PRIMARIES_BT2100;
+    matrix = YuvMatrix::Bt2020;
+    if (dataSpace == ADataSpace::ADATASPACE_BT2020_HLG
+        || dataSpace == ADataSpace::ADATASPACE_BT2020_PQ) {
+      avifRange = AVIF_RANGE_FULL;
+    }
+    isResolved = true;
+  } else if (dataSpace == ADataSpace::ADATASPACE_ADOBE_RGB) {
+    auto adobe = colorspacesCreateAdobergbProfile();
+    auto icc = adobe.iccProfile();
+    matrix = YuvMatrix::Bt709;
     iccProfile = icc;
     isResolved = true;
   }

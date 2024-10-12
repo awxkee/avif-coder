@@ -33,9 +33,9 @@
 #include <vector>
 
 namespace coder {
-void RGBAF16BitToNBitU16(const uint16_t *sourceData, int srcStride,
-                         uint16_t *dst, int dstStride, int width,
-                         int height, int bitDepth);
+void RGBAF16BitToNBitU16(const uint16_t *sourceData, uint32_t srcStride,
+                         uint16_t *dst, uint32_t dstStride, uint32_t width,
+                         uint32_t height, uint32_t bitDepth);
 }
 
 #endif //AVIF_RGBAF16BITTONBITU16_H

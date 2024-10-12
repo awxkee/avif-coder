@@ -32,6 +32,7 @@
 #include <vector>
 #include <jni.h>
 #include "heif.h"
+#include "definitions.h"
 
 enum ScaleMode {
   Fit = 1,
@@ -39,7 +40,7 @@ enum ScaleMode {
   Resize = 3,
 };
 
-bool RescaleImage(std::vector<uint8_t> &initialData,
+bool RescaleImage(aligned_uint8_vector &initialData,
                   JNIEnv *env,
                   std::shared_ptr<heif_image_handle> &handle,
                   std::shared_ptr<heif_image> &img,

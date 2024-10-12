@@ -34,23 +34,32 @@
 namespace coder {
 
 template<typename V>
-void RGBA1010102ToUnsigned(const uint8_t *__restrict__ src, const int srcStride,
-                           V *__restrict__ dst, const int dstStride,
-                           const int width, const int height, const int bitDepth);
+void RGBA1010102ToUnsigned(const uint8_t *__restrict__ src, uint32_t srcStride,
+                           V *__restrict__ dst, uint32_t dstStride,
+                           uint32_t width, uint32_t height, uint32_t bitDepth);
 
 void
-F16ToRGBA1010102(const uint16_t *source, int srcStride, uint8_t *destination, int dstStride,
-                 int width,
-                 int height);
+F16ToRGBA1010102(const uint16_t *source, uint32_t srcStride, uint8_t *destination, uint32_t dstStride,
+                 uint32_t width,
+                 uint32_t height);
 
 void
 Rgba8ToRGBA1010102(const uint8_t *source,
-                   int srcStride,
+                   uint32_t srcStride,
                    uint8_t *destination,
-                   int dstStride,
-                   int width,
-                   int height,
-                   const bool attenuateAlpha);
+                   uint32_t dstStride,
+                   uint32_t width,
+                   uint32_t height,
+                   bool attenuateAlpha);
+
+void
+Rgba16ToRGBA1010102(const uint16_t *source,
+                    uint32_t srcStride,
+                    uint8_t *destination,
+                    uint32_t dstStride,
+                    uint32_t width,
+                    uint32_t height,
+                    uint32_t bitDepth);
 }
 
 #endif //AVIF_RGB1010102_H

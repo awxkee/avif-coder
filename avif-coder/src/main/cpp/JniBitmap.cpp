@@ -34,7 +34,7 @@
 #include "imagebits/CopyUnalignedRGBA.h"
 
 jobject
-createBitmap(JNIEnv *env, std::vector<uint8_t> &data, std::string &colorConfig, int stride,
+createBitmap(JNIEnv *env, aligned_uint8_vector &data, std::string &colorConfig, int stride,
              int imageWidth, int imageHeight, bool use16Floats, jobject hwBuffer) {
   if (colorConfig == "HARDWARE") {
     jclass bitmapClass = env->FindClass("android/graphics/Bitmap");
@@ -71,24 +71,31 @@ createBitmap(JNIEnv *env, std::vector<uint8_t> &data, std::string &colorConfig, 
   }
 
   if (colorConfig == "RGB_565") {
-    coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data.data()), stride,
-                         reinterpret_cast<uint8_t *>(addr), (int) info.stride,
-                         (int) info.width,
-                         (int) info.height, 2);
+    coder::CopyUnaligned(reinterpret_cast<const uint16_t *>(data.data()), stride,
+                         reinterpret_cast<uint16_t *>(addr), (uint32_t) info.stride,
+                         (uint32_t) info.width,
+                         (uint32_t) info.height);
   } else {
-    int copyWidth = (int) info.width * 4;
-    int pixelSize = 1;
-    if (use16Floats) {
-      pixelSize = 2;
-    }
+    uint32_t copyWidth = (uint32_t) info.width * 4;
     if (colorConfig == "RGBA_1010102") {
-      pixelSize = sizeof(uint32_t);
-      copyWidth = (int) info.width;
+      copyWidth = (uint32_t) info.width;
+      coder::CopyUnaligned(reinterpret_cast<const uint32_t *>(data.data()), stride,
+                           reinterpret_cast<uint32_t *>(addr), (uint32_t) info.stride,
+                           copyWidth,
+                           (uint32_t) info.height);
+    } else {
+      if (use16Floats) {
+        coder::CopyUnaligned(reinterpret_cast<const uint16_t *>(data.data()), stride,
+                             reinterpret_cast<uint16_t *>(addr), (uint32_t) info.stride,
+                             copyWidth,
+                             (uint32_t) info.height);
+      } else {
+        coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data.data()), stride,
+                             reinterpret_cast<uint8_t *>(addr), (uint32_t) info.stride,
+                             copyWidth,
+                             (uint32_t) info.height);
+      }
     }
-    coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data.data()), stride,
-                         reinterpret_cast<uint8_t *>(addr), (int) info.stride,
-                         copyWidth,
-                         (int) info.height, pixelSize);
   }
 
   if (AndroidBitmap_unlockPixels(env, bitmapObj) != 0) {
