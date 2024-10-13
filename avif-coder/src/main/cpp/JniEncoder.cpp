@@ -69,6 +69,10 @@ enum AvifEncodingSurface {
   RGB, RGBA, AUTO
 };
 
+enum AvifChromaSubsampling {
+  AVIF_CHROMA_AUTO, AVIF_CHROMA_YUV_420, AVIF_CHROMA_YUV_422, AVIF_CHROMA_YUV_444, AVIF_CHROMA_YUV_400
+};
+
 struct heif_error writeHeifData(struct heif_context *ctx,
                                 const void *data,
                                 size_t size,
@@ -369,7 +373,9 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                             const int quality,
                             const int dataSpace,
                             const AvifQualityMode qualityMode,
-                            const AvifEncodingSurface surface) {
+                            const AvifEncodingSurface surface,
+                            const int speed,
+                            const AvifChromaSubsampling preferredChromaSubsampling) {
   avif::EncoderPtr encoder(avifEncoderCreate());
   if (encoder == nullptr) {
     std::string str = "Can't create encoder";
@@ -384,6 +390,8 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
     encoder->quality = 100;
     encoder->qualityAlpha = 100;
   }
+
+  encoder->speed = std::clamp(speed, AVIF_SPEED_SLOWEST, AVIF_SPEED_FASTEST);
 
   AndroidBitmapInfo info;
   if (AndroidBitmap_getInfo(env, bitmap, &info) < 0) {
@@ -417,6 +425,19 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
   AndroidBitmap_unlockPixels(env, bitmap);
 
   avifPixelFormat pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV420;
+  if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_AUTO) {
+    if (qualityMode == AVIF_LOSELESS_MODE || quality > 93) {
+      pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV444;
+    } else if (quality > 65) {
+      pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV422;
+    }
+  } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_422) {
+    pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV422;
+  } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_444) {
+    pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV444;
+  } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_400) {
+    pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV400;
+  }
   avif::ImagePtr image(avifImageCreate(info.width, info.height, 8, pixelFormat));
 
   if (image.get() == nullptr) {
@@ -499,20 +520,28 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
     return static_cast<jbyteArray>(nullptr);
   }
 
-  uint32_t uStride = image->yuvRowBytes[1];
-  uint8_t *uPlane = image->yuvPlanes[1];
-  if (uPlane == nullptr) {
-    std::string str = "Can't add U plane to an image";
-    throwException(env, str);
-    return static_cast<jbyteArray>(nullptr);
-  }
+  uint32_t uStride = 0;
+  uint8_t *uPlane = nullptr;
 
-  uint32_t vStride = image->yuvRowBytes[2];
-  uint8_t *vPlane = image->yuvPlanes[2];
-  if (vPlane == nullptr) {
-    std::string str = "Can't add V plane to an image";
-    throwException(env, str);
-    return static_cast<jbyteArray>(nullptr);
+  uint32_t vStride = 0;
+  uint8_t * vPlane = nullptr;
+
+  if (pixelFormat != AVIF_PIXEL_FORMAT_YUV400) {
+    uStride = image->yuvRowBytes[1];
+    uPlane = image->yuvPlanes[1];
+    if (uPlane == nullptr) {
+      std::string str = "Can't add U plane to an image";
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
+
+    vStride = image->yuvRowBytes[2];
+    vPlane = image->yuvPlanes[2];
+    if (vPlane == nullptr) {
+      std::string str = "Can't add V plane to an image";
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
   }
 
   std::vector<uint8_t> iccProfile(0);
@@ -532,18 +561,55 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                                                          iccProfile,
                                                          matrix);
 
-  RgbaToYuv420(imageStore.data(),
-               stride,
-               yPlane,
-               yStride,
-               uPlane,
-               uStride,
-               vPlane,
-               vStride,
-               info.width,
-               info.height,
-               yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
-               matrix);
+  if (pixelFormat == AVIF_PIXEL_FORMAT_YUV420) {
+    RgbaToYuv420(imageStore.data(),
+                 stride,
+                 yPlane,
+                 yStride,
+                 uPlane,
+                 uStride,
+                 vPlane,
+                 vStride,
+                 info.width,
+                 info.height,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 matrix);
+  } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV422) {
+    RgbaToYuv422(imageStore.data(),
+                 stride,
+                 yPlane,
+                 yStride,
+                 uPlane,
+                 uStride,
+                 vPlane,
+                 vStride,
+                 info.width,
+                 info.height,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 matrix);
+  } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV444) {
+    RgbaToYuv444(imageStore.data(),
+                 stride,
+                 yPlane,
+                 yStride,
+                 uPlane,
+                 uStride,
+                 vPlane,
+                 vStride,
+                 info.width,
+                 info.height,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 matrix);
+  } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV400) {
+    RgbaToYuv400(imageStore.data(),
+                 stride,
+                 yPlane,
+                 yStride,
+                 info.width,
+                 info.height,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 matrix);
+  }
 
   if (nclxResult) {
     if (iccProfile.empty()) {
@@ -570,7 +636,7 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
     return static_cast<jbyteArray>(nullptr);
   }
 
-  avifRWData data;
+  avifRWData data = AVIF_DATA_EMPTY;
   result = avifEncoderFinish(encoder.get(), &data);
   if (result != AVIF_RESULT_OK) {
     [[maybe_unused]] auto erelease = encoder.release();
@@ -598,7 +664,9 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env,
                                                                 jint quality,
                                                                 jint dataSpace,
                                                                 jint qualityMode,
-                                                                jint surfaceMode) {
+                                                                jint surfaceMode,
+                                                                jint speed,
+                                                                jint chromaSubsampling) {
   try {
     AvifEncodingSurface surface = AvifEncodingSurface::AUTO;
     if (surfaceMode == 1) {
@@ -606,13 +674,24 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env,
     } else if (surfaceMode == 2) {
       surface = AvifEncodingSurface::RGBA;
     }
+    AvifChromaSubsampling mChromaSubsampling = AvifChromaSubsampling::AVIF_CHROMA_AUTO;
+    if (chromaSubsampling == 1) {
+      mChromaSubsampling = AvifChromaSubsampling::AVIF_CHROMA_YUV_420;
+    } else if (chromaSubsampling == 2) {
+      mChromaSubsampling = AvifChromaSubsampling::AVIF_CHROMA_YUV_422;
+    } else if (chromaSubsampling == 3) {
+      mChromaSubsampling = AvifChromaSubsampling::AVIF_CHROMA_YUV_444;
+    } else if (chromaSubsampling == 4) {
+      mChromaSubsampling = AvifChromaSubsampling::AVIF_CHROMA_YUV_400;
+    }
     return encodeBitmapAvif(env,
                             thiz,
                             bitmap,
                             quality,
                             dataSpace,
                             static_cast<AvifQualityMode>(qualityMode),
-                            surface);
+                            surface, speed,
+                            mChromaSubsampling);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);

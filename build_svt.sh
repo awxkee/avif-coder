@@ -69,6 +69,7 @@ for abi in ${ABI_LIST}; do
         -DENABLE_TOOLS=0 \
         -DBUILD_APPS=0 \
         -DBUILD_TESTING=0 \
+        -DNDEBUG=1 \
         -DCMAKE_C_FLAGS="-O2" \
         -DCMAKE_CXX_FLAGS="-O2" \
         -DANDROID_ABI=${abi}
@@ -87,6 +88,7 @@ for abi in ${ABI_LIST}; do
         -DENABLE_TESTS=0 \
         -DENABLE_TOOLS=0 \
         -DBUILD_APPS=0 \
+        -DNDEBUG=1 \
         -DBUILD_TESTING=0 \
         -DCMAKE_C_FLAGS="-Os" \
         -DCMAKE_CXX_FLAGS="-Os" \

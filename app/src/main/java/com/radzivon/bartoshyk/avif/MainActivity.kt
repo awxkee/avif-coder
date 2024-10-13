@@ -37,6 +37,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.AvifAnimatedDecoder
+import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
@@ -120,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("test_1.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
@@ -138,12 +139,12 @@ class MainActivity : AppCompatActivity() {
 //                                ScaleMode.RESIZE
 //                        )
 
-                        val start = System.currentTimeMillis()
+                        var start = System.currentTimeMillis()
 
                         var bitmap0 = coder.decodeSampled(
                             byteArray = buffer,
-                            scaledWidth = size.width / 5,
-                            scaledHeight = size.height / 5,
+                            scaledWidth = size.width,
+                            scaledHeight = size.height,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
                             scaleMode = ScaleMode.FILL,
                             scaleQuality = ScalingQuality.HIGH,
@@ -153,19 +154,14 @@ class MainActivity : AppCompatActivity() {
 
                         Log.i("AVIF", "Decoding time ${System.currentTimeMillis() - start}")
 
-                        val bmp1 = bitmap0.scale(
-                            if (bitmap0.width % 2 != 0) {
-                                bitmap0.width + 1
-                            } else {
-                                bitmap0.width
-                            }, if (bitmap0.height % 2 != 0) {
-                                bitmap0.height + 1
-                            } else {
-                                bitmap0.height
-                            }
-                        )
+                        start = System.currentTimeMillis()
 
-                        val encode = coder.encodeAvif(bitmap = bmp1, quality = 75)
+                        Log.i("AVIFFFF", "Starts encoding")
+
+                        val encode = coder.encodeAvif(bitmap = bitmap0, quality = 55, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
+
+                        Log.i("AVIFFFF", "Encoding time ${System.currentTimeMillis() - start}, encoded size ${encode.size}")
+
                         val bitmap = coder.decode(encode)
 
                         lifecycleScope.launch(Dispatchers.Main) {

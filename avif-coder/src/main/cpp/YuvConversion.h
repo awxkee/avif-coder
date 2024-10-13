@@ -105,4 +105,8 @@ void RgbaToYuv444(const uint8_t *sourceRgba, uint32_t sourceStride,
                   uint8_t *vPlane, uint32_t vStride,
                   uint32_t width, uint32_t height, YuvRange range, YuvMatrix matrix);
 
+void RgbaToYuv400(const uint8_t *sourceRgba, uint32_t sourceStride,
+                  uint8_t *yPlane, uint32_t yStride,
+                  uint32_t width, uint32_t height, YuvRange range, YuvMatrix matrix);
+
 #endif //AVIF_CODER_SRC_MAIN_CPP_YUVCONVERSION_H_

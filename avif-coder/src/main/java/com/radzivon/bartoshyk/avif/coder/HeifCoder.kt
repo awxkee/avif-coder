@@ -120,9 +120,8 @@ class HeifCoder(
     /**
      * Encodes an avif image
      *
-     * Note, this supports only even image sizes
-     *
      * @param quality must be in range 0..100
+     * @param speed - see [AvifSpeed] for more info
      * @param preciseMode - LOSSY or LOSELESS compression mode
      * @param surfaceMode - see [AvifSurfaceMode] for more info
      *
@@ -131,14 +130,13 @@ class HeifCoder(
     fun encodeAvif(
         bitmap: Bitmap,
         quality: Int = 80,
+        speed: AvifSpeed = AvifSpeed.TEN,
         preciseMode: PreciseMode = PreciseMode.LOSSY,
-        surfaceMode: AvifSurfaceMode = AvifSurfaceMode.AUTO
+        surfaceMode: AvifSurfaceMode = AvifSurfaceMode.AUTO,
+        avifChromaSubsampling: AvifChromaSubsampling = AvifChromaSubsampling.AUTO,
     ): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
-        }
-        if (bitmap.width % 2 != 0 || bitmap.height % 2 != 0) {
-            throw IllegalArgumentException("AVIF encoder supports only even image bounds")
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             encodeAvifImpl(
@@ -146,10 +144,20 @@ class HeifCoder(
                 quality,
                 bitmap.colorSpace?.dataSpace ?: -1,
                 preciseMode.value,
-                surfaceMode.value
+                surfaceMode.value,
+                speed = speed.value,
+                avifChromaSubsampling.value
             )
         } else {
-            encodeAvifImpl(bitmap, quality, -1, preciseMode.value, surfaceMode.value)
+            encodeAvifImpl(
+                bitmap,
+                quality,
+                -1,
+                preciseMode.value,
+                surfaceMode.value,
+                speed = speed.value,
+                avifChromaSubsampling.value
+            )
         }
     }
 
@@ -199,6 +207,8 @@ class HeifCoder(
         dataSpace: Int,
         qualityMode: Int,
         surfaceMode: Int,
+        speed: Int,
+        chromaSubsampling: Int,
     ): ByteArray
 
     private external fun encodeHeicImpl(

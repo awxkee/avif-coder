@@ -26,11 +26,12 @@
 
 set -e
 
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
 export NDK=$NDK_PATH
 
 destination_directory=aom
 if [ ! -d "$destination_directory" ]; then
-    git clone https://aomedia.googlesource.com/aom -b v3.9.1
+    git clone https://aomedia.googlesource.com/aom -b v3.10.0
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
@@ -57,7 +58,7 @@ for abi in ${ABI_LIST}; do
           -DENABLE_EXAMPLES=0 \
           -DENABLE_TESTDATA=0 \
           -DCONFIG_AV1_DECODER=OFF \
-          -DCONFIG_MULTITHREAD=1 \
+          -DCONFIG_MULTITHREAD=0 \
           -DENABLE_TESTS=0 \
           -DENABLE_TOOLS=0 \
           -DCONFIG_PIC=1 \
@@ -80,7 +81,6 @@ for abi in ${ABI_LIST}; do
       -DENABLE_TESTS=0 \
       -DENABLE_TOOLS=0 \
       -DCONFIG_PIC=1 \
-      -DDCONFIG_AV1_DECODER=0 \
       -DANDROID_ABI=${abi} \
       -DCMAKE_ASM_COMPILER=/opt/homebrew/bin/nasm
   fi
@@ -94,7 +94,7 @@ for abi in ${ABI_LIST}; do
 done
 
 for abi in ${ABI_LIST}; do
-  mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
+#  mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
   cp -r "build-${abi}/libaom.so" "../avif-coder/src/main/cpp/lib/${abi}/libaom.so"
   echo "build-${abi}/libaom.so was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libaom.so!"
 done

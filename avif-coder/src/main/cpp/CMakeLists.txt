@@ -27,7 +27,7 @@ add_library(libyuv STATIC IMPORTED)
 add_library(libde265 SHARED IMPORTED)
 add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
-add_library(svt SHARED IMPORTED)
+add_library(aom SHARED IMPORTED)
 add_library(avifweaver SHARED IMPORTED)
 
 set_target_properties(libkvazaar PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libkvazaar.so)
@@ -36,7 +36,7 @@ set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/li
 set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.so)
 set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.so)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
-set_target_properties(svt PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libSvtAv1Enc.so)
+set_target_properties(aom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.so)
 set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libavifweaver.so)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
@@ -83,5 +83,5 @@ add_subdirectory(avif)
 
 target_link_libraries( # Specifies the target library.
         coder PRIVATE
-        ${log-lib} libheif cpufeatures libyuv -ljnigraphics libkvazaar svt avif_shared
+        ${log-lib} libheif cpufeatures libyuv -ljnigraphics libkvazaar aom avif_shared
         libde265 libdav1d libsharpyuv ${android-lib} avifweaver)

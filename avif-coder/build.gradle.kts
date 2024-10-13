@@ -72,6 +72,7 @@ android {
                         "-std=c++20",
                     )
                 )
+//                abiFilters += setOf("arm64-v8a")
                 abiFilters += setOf( "arm64-v8a", "armeabi-v7a", "x86_64", "x86")
             }
         }
