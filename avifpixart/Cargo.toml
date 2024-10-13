@@ -1,0 +1,20 @@
+[package]
+name = "avifweaver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num-traits = "0.2.19"
+pic-scale = { version = "0.2.11", default-features = false }
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+pic-scale = { version = "0.2.11", default-features = false }
+
+[target.'cfg(target_arch = "x86")'.dependencies]
+pic-scale = { version = "0.2.11", default-features = false, features = ["disable_simd"] }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+pic-scale = { version = "0.2.11", default-features = false, features = ["disable_simd"] }
+
+[lib]
+crate-type = ["cdylib"]

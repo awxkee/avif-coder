@@ -1,0 +1,1 @@
+cbindgen --config cbindgen.toml --crate avifweaver --output include/avifweaver.h
