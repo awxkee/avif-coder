@@ -1,6 +1,30 @@
-//
-// Created by Radzivon Bartoshyk on 12/10/2024.
-//
+/*
+ * MIT License
+ *
+ * Copyright (c) 2024 Radzivon Bartoshyk
+ * avif-coder [https://github.com/awxkee/avif-coder]
+ *
+ * Created by Radzivon Bartoshyk on 13/10/2024
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
 
 #include "AvifDecoderController.h"
 #include "avif/avif.h"
@@ -58,8 +82,8 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
                                                CurveToneMapper toneMapper,
                                                bool highQualityResizer) {
   std::lock_guard guard(this->mutex);
-  if (this->isBufferAttached) {
-    throw std::runtime_error("AVIF controller can accept buffer only once");
+  if (!this->isBufferAttached) {
+    throw std::runtime_error("AVIF controller methods can't be called without attached buffer");
   }
 
   if (frame >= this->decoder->imageCount) {
@@ -266,6 +290,7 @@ void AvifDecoderController::attachBuffer(uint8_t *data, uint32_t bufferSize) {
   if (result != AVIF_RESULT_OK) {
     throw std::runtime_error("This is doesn't looks like AVIF image");
   }
+  this->isBufferAttached = true;
 }
 
 uint32_t AvifDecoderController::getFramesCount() {
@@ -318,9 +343,40 @@ AvifImageSize AvifDecoderController::getImageSize() {
   if (!this->isBufferAttached) {
     throw std::runtime_error("AVIF controller methods can't be called without attached buffer");
   }
+  if (!this->decoder->image) {
+    throw std::runtime_error("Parsed image is expected but there are nothing");
+  }
   AvifImageSize imageSize = {
       .width = this->decoder->image->width,
       .height = this->decoder->image->height,
   };
   return imageSize;
+}
+
+AvifImageSize AvifDecoderController::getImageSize(uint8_t *data, uint32_t bufferSize) {
+  auto decoder = avif::DecoderPtr(avifDecoderCreate());
+  if (!decoder) {
+    throw std::runtime_error("Can't create decoder");
+  }
+  auto result =
+      avifDecoderSetIOMemory(decoder.get(), data, bufferSize);
+  if (result != AVIF_RESULT_OK) {
+    throw std::runtime_error("Can't successfully attach memory");
+  }
+  decoder->ignoreExif = false;
+  decoder->ignoreXMP = false;
+  decoder->strictFlags = AVIF_STRICT_DISABLED;
+
+  result = avifDecoderParse(decoder.get());
+  if (result != AVIF_RESULT_OK) {
+    throw std::runtime_error("This is doesn't looks like AVIF image");
+  }
+  if (!decoder->image) {
+    throw std::runtime_error("Image is expected but after decoding there are none");
+  }
+  AvifImageSize size = {
+      .width = decoder->image->width,
+      .height = decoder->image->height
+  };
+  return size;
 }

@@ -26,12 +26,21 @@
  *
  */
 
-#ifndef AVIF_AVIF_CODER_SRC_MAIN_CPP_IMAGEBITS_SCANALPHA_H_
-#define AVIF_AVIF_CODER_SRC_MAIN_CPP_IMAGEBITS_SCANALPHA_H_
+package com.radzivon.bartoshyk.avif.coder
 
-#include <cstdint>
+enum class AvifSurfaceMode(internal val value: Int) {
+    /**
+     * Logic of adding alpha channel will be determined heuristically
+     */
+    AUTO(0),
 
-template<typename T>
-bool isImageHasAlpha(T* image, uint32_t stride, uint32_t width, uint32_t height);
+    /**
+     * Alpha channel will be dropped
+     */
+    RGB(1),
 
-#endif //AVIF_AVIF_CODER_SRC_MAIN_CPP_IMAGEBITS_SCANALPHA_H_
+    /**
+     * Alpha channel will be preserved
+     */
+    RGBA(2)
+}

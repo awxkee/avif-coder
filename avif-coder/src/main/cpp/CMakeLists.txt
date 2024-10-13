@@ -1,8 +1,3 @@
-# For more information about using CMake with Android Studio, read the
-# documentation: https://d.android.com/studio/projects/add-native-code.html
-
-# Sets the minimum version of CMake required to build the native library.
-
 cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
@@ -24,7 +19,7 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         colorspace/Trc.cpp YuvConversion.cpp
         colorspace/Rec2408ToneMapper.cpp colorspace/LogarithmicToneMapper.cpp
         colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp
-        AvifDecoderController.cpp HeifImageDecoder.cpp)
+        AvifDecoderController.cpp HeifImageDecoder.cpp JniAnimatedController.cpp)
 
 add_library(libkvazaar SHARED IMPORTED)
 add_library(libheif SHARED IMPORTED)
@@ -64,7 +59,7 @@ endif ()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -ffp-mode=fast")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -ffp-mode=fast")
 endif ()
 add_definitions(-DCMS_NO_REGISTER_KEYWORD -DSTB_IMAGE_RESIZE_IMPLEMENTATION)
 

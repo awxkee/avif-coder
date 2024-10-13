@@ -36,6 +36,7 @@ import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
+import com.radzivon.bartoshyk.avif.coder.AvifAnimatedDecoder
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
@@ -103,21 +104,30 @@ class MainActivity : AppCompatActivity() {
 //                imageView.root.setImageBitmap(decoded100)
 //                binding.scrollViewContainer.addView(imageView.root)
 //            }
-            val coder = HeifCoder( ToneMapper.REC2408)
+            val coder = HeifCoder(ToneMapper.REC2408)
             val allFiles1 =
-                getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+                getAllFilesFromAssets().filter {
+                    it.contains(".avif") || it.contains(".heic") || it.contains(
+                        ".heif"
+                    )
+                }
             val allFiles2 =
-                getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
+                getAllFilesFromAssets(path = "hdr").filter {
+                    it.contains(".avif") || it.contains(".heic") || it.contains(
+                        ".heif"
+                    )
+                }
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("WJS01456-Enhanced-NR-2.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("test_1.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
                     val buffer = this@MainActivity.assets.open(file).source().buffer()
                         .readByteArray()
+
                     val size = coder.getSize(buffer)
                     if (size != null) {
 //                        val bitmap = coder.decodeSampled(
@@ -132,9 +142,10 @@ class MainActivity : AppCompatActivity() {
 
                         var bitmap0 = coder.decodeSampled(
                             byteArray = buffer,
-                            scaledWidth = size.width / 2,
-                            scaledHeight = size.height / 2,
+                            scaledWidth = size.width / 5,
+                            scaledHeight = size.height / 5,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
+                            scaleMode = ScaleMode.FILL,
                             scaleQuality = ScalingQuality.HIGH,
                         )
 
@@ -154,8 +165,8 @@ class MainActivity : AppCompatActivity() {
                             }
                         )
 
-//                        val encode = coder.encodeAvif(bitmap = bmp1, quality = 55)
-//                        val bitmap = coder.decode(encode)
+                        val encode = coder.encodeAvif(bitmap = bmp1, quality = 75)
+                        val bitmap = coder.decode(encode)
 
                         lifecycleScope.launch(Dispatchers.Main) {
                             val imageView = BindingImageViewBinding.inflate(
@@ -166,15 +177,15 @@ class MainActivity : AppCompatActivity() {
                             imageView.root.setImageBitmap(bitmap0)
                             binding.scrollViewContainer.addView(imageView.root)
                         }
-//                        lifecycleScope.launch(Dispatchers.Main) {
-//                            val imageView = BindingImageViewBinding.inflate(
-//                                layoutInflater,
-//                                binding.scrollViewContainer,
-//                                false
-//                            )
-//                            imageView.root.setImageBitmap(bitmap)
-//                            binding.scrollViewContainer.addView(imageView.root)
-//                        }
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            val imageView = BindingImageViewBinding.inflate(
+                                layoutInflater,
+                                binding.scrollViewContainer,
+                                false
+                            )
+                            imageView.root.setImageBitmap(bitmap)
+                            binding.scrollViewContainer.addView(imageView.root)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.d("AVIF", e.toString())

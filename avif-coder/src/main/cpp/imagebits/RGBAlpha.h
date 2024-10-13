@@ -32,9 +32,9 @@
 #include <cstdint>
 
 namespace coder {
-void UnpremultiplyRGBA(const uint8_t *src, uint32_t srcStride,
-                       uint8_t *dst, uint32_t dstStride, uint32_t width,
-                       uint32_t height);
+void UnassociateRgba8(const uint8_t *src, uint32_t srcStride,
+                      uint8_t *dst, uint32_t dstStride, uint32_t width,
+                      uint32_t height);
 
 void AssociateAlphaRgba8(const uint8_t *src, uint32_t srcStride,
                          uint8_t *dst, uint32_t dstStride, uint32_t width,

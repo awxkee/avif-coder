@@ -33,9 +33,9 @@ using namespace std;
 
 namespace coder {
 
-void UnpremultiplyRGBA(const uint8_t *src, uint32_t srcStride,
-                       uint8_t *dst, uint32_t dstStride, uint32_t width,
-                       uint32_t height) {
+void UnassociateRgba8(const uint8_t *src, uint32_t srcStride,
+                      uint8_t *dst, uint32_t dstStride, uint32_t width,
+                      uint32_t height) {
   for (uint32_t y = 0; y < height; ++y) {
     auto mSrc = reinterpret_cast<const uint8_t *>(src) + y * srcStride;
     auto mDst = reinterpret_cast<uint8_t *>(dst) + y * dstStride;

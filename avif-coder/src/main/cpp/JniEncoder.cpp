@@ -52,6 +52,7 @@
 #include "avif/avif.h"
 #include "avif/avif_cxx.h"
 #include <libyuv.h>
+#include "AvifDecoderController.h"
 
 using namespace std;
 
@@ -62,6 +63,10 @@ struct AvifMemEncoder {
 enum AvifQualityMode {
   AVIF_LOSSY_MODE = 1,
   AVIF_LOSELESS_MODE = 2
+};
+
+enum AvifEncodingSurface {
+  RGB, RGBA, AUTO
 };
 
 struct heif_error writeHeifData(struct heif_context *ctx,
@@ -220,8 +225,8 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
   uint32_t stride = info.width * 4;
   aligned_uint8_vector imageStore(stride * info.height);
   if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
-    coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
-                             imageStore.data(), stride, (int) info.width, (int) info.height);
+    coder::UnassociateRgba8(sourceData.data(), (int) info.stride,
+                            imageStore.data(), stride, (int) info.width, (int) info.height);
     heif_image_set_premultiplied_alpha(image.get(), false);
   } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
     coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
@@ -363,7 +368,8 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                             jobject bitmap,
                             const int quality,
                             const int dataSpace,
-                            const AvifQualityMode qualityMode) {
+                            const AvifQualityMode qualityMode,
+                            const AvifEncodingSurface surface) {
   avif::EncoderPtr encoder(avifEncoderCreate());
   if (encoder == nullptr) {
     std::string str = "Can't create encoder";
@@ -422,8 +428,8 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
   uint32_t stride = info.width * 4;
   aligned_uint8_vector imageStore(stride * info.height);
   if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
-    coder::UnpremultiplyRGBA(sourceData.data(), (int) info.stride,
-                             imageStore.data(), stride, (int) info.width, (int) info.height);
+    coder::UnassociateRgba8(sourceData.data(), (int) info.stride,
+                            imageStore.data(), stride, (int) info.width, (int) info.height);
   } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
     coder::Rgb565ToUnsigned8(reinterpret_cast<uint16_t *>(sourceData.data()), (int) info.stride,
                              imageStore.data(), stride, (int) info.width, (int) info.height, 255);
@@ -440,7 +446,18 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                               (int) info.height, 8, false);
   }
 
-  bool hasAlpha = isImageHasAlpha(imageStore.data(), stride, info.width, info.height);
+  bool hasAlpha;
+  switch (surface) {
+    case RGB: {
+      hasAlpha = false;
+    }
+      break;
+    case RGBA: {
+      hasAlpha = true;
+    }
+      break;
+    default:hasAlpha = isImageHasAlpha(imageStore.data(), stride, info.width, info.height);
+  }
   image->imageOwnsAlphaPlane = hasAlpha;
 
   auto result = avifImageAllocatePlanes(image.get(),
@@ -580,14 +597,22 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env,
                                                                 jobject bitmap,
                                                                 jint quality,
                                                                 jint dataSpace,
-                                                                jint qualityMode) {
+                                                                jint qualityMode,
+                                                                jint surfaceMode) {
   try {
+    AvifEncodingSurface surface = AvifEncodingSurface::AUTO;
+    if (surfaceMode == 1) {
+      surface = AvifEncodingSurface::RGB;
+    } else if (surfaceMode == 2) {
+      surface = AvifEncodingSurface::RGBA;
+    }
     return encodeBitmapAvif(env,
                             thiz,
                             bitmap,
                             quality,
                             dataSpace,
-                            static_cast<AvifQualityMode>(qualityMode));
+                            static_cast<AvifQualityMode>(qualityMode),
+                            surface);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);
@@ -666,6 +691,9 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImpl(JNIEnv *en
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
     auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
                                          totalLength);
+    if (!cMime) {
+      return false;
+    }
     std::string mime(cMime);
     return mime == "image/heic" || mime == "image/heif" ||
         mime == "image/heic-sequence" || mime == "image/heif-sequence" ||
@@ -680,17 +708,36 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_isSupportedImageImpl(JNIEnv *en
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobject thiz,
-                                                             jbyteArray byte_array) {
+                                                             jbyteArray byteArray) {
   try {
     std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                       [](heif_context *c) { heif_context_free(c); });
     if (!ctx) {
+      std::string exception = "Acquiring an image from buffer has failed";
+      throwException(env, exception);
       return static_cast<jobject>(nullptr);
     }
-    auto totalLength = env->GetArrayLength(byte_array);
+    auto totalLength = env->GetArrayLength(byteArray);
     std::vector<uint8_t> srcBuffer(totalLength);
-    env->GetByteArrayRegion(byte_array, 0, totalLength,
+    env->GetByteArrayRegion(byteArray, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
+
+    auto cMime = heif_get_file_mime_type(reinterpret_cast<const uint8_t *>(srcBuffer.data()),
+                                         totalLength);
+    if (!cMime) {
+      std::string exception = "Acquiring an image from buffer has failed";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+    std::string mime(cMime);
+    if (mime == "image/avif" || mime == "image/avif-sequence") {
+      AvifImageSize size = AvifDecoderController::getImageSize(srcBuffer.data(), srcBuffer.size());
+      jclass sizeClass = env->FindClass("android/util/Size");
+      jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
+      auto sizeObject = env->NewObject(sizeClass, methodID, size.width, size.height);
+      return sizeObject;
+    }
+
     auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
                                                              totalLength,
                                                              nullptr);
@@ -723,6 +770,10 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
     return sizeObject;
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to load size of this image";
+    throwException(env, exception);
+    return static_cast<jobject>(nullptr);
+  } catch (std::runtime_error &err) {
+    std::string exception(err.what());
     throwException(env, exception);
     return static_cast<jobject>(nullptr);
   }

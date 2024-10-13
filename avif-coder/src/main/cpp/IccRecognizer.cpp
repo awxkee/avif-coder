@@ -47,14 +47,7 @@ void RecognizeICC(std::shared_ptr<heif_image_handle> &handle,
       iccProfile.resize(profileSize);
       auto iccStatus = heif_image_get_raw_color_profile(image.get(), iccProfile.data());
       if (iccStatus.code != heif_error_Ok) {
-        if (iccStatus.message) {
-          __android_log_print(ANDROID_LOG_ERROR, "AVIF",
-                              "ICC profile retrieving failed with: %s",
-                              iccStatus.message);
-        } else {
-          __android_log_print(ANDROID_LOG_ERROR, "AVIF",
-                              "ICC profile retrieving failed with unknown error");
-        }
+        iccProfile.resize(0);
       }
     }
   } else if (nclxColorProfile.code == heif_error_Ok) {

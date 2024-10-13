@@ -124,6 +124,7 @@ class HeifCoder(
      *
      * @param quality must be in range 0..100
      * @param preciseMode - LOSSY or LOSELESS compression mode
+     * @param surfaceMode - see [AvifSurfaceMode] for more info
      *
      * @throws IllegalArgumentException if image size is not even
      */
@@ -131,6 +132,7 @@ class HeifCoder(
         bitmap: Bitmap,
         quality: Int = 80,
         preciseMode: PreciseMode = PreciseMode.LOSSY,
+        surfaceMode: AvifSurfaceMode = AvifSurfaceMode.AUTO
     ): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
@@ -143,10 +145,11 @@ class HeifCoder(
                 bitmap,
                 quality,
                 bitmap.colorSpace?.dataSpace ?: -1,
-                preciseMode.value
+                preciseMode.value,
+                surfaceMode.value
             )
         } else {
-            encodeAvifImpl(bitmap, quality, -1, preciseMode.value)
+            encodeAvifImpl(bitmap, quality, -1, preciseMode.value, surfaceMode.value)
         }
     }
 
@@ -165,7 +168,7 @@ class HeifCoder(
         }
     }
 
-    private external fun getSizeImpl(byteArray: ByteArray): Size?
+    private external fun getSizeImpl(byteArray: ByteArray): Size
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
@@ -194,7 +197,8 @@ class HeifCoder(
         bitmap: Bitmap,
         quality: Int,
         dataSpace: Int,
-        qualityMode: Int
+        qualityMode: Int,
+        surfaceMode: Int,
     ): ByteArray
 
     private external fun encodeHeicImpl(

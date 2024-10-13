@@ -45,7 +45,6 @@ void RGBA1010102ToUnsigned(const uint8_t *__restrict__ src, const uint32_t srcSt
   auto mSrcPointer = reinterpret_cast<const uint8_t *>(src);
 
   const auto maxColors = static_cast<float>((1 << bitDepth) - 1);
-  const float valueScale = maxColors / 1023.f;
   const float alphaValueScale = maxColors / 3.f;
 
   const uint32_t mask = (1u << 10u) - 1u;
@@ -58,17 +57,14 @@ void RGBA1010102ToUnsigned(const uint8_t *__restrict__ src, const uint32_t srcSt
     for (uint32_t x = 0; x < width; ++x) {
       uint32_t rgba1010102 = reinterpret_cast<const uint32_t *>(srcPointer)[0];
 
-      auto r = static_cast<float>((rgba1010102) & mask);
-      auto g = static_cast<float>((rgba1010102 >> 10) & mask);
-      auto b = static_cast<float>((rgba1010102 >> 20) & mask);
+      auto r = static_cast<uint32_t>((rgba1010102) & mask);
+      auto g = static_cast<uint32_t>((rgba1010102 >> 10) & mask);
+      auto b = static_cast<uint32_t>((rgba1010102 >> 20) & mask);
       auto a1 = static_cast<float>((rgba1010102 >> 30));
 
-      V ru = std::clamp(static_cast<V>(std::roundf(r * valueScale)), static_cast<V>(0),
-                        static_cast<V>(maxColors));
-      V gu = std::clamp(static_cast<V>(std::roundf(g * valueScale)), static_cast<V>(0),
-                        static_cast<V>(maxColors));
-      V bu = std::clamp(static_cast<V>(std::roundf(b * valueScale)), static_cast<V>(0),
-                        static_cast<V>(maxColors));
+      V ru = r >> 2;
+      V gu = g >> 2;
+      V bu = b >> 2;
       V au = std::clamp(static_cast<V>(std::roundf(a1 * alphaValueScale)),
                         static_cast<V>(0), static_cast<V>(maxColors));
 
