@@ -267,7 +267,7 @@ void RgbaToYuv420(const uint8_t *sourceRgba, uint32_t sourceStride,
     int16x8_t vCrB = vdupq_n_s16(static_cast<int16_t>(CrB));
     int32x4_t v_zeros = vdupq_n_s32(0);
 
-    for (; x < width; x += 16) {
+    for (; x + 16 < width; x += 16) {
       uint8x16x4_t pixel = vld4q_u8(mSrc);
 
       int16x8_t r_high = vreinterpretq_s16_u16(vmovl_high_u8(pixel.val[0]));
@@ -550,7 +550,7 @@ void RgbaToYuv422(const uint8_t *sourceRgba, uint32_t sourceStride,
     int16x8_t vCrB = vdupq_n_s16(static_cast<int16_t>(CrB));
     int32x4_t v_zeros = vdupq_n_s32(0);
 
-    for (; x < width; x += 16) {
+    for (; x + 16 < width; x += 16) {
       uint8x16x4_t pixel = vld4q_u8(mSrc);
 
       int16x8_t r_high = vreinterpretq_s16_u16(vmovl_high_u8(pixel.val[0]));
@@ -826,7 +826,7 @@ void RgbaToYuv444(const uint8_t *sourceRgba, uint32_t sourceStride,
     int16x8_t vCrB = vdupq_n_s16(static_cast<int16_t>(CrB));
     int32x4_t v_zeros = vdupq_n_s32(0);
 
-    for (; x < width; x += 16) {
+    for (; x + 16 < width; x += 16) {
       uint8x16x4_t pixel = vld4q_u8(mSrc);
 
       int16x8_t r_high = vreinterpretq_s16_u16(vmovl_high_u8(pixel.val[0]));
@@ -1043,13 +1043,11 @@ void RgbaToYuv400(const uint8_t *sourceRgba, uint32_t sourceStride,
 
   const auto scale = static_cast<float>( 1 << precision );
   const auto iBiasY = static_cast<uint16_t>((static_cast<float>(biasY) + 0.5f) * scale);
-  const auto iBiasUV = static_cast<uint16_t>((static_cast<float>(biasUV) + 0.5f) * scale);
 
   auto yStore = reinterpret_cast<uint8_t *>(yPlane);
 
   auto mSource = reinterpret_cast<const uint8_t *>(sourceRgba);
 
-  int maxChroma = biasY + rangeUV;
   int maxLuma = biasY + rangeY;
 
   for (uint32_t y = 0; y < height; ++y) {
@@ -1066,19 +1064,12 @@ void RgbaToYuv400(const uint8_t *sourceRgba, uint32_t sourceStride,
     int16x8_t i_cap_uv = vdupq_n_u16(static_cast<int16_t>(biasY + rangeUV));
 
     int16x8_t y_bias = vdupq_n_s32(iBiasY);
-    int16x8_t uv_bias = vdupq_n_s32(iBiasUV);
     int16x8_t vYr = vdupq_n_s16(static_cast<int16_t>(YR));
     int16x8_t vYg = vdupq_n_s16(static_cast<int16_t>(YG));
     int16x8_t vYb = vdupq_n_s16(static_cast<int16_t>(YB));
-    int16x8_t vCbR = vdupq_n_s16(static_cast<int16_t>(CbR));
-    int16x8_t vCbG = vdupq_n_s16(static_cast<int16_t>(CbG));
-    int16x8_t vCbB = vdupq_n_s16(static_cast<int16_t>(CbB));
-    int16x8_t vCrR = vdupq_n_s16(static_cast<int16_t>(CrR));
-    int16x8_t vCrG = vdupq_n_s16(static_cast<int16_t>(CrG));
-    int16x8_t vCrB = vdupq_n_s16(static_cast<int16_t>(CrB));
     int32x4_t v_zeros = vdupq_n_s32(0);
 
-    for (; x < width; x += 16) {
+    for (; x + 16 < width; x += 16) {
       uint8x16x4_t pixel = vld4q_u8(mSrc);
 
       int16x8_t r_high = vreinterpretq_s16_u16(vmovl_high_u8(pixel.val[0]));

@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("test_4.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
@@ -143,10 +143,10 @@ class MainActivity : AppCompatActivity() {
 
                         var bitmap0 = coder.decodeSampled(
                             byteArray = buffer,
-                            scaledWidth = size.width,
-                            scaledHeight = size.height,
+                            scaledWidth = size.width / 3,
+                            scaledHeight = size.height / 3,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
-                            scaleMode = ScaleMode.FILL,
+                            scaleMode = ScaleMode.FIT,
                             scaleQuality = ScalingQuality.HIGH,
                         )
 
@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity() {
 
                         Log.i("AVIFFFF", "Starts encoding")
 
-                        val encode = coder.encodeAvif(bitmap = bitmap0, quality = 55, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
+                        val encode = coder.encodeAvif(bitmap = bitmap0, quality = 55, avifChromaSubsampling = AvifChromaSubsampling.YUV400)
 
                         Log.i("AVIFFFF", "Encoding time ${System.currentTimeMillis() - start}, encoded size ${encode.size}")
 

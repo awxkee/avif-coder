@@ -9,8 +9,6 @@ Extremly fast in decoding large HDR images or just large images.
 The most featured AVIF, HEIF library in android.
 Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
 
-Image processing speeded up by [libhwy](https://github.com/google/highway)
-
 # Usage example
 
 ```kotlin

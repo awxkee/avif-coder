@@ -28,9 +28,12 @@
 
 package com.radzivon.bartoshyk.avif.coder
 
+import androidx.annotation.Keep
+
 /**
  * (See)[https://en.wikipedia.org/wiki/Chroma_subsampling for more] info
  */
+@Keep
 enum class AvifChromaSubsampling(val value: Int) {
     /**
      * On auto mode chroma subsampling will be determined based on quality
