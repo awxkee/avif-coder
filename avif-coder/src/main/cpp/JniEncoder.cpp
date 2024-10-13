@@ -70,7 +70,11 @@ enum AvifEncodingSurface {
 };
 
 enum AvifChromaSubsampling {
-  AVIF_CHROMA_AUTO, AVIF_CHROMA_YUV_420, AVIF_CHROMA_YUV_422, AVIF_CHROMA_YUV_444, AVIF_CHROMA_YUV_400
+  AVIF_CHROMA_AUTO,
+  AVIF_CHROMA_YUV_420,
+  AVIF_CHROMA_YUV_422,
+  AVIF_CHROMA_YUV_444,
+  AVIF_CHROMA_YUV_400
 };
 
 struct heif_error writeHeifData(struct heif_context *ctx,
@@ -95,7 +99,9 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
                             jobject bitmap,
                             const int quality,
                             const int dataSpace,
-                            const bool loseless) {
+                            const bool loseless,
+                            std::string &x265Preset,
+                            const int crf) {
   std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                     [](heif_context *c) { heif_context_free(c); });
   if (!ctx) {
@@ -165,6 +171,23 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
             reinterpret_cast<uint8_t *>(addr) + info.height * info.stride, sourceData.data());
 
   AndroidBitmap_unlockPixels(env, bitmap);
+
+  result = heif_encoder_set_parameter(encoder.get(), "x265:preset", x265Preset.c_str());
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create encoded image with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
+
+  auto crfString = std::to_string(crf);
+  result = heif_encoder_set_parameter(encoder.get(), "x265:crf", crfString.c_str());
+  if (result.code != heif_error_Ok) {
+    std::string choke(result.message);
+    std::string str = "Can't create encoded image with exception: " + choke;
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
+  }
 
   heif_image *imagePtr;
 
@@ -524,7 +547,7 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
   uint8_t *uPlane = nullptr;
 
   uint32_t vStride = 0;
-  uint8_t * vPlane = nullptr;
+  uint8_t *vPlane = nullptr;
 
   if (pixelFormat != AVIF_PIXEL_FORMAT_YUV400) {
     uStride = image->yuvRowBytes[1];
@@ -701,16 +724,44 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeAvifImpl(JNIEnv *env,
 
 extern "C"
 JNIEXPORT jbyteArray JNICALL
-Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env, jobject thiz,
-                                                                jobject bitmap, jint quality,
-                                                                jint dataSpace, jint qualityMode) {
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env,
+                                                                jobject thiz,
+                                                                jobject bitmap,
+                                                                jint quality,
+                                                                jint dataSpace,
+                                                                jint qualityMode,
+                                                                jint x265Preset, jint crf) {
   try {
+    std::string preset = "superfast";
+    if (x265Preset == 0) {
+      preset = "placebo";
+    } else if (x265Preset == 1) {
+      preset = "veryslow";
+    } else if (x265Preset == 2) {
+      preset = "slower";
+    } else if (x265Preset == 3) {
+      preset = "slow";
+    } else if (x265Preset == 4) {
+      preset = "medium";
+    } else if (x265Preset == 5) {
+      preset = "fast";
+    } else if (x265Preset == 6) {
+      preset = "faster";
+    } else if (x265Preset == 7) {
+      preset = "veryfast";
+    } else if (x265Preset == 8) {
+      preset = "superfast";
+    } else if (x265Preset == 9) {
+      preset = "ultrafast";
+    }
+
     return encodeBitmapHevc(env,
                             thiz,
                             bitmap,
                             quality,
                             dataSpace,
-                            qualityMode == 2);
+                            qualityMode == 2,
+                            preset, crf);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);

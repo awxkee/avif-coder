@@ -26,7 +26,6 @@
 
 set -e
 
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
 export NDK=$NDK_PATH
 
 destination_directory=libwebp

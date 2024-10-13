@@ -25,7 +25,7 @@
 #
 
 set -e
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
+
 destination_directory=dav1d
 if [ ! -d "$destination_directory" ]; then
     git clone https://code.videolan.org/videolan/dav1d -b 1.4.3

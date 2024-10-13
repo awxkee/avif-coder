@@ -30,16 +30,16 @@ export NDK=$NDK_PATH
 
 destination_directory=x265_git
 if [ ! -d "$destination_directory" ]; then
-    git clone https://bitbucket.org/multicoreware/x265_git.git -b 3.6
+    git clone https://bitbucket.org/multicoreware/x265_git.git -b 4.0
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
 
 cd x265_git
 
-#ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
+ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
 
-ABI_LIST="arm64-v8a"
+#ABI_LIST="arm64-v8a"
 
 for abi in ${ABI_LIST}; do
   rm -rf "build-${abi}"

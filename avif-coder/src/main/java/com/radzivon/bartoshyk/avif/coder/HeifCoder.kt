@@ -36,6 +36,7 @@ import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Size
+import androidx.annotation.IntRange
 import androidx.annotation.Keep
 import java.nio.ByteBuffer
 
@@ -161,18 +162,26 @@ class HeifCoder(
         }
     }
 
+    /**
+     * @param crf - consult x265 doc for crf understanding
+     */
     fun encodeHeic(
         bitmap: Bitmap,
         quality: Int = 80,
-        preciseMode: PreciseMode = PreciseMode.LOSSY
+        preciseMode: PreciseMode = PreciseMode.LOSSY,
+        preset: HeifPreset = HeifPreset.ULTRAFAST,
+        @IntRange(from = 0, to = 51) crf: Int = 40,
     ): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
         }
+        require(crf in 0..51) {
+            throw IllegalStateException("CRF should be in 0..51 range")
+        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeHeicImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value)
+            encodeHeicImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value, preset.value, crf)
         } else {
-            encodeHeicImpl(bitmap, quality, -1, preciseMode.value)
+            encodeHeicImpl(bitmap, quality, -1, preciseMode.value, preset.value, crf)
         }
     }
 
@@ -215,7 +224,9 @@ class HeifCoder(
         bitmap: Bitmap,
         quality: Int,
         dataSpace: Int,
-        qualityMode: Int
+        qualityMode: Int,
+        preset: Int,
+        crf: Int,
     ): ByteArray
 
     @SuppressLint("ObsoleteSdkInt")

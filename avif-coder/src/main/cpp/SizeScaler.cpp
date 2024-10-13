@@ -195,19 +195,25 @@ bool RescaleImage(aligned_uint8_vector &initialData,
 
     imageWidth = heif_image_get_width(img.get(), heif_channel_interleaved);
     imageHeight = heif_image_get_height(img.get(), heif_channel_interleaved);
-    initialData.resize(*stride * imageHeight);
+
+    uint32_t newStride = static_cast<int >(imageWidth) * 4
+        * static_cast<int>(useFloats ? sizeof(uint16_t) : sizeof(uint8_t));
+
+    initialData.resize(newStride * imageHeight);
 
     if (useFloats) {
       coder::CopyUnaligned(reinterpret_cast<const uint16_t *>(data), *stride,
-                           reinterpret_cast<uint16_t *>(initialData.data()), *stride,
+                           reinterpret_cast<uint16_t *>(initialData.data()), newStride,
                            imageWidth * 4,
                            imageHeight);
     } else {
       coder::CopyUnaligned(reinterpret_cast<const uint8_t *>(data), *stride,
-                           reinterpret_cast<uint8_t *>(initialData.data()), *stride,
+                           reinterpret_cast<uint8_t *>(initialData.data()), newStride,
                            imageWidth * 4,
                            imageHeight);
     }
+
+    *stride = static_cast<int>(newStride);
 
     *imageWidthPtr = imageWidth;
     *imageHeightPtr = imageHeight;

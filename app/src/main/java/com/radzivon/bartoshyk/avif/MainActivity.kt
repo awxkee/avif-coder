@@ -39,6 +39,7 @@ import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.AvifAnimatedDecoder
 import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
+import com.radzivon.bartoshyk.avif.coder.HeifPreset
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
@@ -158,9 +159,16 @@ class MainActivity : AppCompatActivity() {
 
                         Log.i("AVIFFFF", "Starts encoding")
 
-                        val encode = coder.encodeAvif(bitmap = bitmap0, quality = 55, avifChromaSubsampling = AvifChromaSubsampling.YUV400)
-
-                        Log.i("AVIFFFF", "Encoding time ${System.currentTimeMillis() - start}, encoded size ${encode.size}")
+                        val encode = coder.encodeHeic(
+                            bitmap = bitmap0,
+                            quality = 25,
+                            preciseMode = PreciseMode.LOSSY,
+                            preset = HeifPreset.VERYSLOW
+                        )
+                        Log.i(
+                            "AVIFFFF",
+                            "Encoding time ${System.currentTimeMillis() - start}, encoded size ${encode.size}"
+                        )
 
                         val bitmap = coder.decode(encode)
 

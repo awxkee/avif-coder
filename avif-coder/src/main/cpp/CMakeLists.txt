@@ -21,16 +21,16 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp
         AvifDecoderController.cpp HeifImageDecoder.cpp JniAnimatedController.cpp)
 
-add_library(libkvazaar SHARED IMPORTED)
 add_library(libheif SHARED IMPORTED)
 add_library(libyuv STATIC IMPORTED)
 add_library(libde265 SHARED IMPORTED)
 add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
 add_library(aom SHARED IMPORTED)
+add_library(x265 SHARED IMPORTED)
 add_library(avifweaver SHARED IMPORTED)
 
-set_target_properties(libkvazaar PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libkvazaar.so)
+set_target_properties(x265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.so)
 set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.so)
 set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libyuv.a)
 set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.so)
@@ -83,5 +83,5 @@ add_subdirectory(avif)
 
 target_link_libraries( # Specifies the target library.
         coder PRIVATE
-        ${log-lib} libheif cpufeatures libyuv -ljnigraphics libkvazaar aom avif_shared
-        libde265 libdav1d libsharpyuv ${android-lib} avifweaver)
+        ${log-lib} libheif cpufeatures libyuv -ljnigraphics aom avif_shared
+        libde265 libdav1d libsharpyuv ${android-lib} avifweaver x265)

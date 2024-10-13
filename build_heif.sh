@@ -25,7 +25,6 @@
 #
 
 set -e
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
 export NDK=$NDK_PATH
 
 destination_directory=libheif
@@ -47,8 +46,8 @@ for abi in ${ABI_LIST}; do
   cp -r ./../../libde265/build-${abi}/libde265/de265-version.h ../../libde265/libde265/de265-version.h
   cp -r ./../../x265_git/build-${abi}/x265_config.h ./../../x265_git/source/x265_config.h
   cp -r ./../../dav1d/build-${abi}/include/dav1d/version.h ./../../dav1d/include/dav1d/version.h
-  mkdir -p ./../../SVT-AV1/svt-av1
-  cp -r ./../../SVT-AV1/Source/API/* ./../../SVT-AV1/svt-av1
+#  mkdir -p ./../../SVT-AV1/svt-av1
+#  cp -r ./../../SVT-AV1/Source/API/* ./../../SVT-AV1/svt-av1
   cmake .. \
     -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
@@ -63,9 +62,10 @@ for abi in ${ABI_LIST}; do
     -DAOM_ENCODER=OFF \
     -DWITH_AOM_DECODER=OFF \
     -DWITH_KVAZAAR=ON \
-    -DKVAZAAR_INCLUDE_DIR=../../kvazaar/src \
-    -DKVAZAAR_LIBRARY=../../kvazaar/build-${abi}/libkvazaar.so \
-    -DLIBDE265_LIBRARY=../../libde265/build-${abi}/libde265/libde265.so \
+    -DWITH_X265=ON \
+    -DX265_INCLUDE_DIR=./../../x265_git/source \
+    -DX265_LIBRARY=./../../x265_git/build-${abi}/libx265.so \
+    -DLIBDE265_LIBRARY=./../../libde265/build-${abi}/libde265/libde265.so \
     -DLIBDE265_INCLUDE_DIR=../../libde265 \
     -DLIBSHARPYUV_INCLUDE_DIR=../../libwebp \
     -DLIBSHARPYUV_LIBRARY=../../libwebp/build-${abi}/libsharpyuv.a \
