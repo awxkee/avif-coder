@@ -36,9 +36,9 @@ void Rgb565ToUnsigned8(const uint16_t *sourceData, uint32_t srcStride,
                        uint8_t *dst, uint32_t dstStride, uint32_t width,
                        uint32_t height, uint8_t bgColor);
 
-void Rgba8To565(const uint8_t *sourceData, int srcStride,
-                uint16_t *dst, int dstStride, int width,
-                int height, bool attenuateAlpha);
+void Rgba8To565(const uint8_t *sourceData, uint32_t srcStride,
+                uint16_t *dst, uint32_t dstStride, uint32_t width,
+                uint32_t height, bool attenuateAlpha);
 
 void RGBAF16To565(const uint16_t *sourceData, int srcStride,
                   uint16_t *dst, int dstStride, int width,

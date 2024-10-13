@@ -5,8 +5,8 @@
 
 #if defined(AVIF_LIBSHARPYUV_ENABLED)
 #include <limits.h>
-#include <sharpyuv/sharpyuv.h>
-#include <sharpyuv/sharpyuv_csp.h>
+#include "sharpyuv/sharpyuv.h"
+#include "sharpyuv/sharpyuv_csp.h"
 
 avifResult avifImageRGBToYUVLibSharpYUV(avifImage * image, const avifRGBImage * rgb, const avifReformatState * state)
 {

@@ -34,8 +34,8 @@
 #include "imagebits/CopyUnalignedRGBA.h"
 
 jobject
-createBitmap(JNIEnv *env, aligned_uint8_vector &data, std::string &colorConfig, int stride,
-             int imageWidth, int imageHeight, bool use16Floats, jobject hwBuffer) {
+createBitmap(JNIEnv *env, aligned_uint8_vector &data, std::string &colorConfig, uint32_t stride,
+             uint32_t imageWidth, uint32_t imageHeight, bool use16Floats, jobject hwBuffer) {
   if (colorConfig == "HARDWARE") {
     jclass bitmapClass = env->FindClass("android/graphics/Bitmap");
     jmethodID createBitmapMethodID = env->GetStaticMethodID(bitmapClass,
@@ -55,8 +55,11 @@ createBitmap(JNIEnv *env, aligned_uint8_vector &data, std::string &colorConfig, 
   jmethodID createBitmapMethodID = env->GetStaticMethodID(bitmapClass,
                                                           "createBitmap",
                                                           "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;");
-  jobject bitmapObj = env->CallStaticObjectMethod(bitmapClass, createBitmapMethodID,
-                                                  imageWidth, imageHeight, rgba8888Obj);
+  jobject bitmapObj = env->CallStaticObjectMethod(bitmapClass,
+                                                  createBitmapMethodID,
+                                                  static_cast<int>(imageWidth),
+                                                  static_cast<int>(imageHeight),
+                                                  rgba8888Obj);
 
   AndroidBitmapInfo info;
   if (AndroidBitmap_getInfo(env, bitmapObj, &info) < 0) {

@@ -41,24 +41,38 @@ enum ScaleMode {
 };
 
 bool RescaleImage(aligned_uint8_vector &initialData,
-                  JNIEnv *env,
                   std::shared_ptr<heif_image_handle> &handle,
                   std::shared_ptr<heif_image> &img,
                   int *stride,
                   bool useFloats,
                   int *imageWidthPtr, int *imageHeightPtr,
-                  int scaledWidth, int scaledHeight, ScaleMode scaleMode);
+                  int scaledWidth, int scaledHeight, ScaleMode scaleMode, bool scalingQuality);
 
-std::pair<int, int>
-ResizeAspectFit(std::pair<int, int> sourceSize, std::pair<int, int> dstSize, float *scale);
+aligned_uint8_vector RescaleSourceImage(uint8_t *data,
+                                        uint32_t *stride,
+                                        uint32_t bitDepth,
+                                        bool isImage64Bits,
+                                        uint32_t *imageWidthPtr,
+                                        uint32_t *imageHeightPtr,
+                                        uint32_t scaledWidth,
+                                        uint32_t scaledHeight,
+                                        ScaleMode scaleMode,
+                                        bool highQualityScaling);
 
-std::pair<int, int>
-ResizeAspectFill(std::pair<int, int> sourceSize, std::pair<int, int> dstSize, float *scale);
+std::pair<uint32_t, uint32_t>
+ResizeAspectFit(std::pair<uint32_t, uint32_t> sourceSize,
+                std::pair<uint32_t, uint32_t> dstSize,
+                float *scale);
 
-std::pair<int, int>
-ResizeAspectHeight(std::pair<int, int> sourceSize, int maxHeight, bool multipleBy2);
+std::pair<uint32_t, uint32_t>
+ResizeAspectFill(std::pair<uint32_t, uint32_t> sourceSize,
+                 std::pair<uint32_t, uint32_t> dstSize,
+                 float *scale);
 
-std::pair<int, int>
-ResizeAspectWidth(std::pair<int, int> sourceSize, int maxWidth, bool multipleBy2);
+std::pair<uint32_t, uint32_t>
+ResizeAspectHeight(std::pair<uint32_t, uint32_t> sourceSize, uint32_t maxHeight, bool multipleBy2);
+
+std::pair<uint32_t, uint32_t>
+ResizeAspectWidth(std::pair<uint32_t, uint32_t> sourceSize, uint32_t maxWidth, bool multipleBy2);
 
 #endif //AVIF_SIZESCALER_H

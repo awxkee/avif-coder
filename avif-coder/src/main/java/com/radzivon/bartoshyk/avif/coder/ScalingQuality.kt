@@ -1,10 +1,10 @@
 /*
  * MIT License
  *
- * Copyright (c) 2023 Radzivon Bartoshyk
+ * Copyright (c) 2024 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 16/9/2023
+ * Created by Radzivon Bartoshyk on 12/10/2024
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,21 +26,16 @@
  *
  */
 
-#ifndef AVIF_REFORMATBITMAP_H
-#define AVIF_REFORMATBITMAP_H
+package com.radzivon.bartoshyk.avif.coder
 
-#include <jni.h>
-#include <vector>
-#include <string>
-#include "Support.h"
-#include "definitions.h"
+enum class ScalingQuality(internal val level: Int) {
+    /**
+     * Bilinear
+     */
+    DEFAULT(0),
 
-namespace coder {
-void
-ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, std::string &imageConfig,
-                    PreferredColorConfig preferredColorConfig, uint32_t depth,
-                    uint32_t imageWidth, uint32_t imageHeight, uint32_t *stride, bool *useFloats,
-                    jobject *hwBuffer, bool alphaPremultiplied, bool doesImageHasAlpha);
+    /**
+     * Lanczos 3
+     */
+    HIGH(2)
 }
-
-#endif //AVIF_REFORMATBITMAP_H

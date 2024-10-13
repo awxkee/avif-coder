@@ -44,7 +44,7 @@ public:
     };
 
     bool operator!=(const aligned_allocator &other) const {
-        return *this != other;
+        return false;
     }
 
     void construct(T *const p, const T &t) const {

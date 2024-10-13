@@ -58,7 +58,7 @@ for abi in ${ABI_LIST}; do
     -DWITH_EXAMPLES=0 \
     -DENABLE_PLUGIN_LOADING=0 \
     -DWITH_AOM=OFF \
-    -DWITH_DAV1D=ON \
+    -DWITH_DAV1D=OFF \
     -DAOM_DECODER=OFF \
     -DAOM_ENCODER=OFF \
     -DWITH_AOM_DECODER=OFF \
@@ -67,8 +67,6 @@ for abi in ${ABI_LIST}; do
     -DKVAZAAR_LIBRARY=../../kvazaar/build-${abi}/libkvazaar.so \
     -DLIBDE265_LIBRARY=../../libde265/build-${abi}/libde265/libde265.so \
     -DLIBDE265_INCLUDE_DIR=../../libde265 \
-    -DDAV1D_INCLUDE_DIR=../../dav1d/include \
-    -DDAV1D_LIBRARY=../../dav1d/build-${abi}/src/libdav1d.so \
     -DLIBSHARPYUV_INCLUDE_DIR=../../libwebp \
     -DLIBSHARPYUV_LIBRARY=../../libwebp/build-${abi}/libsharpyuv.a \
     -DENABLE_MULTITHREADING_SUPPORT=TRUE \

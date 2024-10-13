@@ -62,9 +62,9 @@ void Rgb565ToUnsigned8(const uint16_t *sourceData, uint32_t srcStride,
   }
 }
 
-void Rgba8To565(const uint8_t *sourceData, int srcStride,
-                uint16_t *destination, int dstStride, int width,
-                int height, const bool attenuateAlpha) {
+void Rgba8To565(const uint8_t *sourceData, uint32_t srcStride,
+                uint16_t *destination, uint32_t dstStride, uint32_t width,
+                uint32_t height, const bool attenuateAlpha) {
   for (uint32_t y = 0; y < height; ++y) {
     auto src = reinterpret_cast<const uint8_t *>(reinterpret_cast<const uint8_t *>(sourceData)
         + y * srcStride);

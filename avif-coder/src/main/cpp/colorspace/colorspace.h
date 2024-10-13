@@ -34,9 +34,9 @@
 #include "definitions.h"
 
 void
-convertUseICC(aligned_uint8_vector &vector, int stride, int width, int height,
+convertUseICC(aligned_uint8_vector &vector, uint32_t stride, uint32_t width, uint32_t height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
-              bool image16Bits, int *newStride);
+              bool image16Bits);
 
 class ColorSpace {
  public:
@@ -96,6 +96,6 @@ convertUseProfiles(aligned_uint8_vector &vector, int stride,
                    cmsHPROFILE srcProfile,
                    int width, int height,
                    cmsHPROFILE dstProfile,
-                   bool image16Bits, int *newStride);
+                   bool image16Bits);
 
 #endif //AVIF_COLORSPACE_H

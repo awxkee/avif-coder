@@ -42,12 +42,13 @@ import com.bumptech.glide.request.target.Target
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
+import com.radzivon.bartoshyk.avif.coder.ScalingQuality
 import java.nio.ByteBuffer
 
 class AvifCoderByteBufferDecoder(private val context: Context, private val bitmapPool: BitmapPool) :
     ResourceDecoder<ByteBuffer, Bitmap> {
 
-    private val coder = HeifCoder(context)
+    private val coder = HeifCoder()
 
     override fun handles(source: ByteBuffer, options: Options): Boolean {
         return coder.isSupportedImage(source)
@@ -83,7 +84,7 @@ class AvifCoderByteBufferDecoder(private val context: Context, private val bitma
             }
 
         val bitmap =
-            coder.decodeSampled(src, idealWidth, idealHeight, preferredColorConfig, ScaleMode.FIT)
+            coder.decodeSampled(src, idealWidth, idealHeight, preferredColorConfig, ScaleMode.FIT, ScalingQuality.HIGH)
 
         return BitmapResource.obtain(bitmap, bitmapPool)
     }

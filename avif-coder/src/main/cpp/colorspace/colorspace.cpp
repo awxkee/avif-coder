@@ -305,11 +305,11 @@ cmsHPROFILE colorspacesCreateLinearInfraredProfile() {
 }
 
 void
-convertUseProfiles(aligned_uint8_vector &srcVector, int stride,
+convertUseProfiles(aligned_uint8_vector &srcVector, uint32_t stride,
                    cmsHPROFILE srcProfile,
-                   int width, int height,
+                   uint32_t width, uint32_t height,
                    cmsHPROFILE dstProfile,
-                   bool image16Bits, int *newStride) {
+                   bool image16Bits) {
   cmsContext context = cmsCreateContext(nullptr, nullptr);
   shared_ptr<void> contextPtr(context, [](void *profile) {
     cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
@@ -331,33 +331,21 @@ convertUseProfiles(aligned_uint8_vector &srcVector, int stride,
     cmsDeleteTransform(reinterpret_cast<cmsHTRANSFORM>(transform));
   });
 
-  aligned_uint8_vector iccARGB;
-  int lineWidth = (int) (image16Bits ? sizeof(uint16_t) : sizeof(uint8_t)) * width * 4;
-  int alignment = 64;
-  int padding = (alignment - (lineWidth % alignment)) % alignment;
-  int dstStride = lineWidth + padding;
-  int newLength = dstStride * height;
-  iccARGB.resize(newLength);
-
-  auto mOutputBuffer = iccARGB.data();
   auto mInputBuffer = srcVector.data();
   auto mTransform = ptrTransform.get();
 
   concurrency::parallel_for(6, height, [&](int y) {
     cmsDoTransformLineStride(mTransform,
                              mInputBuffer + stride * y,
-                             mOutputBuffer + dstStride * y, width, 1,
+                             mInputBuffer + stride * y, width, 1,
                              stride, stride, 0, 0);
   });
-
-  srcVector = iccARGB;
-  *newStride = dstStride;
 }
 
 void
-convertUseICC(aligned_uint8_vector &vector, int stride, int width, int height,
+convertUseICC(aligned_uint8_vector &vector, uint32_t stride, uint32_t width, uint32_t height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
-              bool image16Bits, int *newStride) {
+              bool image16Bits) {
   cmsContext context = cmsCreateContext(nullptr, nullptr);
   shared_ptr<void> contextPtr(context, [](void *profile) {
     cmsDeleteContext(reinterpret_cast<cmsContext>(profile));
@@ -391,5 +379,5 @@ convertUseICC(aligned_uint8_vector &vector, int stride, int width, int height,
   }
 
   convertUseProfiles(vector, stride, ptrSrcProfile.get(), width, height, ptrDstProfile.get(),
-                     image16Bits, newStride);
+                     image16Bits);
 }

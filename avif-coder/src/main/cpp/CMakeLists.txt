@@ -23,7 +23,8 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         imagebits/RGBAlpha.cpp
         colorspace/Trc.cpp YuvConversion.cpp
         colorspace/Rec2408ToneMapper.cpp colorspace/LogarithmicToneMapper.cpp
-        colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp)
+        colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp
+        AvifDecoderController.cpp HeifImageDecoder.cpp)
 
 add_library(libkvazaar SHARED IMPORTED)
 add_library(libheif SHARED IMPORTED)
@@ -32,6 +33,7 @@ add_library(libde265 SHARED IMPORTED)
 add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
 add_library(svt SHARED IMPORTED)
+add_library(avifweaver SHARED IMPORTED)
 
 set_target_properties(libkvazaar PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libkvazaar.so)
 set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.so)
@@ -40,6 +42,7 @@ set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/
 set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.so)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
 set_target_properties(svt PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libSvtAv1Enc.so)
+set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libavifweaver.so)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
 target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpufeatures)
@@ -86,4 +89,4 @@ add_subdirectory(avif)
 target_link_libraries( # Specifies the target library.
         coder PRIVATE
         ${log-lib} libheif cpufeatures libyuv -ljnigraphics libkvazaar svt avif_shared
-        libde265 libdav1d libsharpyuv ${android-lib})
+        libde265 libdav1d libsharpyuv ${android-lib} avifweaver)

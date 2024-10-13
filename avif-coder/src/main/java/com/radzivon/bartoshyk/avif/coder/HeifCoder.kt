@@ -41,7 +41,6 @@ import java.nio.ByteBuffer
 
 @Keep
 class HeifCoder(
-    private val context: Context? = null,
     private val toneMapper: ToneMapper = ToneMapper.REC2408
 ) {
 
@@ -70,13 +69,13 @@ class HeifCoder(
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT
     ): Bitmap {
         return decodeImpl(
-            context?.assets,
             byteArray,
             0,
             0,
             preferredColorConfig.value,
             ScaleMode.FIT.value,
             toneMapper.value,
+            ScalingQuality.DEFAULT.level,
         )
     }
 
@@ -86,15 +85,16 @@ class HeifCoder(
         scaledHeight: Int,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
         scaleMode: ScaleMode = ScaleMode.FIT,
+        scaleQuality: ScalingQuality = ScalingQuality.DEFAULT,
     ): Bitmap {
         return decodeImpl(
-            context?.assets,
             byteArray,
             scaledWidth,
             scaledHeight,
             preferredColorConfig.value,
             scaleMode.value,
             toneMapper.value,
+            scaleQuality.level,
         )
     }
 
@@ -104,22 +104,28 @@ class HeifCoder(
         scaledHeight: Int,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
         scaleMode: ScaleMode = ScaleMode.FIT,
+        scaleQuality: ScalingQuality = ScalingQuality.DEFAULT,
     ): Bitmap {
         return decodeByteBufferImpl(
-            context?.assets,
             byteBuffer,
             scaledWidth,
             scaledHeight,
             preferredColorConfig.value,
             scaleMode.value,
             toneMapper.value,
+            scaleQuality.level,
         )
     }
 
     /**
+     * Encodes an avif image
+     *
+     * Note, this supports only even image sizes
+     *
      * @param quality must be in range 0..100
      * @param preciseMode - LOSSY or LOSELESS compression mode
-     * @param speed - compression speed for detailed documentation see [AvifSpeed]
+     *
+     * @throws IllegalArgumentException if image size is not even
      */
     fun encodeAvif(
         bitmap: Bitmap,
@@ -128,6 +134,9 @@ class HeifCoder(
     ): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
+        }
+        if (bitmap.width % 2 != 0 || bitmap.height % 2 != 0) {
+            throw IllegalArgumentException("AVIF encoder supports only even image bounds")
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             encodeAvifImpl(
@@ -162,23 +171,23 @@ class HeifCoder(
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImplBB(byteBuffer: ByteBuffer): Boolean
     private external fun decodeImpl(
-        assetManager: AssetManager?,
         byteArray: ByteArray,
         scaledWidth: Int,
         scaledHeight: Int,
         clrConfig: Int,
         scaleMode: Int,
         toneMapper: Int,
+        scaleQuality: Int,
     ): Bitmap
 
     private external fun decodeByteBufferImpl(
-        assetManager: AssetManager?,
         byteArray: ByteBuffer,
         scaledWidth: Int,
         scaledHeight: Int,
         clrConfig: Int,
         scaleMode: Int,
         toneMapper: Int,
+        scaleQuality: Int,
     ): Bitmap
 
     private external fun encodeAvifImpl(

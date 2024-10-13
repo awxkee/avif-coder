@@ -34,11 +34,13 @@ import android.os.Bundle
 import android.util.Log
 import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
+import com.radzivon.bartoshyk.avif.coder.ScalingQuality
 import com.radzivon.bartoshyk.avif.coder.ToneMapper
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import com.radzivon.bartoshyk.avif.databinding.BindingImageViewBinding
@@ -101,19 +103,21 @@ class MainActivity : AppCompatActivity() {
 //                imageView.root.setImageBitmap(decoded100)
 //                binding.scrollViewContainer.addView(imageView.root)
 //            }
-            val coder = HeifCoder(null, ToneMapper.REC2408)
-            val allFiles1 = getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
-            val allFiles2 = getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
+            val coder = HeifCoder( ToneMapper.REC2408)
+            val allFiles1 =
+                getAllFilesFromAssets().filter { it.contains(".avif") || it.contains(".heic") }
+            val allFiles2 =
+                getAllFilesFromAssets(path = "hdr").filter { it.contains(".avif") || it.contains(".heic") }
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("federico-beccari.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("WJS01456-Enhanced-NR-2.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
                     val buffer = this@MainActivity.assets.open(file).source().buffer()
-                            .readByteArray()
+                        .readByteArray()
                     val size = coder.getSize(buffer)
                     if (size != null) {
 //                        val bitmap = coder.decodeSampled(
@@ -126,28 +130,51 @@ class MainActivity : AppCompatActivity() {
 
                         val start = System.currentTimeMillis()
 
-                        val bitmap0 = coder.decode(
-                            buffer,
+                        var bitmap0 = coder.decodeSampled(
+                            byteArray = buffer,
+                            scaledWidth = size.width / 2,
+                            scaledHeight = size.height / 2,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
+                            scaleQuality = ScalingQuality.HIGH,
                         )
 
 //                        bitmap0.setColorSpace(ColorSpace.getFromDataSpace(DataSpace.DATASPACE_BT2020_PQ)!!)
 
                         Log.i("AVIF", "Decoding time ${System.currentTimeMillis() - start}")
 
-                        val encode = coder.encodeAvif(bitmap = bitmap0, quality = 64)
-                        val bitmap = coder.decode(encode)
+                        val bmp1 = bitmap0.scale(
+                            if (bitmap0.width % 2 != 0) {
+                                bitmap0.width + 1
+                            } else {
+                                bitmap0.width
+                            }, if (bitmap0.height % 2 != 0) {
+                                bitmap0.height + 1
+                            } else {
+                                bitmap0.height
+                            }
+                        )
+
+//                        val encode = coder.encodeAvif(bitmap = bmp1, quality = 55)
+//                        val bitmap = coder.decode(encode)
 
                         lifecycleScope.launch(Dispatchers.Main) {
-                            val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
+                            val imageView = BindingImageViewBinding.inflate(
+                                layoutInflater,
+                                binding.scrollViewContainer,
+                                false
+                            )
                             imageView.root.setImageBitmap(bitmap0)
                             binding.scrollViewContainer.addView(imageView.root)
                         }
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            val imageView = BindingImageViewBinding.inflate(layoutInflater, binding.scrollViewContainer, false)
-                            imageView.root.setImageBitmap(bitmap)
-                            binding.scrollViewContainer.addView(imageView.root)
-                        }
+//                        lifecycleScope.launch(Dispatchers.Main) {
+//                            val imageView = BindingImageViewBinding.inflate(
+//                                layoutInflater,
+//                                binding.scrollViewContainer,
+//                                false
+//                            )
+//                            imageView.root.setImageBitmap(bitmap)
+//                            binding.scrollViewContainer.addView(imageView.root)
+//                        }
                     }
                 } catch (e: Exception) {
                     Log.d("AVIF", e.toString())
@@ -231,7 +258,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun testEncoder(assetName: String) {
-        val coder = HeifCoder(this)
+        val coder = HeifCoder()
         val buffer = this.assets.open(assetName).source().buffer().readByteArray()
         val opts = BitmapFactory.Options()
         opts.inMutable = true
@@ -296,7 +323,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun writeHevc(bitmap: Bitmap) {
-        val bytes = HeifCoder(this).encodeHeic(bitmap)
+        val bytes = HeifCoder().encodeHeic(bitmap)
         val ff = File(this.filesDir, "result.heic")
         ff.delete()
         val output = FileOutputStream(ff)

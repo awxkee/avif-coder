@@ -27,9 +27,9 @@ void LogarithmicToneMapper::transferTone(float *inPlace, uint32_t width) {
         r = r * shScale;
         g = g * shScale;
         b = b * shScale;
-        targetPlace[0] = r;
-        targetPlace[1] = g;
-        targetPlace[2] = b;
+        targetPlace[0] = std::min(r, 1.f);
+        targetPlace[1] = std::min(g, 1.f);
+        targetPlace[2] = std::min(b, 1.f);
         targetPlace += 3;
     }
 }
