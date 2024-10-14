@@ -57,7 +57,7 @@ class AvifUniqueImage {
 
   avifResult allocateImage() {
     auto result = avifRGBImageAllocatePixels(&rgbImage);
-    if (result != AVIF_RESULT_OK) {
+    if (result == AVIF_RESULT_OK) {
       this->isPlanesAllocated = true;
     }
     return result;
