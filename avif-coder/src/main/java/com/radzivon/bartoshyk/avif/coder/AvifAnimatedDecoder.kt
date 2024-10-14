@@ -28,7 +28,9 @@
 
 package com.radzivon.bartoshyk.avif.coder
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Size
 import androidx.annotation.Keep
 import java.io.Closeable
@@ -43,7 +45,14 @@ import java.nio.ByteBuffer
  * @throws Exception - All functions in this class may throw if something goes wrong
  */
 @Keep
+@SuppressLint("ObsoleteSdkInt")
 class AvifAnimatedDecoder : Closeable {
+
+    init {
+        if (Build.VERSION.SDK_INT >= 24) {
+            System.loadLibrary("coder")
+        }
+    }
 
     constructor(source: ByteArray) {
         nativeController = createControllerFromByteArray(source)
