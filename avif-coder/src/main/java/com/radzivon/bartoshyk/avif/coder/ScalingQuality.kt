@@ -35,6 +35,11 @@ enum class ScalingQuality(internal val level: Int) {
     DEFAULT(0),
 
     /**
+     * Nearest neighbors
+     */
+    FASTEST(1),
+
+    /**
      * Lanczos 3
      */
     HIGH(2)

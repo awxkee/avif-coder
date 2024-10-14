@@ -28,9 +28,9 @@
 #
 
 set -e
-rustup default nightly
+rustup default stable
 
-rustup +nightly target add x86_64-linux-android aarch64-linux-android armv7-linux-androideabi i686-linux-android
+rustup +stable target add x86_64-linux-android aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
 RUSTFLAGS="-C target-feature=+neon -C opt-level=2 -C strip=symbols" cargo +stable build --target aarch64-linux-android --release --manifest-path Cargo.toml
 

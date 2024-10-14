@@ -49,7 +49,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                       preferredColorConfig,
                                       scaleMode,
                                       toneMapper,
-                                      scalingQuality == 2);
+                                      scalingQuality);
     } else {
       HeifImageDecoder heifDecoder;
       frame = heifDecoder.getFrame(srcBuffer,
@@ -58,7 +58,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    preferredColorConfig,
                                    scaleMode,
                                    toneMapper,
-                                   scalingQuality == 2);
+                                   scalingQuality);
     }
 
     int osVersion = androidOSVersion();

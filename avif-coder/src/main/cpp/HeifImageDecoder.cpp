@@ -42,7 +42,7 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
                                           PreferredColorConfig javaColorSpace,
                                           ScaleMode javaScaleMode,
                                           CurveToneMapper toneMapper,
-                                          bool highQualityResizer) {
+                                          int scalingQuality) {
   heif_context_set_max_decoding_threads(ctx.get(), (int) std::thread::hardware_concurrency());
 
   auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
@@ -116,7 +116,7 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
                                   static_cast<int>(scaledWidth),
                                   static_cast<int>(scaledHeight),
                                   javaScaleMode,
-                                  highQualityResizer);
+                                  scalingQuality);
   if (!scaleResult) {
     throw std::runtime_error("Rescaling an image has failed");
   }

@@ -80,7 +80,7 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
                                                PreferredColorConfig javaColorSpace,
                                                ScaleMode javaScaleMode,
                                                CurveToneMapper toneMapper,
-                                               bool highQualityResizer) {
+                                               int scalingQuality) {
   std::lock_guard guard(this->mutex);
   if (!this->isBufferAttached) {
     throw std::runtime_error("AVIF controller methods can't be called without attached buffer");
@@ -147,7 +147,7 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   imageStore = RescaleSourceImage(avifUniqueImage.rgbImage.pixels, &stride,
                                   bitDepth, isImageRequires64Bit, &imageWidth,
                                   &imageHeight, scaledWidth, scaledHeight, javaScaleMode,
-                                  highQualityResizer);
+                                  scalingQuality);
 
   avifUniqueImage.clear();
 

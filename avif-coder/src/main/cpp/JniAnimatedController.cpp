@@ -196,7 +196,7 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl(JNIEnv *
                                       preferredColorConfig,
                                       scaleMode,
                                       toneMapper,
-                                      scaleQuality == 2);
+                                      scaleQuality);
 
     int osVersion = androidOSVersion();
 

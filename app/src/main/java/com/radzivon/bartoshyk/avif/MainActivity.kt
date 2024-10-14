@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("test_4.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("output_shot.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
@@ -144,33 +144,14 @@ class MainActivity : AppCompatActivity() {
 
                         var bitmap0 = coder.decodeSampled(
                             byteArray = buffer,
-                            scaledWidth = size.width / 3,
-                            scaledHeight = size.height / 3,
+                            scaledWidth = 325,
+                            scaledHeight = 325,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
-                            scaleMode = ScaleMode.FIT,
-                            scaleQuality = ScalingQuality.HIGH,
+                            scaleMode = ScaleMode.FILL,
+                            scaleQuality = ScalingQuality.FASTEST,
                         )
 
 //                        bitmap0.setColorSpace(ColorSpace.getFromDataSpace(DataSpace.DATASPACE_BT2020_PQ)!!)
-
-                        Log.i("AVIF", "Decoding time ${System.currentTimeMillis() - start}")
-
-                        start = System.currentTimeMillis()
-
-                        Log.i("AVIFFFF", "Starts encoding")
-
-                        val encode = coder.encodeHeic(
-                            bitmap = bitmap0,
-                            quality = 25,
-                            preciseMode = PreciseMode.LOSSY,
-                            preset = HeifPreset.VERYSLOW
-                        )
-                        Log.i(
-                            "AVIFFFF",
-                            "Encoding time ${System.currentTimeMillis() - start}, encoded size ${encode.size}"
-                        )
-
-                        val bitmap = coder.decode(encode)
 
                         lifecycleScope.launch(Dispatchers.Main) {
                             val imageView = BindingImageViewBinding.inflate(
@@ -181,15 +162,15 @@ class MainActivity : AppCompatActivity() {
                             imageView.root.setImageBitmap(bitmap0)
                             binding.scrollViewContainer.addView(imageView.root)
                         }
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            val imageView = BindingImageViewBinding.inflate(
-                                layoutInflater,
-                                binding.scrollViewContainer,
-                                false
-                            )
-                            imageView.root.setImageBitmap(bitmap)
-                            binding.scrollViewContainer.addView(imageView.root)
-                        }
+//                        lifecycleScope.launch(Dispatchers.Main) {
+//                            val imageView = BindingImageViewBinding.inflate(
+//                                layoutInflater,
+//                                binding.scrollViewContainer,
+//                                false
+//                            )
+//                            imageView.root.setImageBitmap(bitmap)
+//                            binding.scrollViewContainer.addView(imageView.root)
+//                        }
                     }
                 } catch (e: Exception) {
                     Log.d("AVIF", e.toString())

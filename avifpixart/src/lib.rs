@@ -40,7 +40,7 @@ pub unsafe extern "C-unwind" fn weave_scale_u8(
     dst_stride: u32,
     new_width: u32,
     new_height: u32,
-    high_precision: bool,
+    method: u32,
 ) {
     let mut src_slice = vec![0u8; width as usize * height as usize * 4];
 
@@ -62,8 +62,10 @@ pub unsafe extern "C-unwind" fn weave_scale_u8(
     let source_store =
         ImageStore::<u8, 4>::new(src_slice, width as usize, height as usize).unwrap();
 
-    let mut scaler = Scaler::new(if high_precision {
+    let mut scaler = Scaler::new(if method == 3 {
         ResamplingFunction::Lanczos3
+    } else if method == 1 {
+        ResamplingFunction::Nearest
     } else {
         ResamplingFunction::Bilinear
     });
@@ -96,7 +98,7 @@ pub unsafe extern "C-unwind" fn weave_scale_u16(
     new_width: u32,
     new_height: u32,
     bit_depth: usize,
-    high_precision: bool,
+    method: u32,
 ) {
     let mut _src_slice = vec![0u16; width as usize * height as usize * 4];
 
@@ -122,8 +124,10 @@ pub unsafe extern "C-unwind" fn weave_scale_u16(
     )
         .unwrap();
 
-    let mut scaler = Scaler::new(if high_precision {
+    let mut scaler = Scaler::new(if method == 3 {
         ResamplingFunction::Lanczos3
+    } else if method == 1 {
+        ResamplingFunction::Nearest
     } else {
         ResamplingFunction::Bilinear
     });
