@@ -27,8 +27,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+use pic_scale::{
+    ImageSize, ImageStore, ResamplingFunction, Scaler, Scaling, ScalingU16, ThreadingPolicy,
+};
 use std::slice;
-use pic_scale::{ImageSize, ImageStore, ResamplingFunction, Scaler, Scaling, ScalingU16, ThreadingPolicy};
 
 #[no_mangle]
 pub unsafe extern "C-unwind" fn weave_scale_u8(
@@ -81,7 +83,10 @@ pub unsafe extern "C-unwind" fn weave_scale_u8(
         false,
     );
 
-    for (dst_chunk, src_chunk) in dst_slice.chunks_mut(dst_stride as usize).zip(new_store.as_bytes().chunks(new_width as usize * 4)) {
+    for (dst_chunk, src_chunk) in dst_slice
+        .chunks_mut(dst_stride as usize)
+        .zip(new_store.as_bytes().chunks(new_width as usize * 4))
+    {
         for (dst, src) in dst_chunk.iter_mut().zip(src_chunk.iter()) {
             *dst = *src;
         }
@@ -108,21 +113,15 @@ pub unsafe extern "C-unwind" fn weave_scale_u16(
         for x in 0..width as usize {
             let px = lane.add(x * 4);
             let dst_px = dst_lane.get_unchecked_mut((x * 4)..);
-            unsafe {
-                *dst_px.get_unchecked_mut(0) = px.read_unaligned();
-                *dst_px.get_unchecked_mut(1) = px.add(1).read_unaligned();
-                *dst_px.get_unchecked_mut(2) = px.add(2).read_unaligned();
-                *dst_px.get_unchecked_mut(3) = px.add(3).read_unaligned();
-            }
+            *dst_px.get_unchecked_mut(0) = px.read_unaligned();
+            *dst_px.get_unchecked_mut(1) = px.add(1).read_unaligned();
+            *dst_px.get_unchecked_mut(2) = px.add(2).read_unaligned();
+            *dst_px.get_unchecked_mut(3) = px.add(3).read_unaligned();
         }
     }
 
-    let _source_store = ImageStore::<u16, 4>::new(
-        _src_slice,
-        width as usize,
-        height as usize,
-    )
-        .unwrap();
+    let _source_store =
+        ImageStore::<u16, 4>::new(_src_slice, width as usize, height as usize).unwrap();
 
     let mut scaler = Scaler::new(if method == 3 {
         ResamplingFunction::Lanczos3
@@ -133,8 +132,6 @@ pub unsafe extern "C-unwind" fn weave_scale_u16(
     });
     scaler.set_threading_policy(ThreadingPolicy::Adaptive);
 
-    let _new_store_stride = new_width * 4 * std::mem::size_of::<u16>() as u32;
-
     let _new_store = scaler.resize_rgba_u16(
         ImageSize::new(new_width as usize, new_height as usize),
         _source_store,
@@ -142,7 +139,10 @@ pub unsafe extern "C-unwind" fn weave_scale_u16(
         false,
     );
     let dst_slice = unsafe {
-        slice::from_raw_parts_mut(dst as *mut u16, new_width as usize * 4 * new_height as usize)
+        slice::from_raw_parts_mut(
+            dst as *mut u16,
+            new_width as usize * 4 * new_height as usize,
+        )
     };
     for (src, dst) in _new_store.as_bytes().iter().zip(dst_slice.iter_mut()) {
         *dst = *src;

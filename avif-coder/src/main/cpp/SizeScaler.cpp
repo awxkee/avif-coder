@@ -305,6 +305,9 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
     imageWidth = scaledWidth;
     imageHeight = scaledHeight;
 
+    *imageWidthPtr = imageWidth;
+    *imageHeightPtr = imageHeight;
+
     if (xTranslation > 0 || yTranslation > 0) {
 
       int left = std::max(xTranslation, 0);

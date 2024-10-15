@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("output_shot.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("hato-wide-gamut-8bit.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
@@ -142,14 +142,23 @@ class MainActivity : AppCompatActivity() {
 
                         var start = System.currentTimeMillis()
 
-                        var bitmap0 = coder.decodeSampled(
+                        var bitmap0 = coder.decode(
                             byteArray = buffer,
-                            scaledWidth = 325,
-                            scaledHeight = 325,
                             preferredColorConfig = PreferredColorConfig.RGBA_8888,
-                            scaleMode = ScaleMode.FILL,
-                            scaleQuality = ScalingQuality.FASTEST,
                         )
+
+                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
+
+//                        val encode = coder.encodeHeic(bitmap0)
+//
+//                        val round = coder.decodeSampled(
+//                            byteArray = encode,
+//                            scaledWidth = 700,
+//                            scaledHeight = 700,
+//                            preferredColorConfig = PreferredColorConfig.RGBA_8888,
+//                            scaleMode = ScaleMode.FIT,
+//                            scaleQuality = ScalingQuality.DEFAULT,
+//                        )
 
 //                        bitmap0.setColorSpace(ColorSpace.getFromDataSpace(DataSpace.DATASPACE_BT2020_PQ)!!)
 
@@ -168,7 +177,7 @@ class MainActivity : AppCompatActivity() {
 //                                binding.scrollViewContainer,
 //                                false
 //                            )
-//                            imageView.root.setImageBitmap(bitmap)
+//                            imageView.root.setImageBitmap(round)
 //                            binding.scrollViewContainer.addView(imageView.root)
 //                        }
                     }

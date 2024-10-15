@@ -37,6 +37,7 @@
 #include "ColorSpaceProfile.h"
 #include <ITUR.h>
 #include "ColorMatrix.h"
+#include "avifweaver.h"
 
 class AvifUniqueImage {
  public:
@@ -105,16 +106,16 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   auto colorPrimaries = decoder->image->colorPrimaries;
   auto transferCharacteristics = decoder->image->transferCharacteristics;
 
+  uint32_t bitDepth = decoder->image->depth;
+
   bool isImageRequires64Bit = avifImageUsesU16(decoder->image);
   if (isImageRequires64Bit) {
     avifUniqueImage.rgbImage.alphaPremultiplied = false;
-    avifUniqueImage.rgbImage.depth = 16;
+    avifUniqueImage.rgbImage.depth = bitDepth;
   } else {
     avifUniqueImage.rgbImage.alphaPremultiplied = false;
     avifUniqueImage.rgbImage.depth = 8;
   }
-
-  uint32_t bitDepth = avifUniqueImage.rgbImage.depth;
 
   avifResult rgbResult = avifUniqueImage.allocateImage();
   if (rgbResult != AVIF_RESULT_OK) {
