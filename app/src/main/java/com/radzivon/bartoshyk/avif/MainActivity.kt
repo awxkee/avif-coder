@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("hato-wide-gamut-8bit.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
@@ -139,7 +139,6 @@ class MainActivity : AppCompatActivity() {
 //                                PreferredColorConfig.RGBA_1010102,
 //                                ScaleMode.RESIZE
 //                        )
-
                         var start = System.currentTimeMillis()
 
                         var bitmap0 = coder.decode(
@@ -149,16 +148,12 @@ class MainActivity : AppCompatActivity() {
 
                         Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
-//                        val encode = coder.encodeHeic(bitmap0)
+                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV400)
 //
-//                        val round = coder.decodeSampled(
-//                            byteArray = encode,
-//                            scaledWidth = 700,
-//                            scaledHeight = 700,
-//                            preferredColorConfig = PreferredColorConfig.RGBA_8888,
-//                            scaleMode = ScaleMode.FIT,
-//                            scaleQuality = ScalingQuality.DEFAULT,
-//                        )
+                        val round = coder.decode(
+                            byteArray = encode,
+                            preferredColorConfig = PreferredColorConfig.RGBA_8888,
+                        )
 
 //                        bitmap0.setColorSpace(ColorSpace.getFromDataSpace(DataSpace.DATASPACE_BT2020_PQ)!!)
 
@@ -171,15 +166,15 @@ class MainActivity : AppCompatActivity() {
                             imageView.root.setImageBitmap(bitmap0)
                             binding.scrollViewContainer.addView(imageView.root)
                         }
-//                        lifecycleScope.launch(Dispatchers.Main) {
-//                            val imageView = BindingImageViewBinding.inflate(
-//                                layoutInflater,
-//                                binding.scrollViewContainer,
-//                                false
-//                            )
-//                            imageView.root.setImageBitmap(round)
-//                            binding.scrollViewContainer.addView(imageView.root)
-//                        }
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            val imageView = BindingImageViewBinding.inflate(
+                                layoutInflater,
+                                binding.scrollViewContainer,
+                                false
+                            )
+                            imageView.root.setImageBitmap(round)
+                            binding.scrollViewContainer.addView(imageView.root)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.d("AVIF", e.toString())

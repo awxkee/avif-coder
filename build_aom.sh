@@ -49,6 +49,7 @@ for abi in ${ABI_LIST}; do
         cmake .. \
           -G Ninja \
           -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
+          -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DANDROID_PLATFORM=android-24 \
           -DCMAKE_BUILD_TYPE=Release \
           -DBUILD_SHARED_LIBS=ON \

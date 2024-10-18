@@ -38,6 +38,7 @@
 #include <ITUR.h>
 #include "ColorMatrix.h"
 #include "avifweaver.h"
+#include <android/log.h>
 
 class AvifUniqueImage {
  public:
@@ -123,12 +124,171 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
         str = "Can't correctly allocate buffer for frame with numbers: " + std::to_string(frame);
     throw std::runtime_error(str);
   }
-  rgbResult = avifImageYUVToRGB(decoder->image, &avifUniqueImage.rgbImage);
-  if (rgbResult != AVIF_RESULT_OK) {
+
+  bool isImageConverted = false;
+
+  auto image = decoder->image;
+
+  auto type = decoder->image->yuvFormat;
+
+  YuvMatrix matrix = YuvMatrix::Bt709;
+  if (image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_BT601) {
+    matrix = YuvMatrix::Bt601;
+  } else if (image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_BT2020_NCL
+      || image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_SMPTE2085) {
+    matrix = YuvMatrix::Bt2020;
+  }
+
+  YuvRange range = YuvRange::Tv;
+  if (image->yuvRange == AVIF_RANGE_FULL) {
+    range = YuvRange::Pc;
+  }
+
+  YuvType yuvType = YuvType::Yuv420;
+  if (type == AVIF_PIXEL_FORMAT_YUV422) {
+    yuvType = YuvType::Yuv422;
+  } else if (type == AVIF_PIXEL_FORMAT_YUV444) {
+    yuvType = YuvType::Yuv444;
+  }
+
+  auto start = std::chrono::high_resolution_clock::now();
+
+  if (type == AVIF_PIXEL_FORMAT_YUV444 || type == AVIF_PIXEL_FORMAT_YUV422
+      || type == AVIF_PIXEL_FORMAT_YUV420) {
+
+    if (isImageRequires64Bit) {
+      if (imageUsesAlpha) {
+        weave_yuv16_with_alpha_to_rgba16(
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[0]),
+            image->yuvRowBytes[0],
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[1]),
+            image->yuvRowBytes[1],
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[2]),
+            image->yuvRowBytes[2],
+            reinterpret_cast<const uint16_t *>(image->alphaPlane),
+            image->alphaRowBytes,
+            reinterpret_cast<uint16_t *>(avifUniqueImage.rgbImage.pixels),
+            avifUniqueImage.rgbImage.rowBytes,
+            bitDepth,
+            avifUniqueImage.rgbImage.width,
+            avifUniqueImage.rgbImage.height,
+            range,
+            matrix,
+            yuvType
+        );
+        isImageConverted = true;
+      } else {
+        weave_yuv16_to_rgba16(
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[0]),
+            image->yuvRowBytes[0],
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[1]),
+            image->yuvRowBytes[1],
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[2]),
+            image->yuvRowBytes[2],
+            reinterpret_cast<uint16_t *>(avifUniqueImage.rgbImage.pixels),
+            avifUniqueImage.rgbImage.rowBytes,
+            bitDepth,
+            avifUniqueImage.rgbImage.width,
+            avifUniqueImage.rgbImage.height,
+            range,
+            matrix,
+            yuvType
+        );
+        isImageConverted = true;
+      }
+    } else {
+      if (imageUsesAlpha) {
+        weave_yuv8_with_alpha_to_rgba8(
+            image->yuvPlanes[0], image->yuvRowBytes[0],
+            image->yuvPlanes[1], image->yuvRowBytes[1],
+            image->yuvPlanes[2], image->yuvRowBytes[2],
+            image->alphaPlane, image->alphaRowBytes,
+            avifUniqueImage.rgbImage.pixels, avifUniqueImage.rgbImage.rowBytes,
+            avifUniqueImage.rgbImage.width, avifUniqueImage.rgbImage.height,
+            range, matrix, yuvType
+        );
+        isImageConverted = true;
+      } else {
+        weave_yuv8_to_rgba8(
+            image->yuvPlanes[0], image->yuvRowBytes[0],
+            image->yuvPlanes[1], image->yuvRowBytes[1],
+            image->yuvPlanes[2], image->yuvRowBytes[2],
+            avifUniqueImage.rgbImage.pixels, avifUniqueImage.rgbImage.rowBytes,
+            avifUniqueImage.rgbImage.width, avifUniqueImage.rgbImage.height,
+            range, matrix, yuvType
+        );
+        isImageConverted = true;
+      }
+    }
+  } else if (type == AVIF_PIXEL_FORMAT_YUV400) {
+    if (isImageRequires64Bit) {
+      if (imageUsesAlpha) {
+        weave_yuv400_p16_with_alpha_to_rgba16(
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[0]),
+            image->yuvRowBytes[0],
+            reinterpret_cast<const uint16_t *>(image->alphaPlane),
+            image->alphaRowBytes,
+            reinterpret_cast<uint16_t *>(avifUniqueImage.rgbImage.pixels),
+            avifUniqueImage.rgbImage.rowBytes,
+            bitDepth,
+            avifUniqueImage.rgbImage.width,
+            avifUniqueImage.rgbImage.height,
+            range,
+            matrix
+        );
+      } else {
+        weave_yuv400_p16_to_rgba16(
+            reinterpret_cast<const uint16_t *>(image->yuvPlanes[0]),
+            image->yuvRowBytes[0],
+            reinterpret_cast<uint16_t *>(avifUniqueImage.rgbImage.pixels),
+            avifUniqueImage.rgbImage.rowBytes,
+            bitDepth,
+            avifUniqueImage.rgbImage.width,
+            avifUniqueImage.rgbImage.height,
+            range,
+            matrix
+        );
+      }
+      isImageConverted = true;
+    } else {
+      if (imageUsesAlpha) {
+        weave_yuv400_with_alpha_to_rgba8(
+            reinterpret_cast<const uint8_t *>(image->yuvPlanes[0]),
+            image->yuvRowBytes[0],
+            image->alphaPlane, image->alphaRowBytes,
+            reinterpret_cast<uint8_t *>(avifUniqueImage.rgbImage.pixels),
+            avifUniqueImage.rgbImage.rowBytes,
+            avifUniqueImage.rgbImage.width,
+            avifUniqueImage.rgbImage.height,
+            range,
+            matrix
+        );
+      } else {
+        weave_yuv400_to_rgba8(
+            reinterpret_cast<const uint8_t *>(image->yuvPlanes[0]),
+            image->yuvRowBytes[0],
+            reinterpret_cast<uint8_t *>(avifUniqueImage.rgbImage.pixels),
+            avifUniqueImage.rgbImage.rowBytes,
+            avifUniqueImage.rgbImage.width,
+            avifUniqueImage.rgbImage.height,
+            range,
+            matrix
+        );
+      }
+      isImageConverted = true;
+    }
+  }
+
+  if (!isImageConverted) {
     std::string
-        str = "Can't correctly allocate buffer for frame with numbers: " + std::to_string(frame);
+        str = "Unfortunately image type is not supported" + std::to_string(frame);
     throw std::runtime_error(str);
   }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> duration = end - start;
+  auto count = (float) (duration.count() * 1000.0);
+  __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "YUV Conversion time %f", count);
 
   aligned_uint8_vector iccProfile(0);
   if (decoder->image->icc.data && decoder->image->icc.size) {

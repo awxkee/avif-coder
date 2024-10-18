@@ -14,6 +14,7 @@ version = "0.1.0"
 dependencies = [
  "num-traits",
  "pic-scale",
+ "yuvutils-rs",
 ]
 
 [[package]]
@@ -49,9 +50,9 @@ checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
 
 [[package]]
 name = "libc"
-version = "0.2.159"
+version = "0.2.161"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "561d97a539a36e26a9a5fad1ea11a3039a67714694aaa379433e580854bc3dc5"
+checksum = "8e9489c2807c139ffd9c1794f4af0ebe86a828db53ecdc7fea2111d0fed085d1"
 
 [[package]]
 name = "num-traits"
@@ -91,4 +92,13 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "yuvutils-rs"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b260f4f465fe63a8c0658736daeef81b330d17e62a52fb75932dc59e2459bba8"
+dependencies = [
+ "rayon",
 ]

@@ -5,12 +5,12 @@
 #include <new>
 
 enum class YuvMatrix {
-  Bt601 = 0,
-  Bt709 = 1,
-  Bt2020 = 2,
+  Bt601,
+  Bt709,
+  Bt2020,
 };
 
-enum class YuvStandardRange {
+enum class YuvRange {
   Tv,
   Pc,
 };
@@ -30,12 +30,54 @@ void weave_yuv8_to_rgba8(const uint8_t *y_plane,
                          const uint8_t *v_plane,
                          uint32_t v_stride,
                          uint8_t *rgba,
-                         uint32_t dst_stride,
+                         uint32_t rgba_stride,
                          uint32_t width,
                          uint32_t height,
-                         YuvStandardRange range,
-                         YuvMatrix matrix,
+                         YuvRange range,
+                         YuvMatrix yuv_matrix,
                          YuvType yuv_type);
+
+void weave_yuv400_to_rgba8(const uint8_t *y_plane,
+                           uint32_t y_stride,
+                           uint8_t *rgba,
+                           uint32_t rgba_stride,
+                           uint32_t width,
+                           uint32_t height,
+                           YuvRange range,
+                           YuvMatrix yuv_matrix);
+
+void weave_yuv400_with_alpha_to_rgba8(const uint8_t *y_plane,
+                                      uint32_t y_stride,
+                                      const uint8_t *a_plane,
+                                      uint32_t a_stride,
+                                      uint8_t *rgba,
+                                      uint32_t rgba_stride,
+                                      uint32_t width,
+                                      uint32_t height,
+                                      YuvRange range,
+                                      YuvMatrix yuv_matrix);
+
+void weave_yuv400_p16_to_rgba16(const uint16_t *y_plane,
+                                uint32_t y_stride,
+                                uint16_t *rgba,
+                                uint32_t rgba_stride,
+                                uint32_t bit_depth,
+                                uint32_t width,
+                                uint32_t height,
+                                YuvRange range,
+                                YuvMatrix yuv_matrix);
+
+void weave_yuv400_p16_with_alpha_to_rgba16(const uint16_t *y_plane,
+                                           uint32_t y_stride,
+                                           const uint16_t *a_plane,
+                                           uint32_t a_stride,
+                                           uint16_t *rgba,
+                                           uint32_t rgba_stride,
+                                           uint32_t bit_depth,
+                                           uint32_t width,
+                                           uint32_t height,
+                                           YuvRange range,
+                                           YuvMatrix yuv_matrix);
 
 void weave_yuv8_with_alpha_to_rgba8(const uint8_t *y_plane,
                                     uint32_t y_stride,
@@ -46,12 +88,44 @@ void weave_yuv8_with_alpha_to_rgba8(const uint8_t *y_plane,
                                     const uint8_t *a_plane,
                                     uint32_t a_stride,
                                     uint8_t *rgba,
-                                    uint32_t dst_stride,
+                                    uint32_t rgba_stride,
                                     uint32_t width,
                                     uint32_t height,
-                                    YuvStandardRange range,
-                                    YuvMatrix matrix,
+                                    YuvRange range,
+                                    YuvMatrix yuv_matrix,
                                     YuvType yuv_type);
+
+void weave_yuv16_to_rgba16(const uint16_t *y_plane,
+                           uint32_t y_stride,
+                           const uint16_t *u_plane,
+                           uint32_t u_stride,
+                           const uint16_t *v_plane,
+                           uint32_t v_stride,
+                           uint16_t *rgba,
+                           uint32_t rgba_stride,
+                           uint32_t bit_depth,
+                           uint32_t width,
+                           uint32_t height,
+                           YuvRange range,
+                           YuvMatrix yuv_matrix,
+                           YuvType yuv_type);
+
+void weave_yuv16_with_alpha_to_rgba16(const uint16_t *y_plane,
+                                      uint32_t y_stride,
+                                      const uint16_t *u_plane,
+                                      uint32_t u_stride,
+                                      const uint16_t *v_plane,
+                                      uint32_t v_stride,
+                                      const uint16_t *a_plane,
+                                      uint32_t a_stride,
+                                      uint16_t *rgba,
+                                      uint32_t rgba_stride,
+                                      uint32_t bit_depth,
+                                      uint32_t width,
+                                      uint32_t height,
+                                      YuvRange range,
+                                      YuvMatrix yuv_matrix,
+                                      YuvType yuv_type);
 
 void weave_scale_u8(const uint8_t *src,
                     uint32_t src_stride,
