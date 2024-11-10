@@ -4,7 +4,7 @@
  * Copyright (c) 2024 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 14/1/2024
+ * Created by Radzivon Bartoshyk on 10/11/2024
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +26,39 @@
  *
  */
 
-package com.radzivon.bartoshyk.avif.coder
+#ifndef AVIF_FILMIC_TONEMAPPER_H_
+#define AVIF_FILMIC_TONEMAPPER_H_
 
-import androidx.annotation.Keep
+#include <vector>
 
-@Keep
-enum class ToneMapper(val value: Int) {
-    REC2408(1), LOGARITHMIC(2), FILMIC(3)
-}
+class FilmicToneMapper {
+ public:
+  FilmicToneMapper() {
+  }
+
+  void transferTone(float *inPlace, uint32_t width);
+
+ private:
+
+  float uncharted2_tonemap_partial(float x) {
+    float A = 0.15f;
+    float B = 0.50f;
+    float C = 0.10f;
+    float D = 0.20f;
+    float E = 0.02f;
+    float F = 0.30f;
+    return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
+  }
+
+  float uncharted2_filmic(float v) {
+    float exposure_bias = 2.0f;
+    float curr = uncharted2_tonemap_partial(v * exposure_bias);
+
+    float W = 11.2f;
+    float white_scale = 1.0f / uncharted2_tonemap_partial(W);
+    return curr * white_scale;
+  }
+
+};
+
+#endif //AVIF_FILMIC_TONEMAPPER_H_

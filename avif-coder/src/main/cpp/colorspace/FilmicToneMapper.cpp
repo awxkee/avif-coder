@@ -4,7 +4,7 @@
  * Copyright (c) 2024 Radzivon Bartoshyk
  * avif-coder [https://github.com/awxkee/avif-coder]
  *
- * Created by Radzivon Bartoshyk on 14/1/2024
+ * Created by Radzivon Bartoshyk on 10/11/2024
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +26,27 @@
  *
  */
 
-package com.radzivon.bartoshyk.avif.coder
 
-import androidx.annotation.Keep
+#include "FilmicToneMapper.h"
+#include "Oklab.hpp"
 
-@Keep
-enum class ToneMapper(val value: Int) {
-    REC2408(1), LOGARITHMIC(2), FILMIC(3)
+void FilmicToneMapper::transferTone(float *inPlace, uint32_t width) {
+  float *targetPlace = inPlace;
+
+  for (uint32_t x = 0; x < width; ++x) {
+    float r = targetPlace[0];
+    float g = targetPlace[1];
+    float b = targetPlace[2];
+    coder::Oklab oklab = coder::Oklab::fromLinearRGB(r, g, b);
+    if (oklab.L == 0) {
+      continue;
+    }
+    float shScale = this->uncharted2_filmic(oklab.L) / oklab.L;
+    oklab.L = oklab.L * shScale;
+    coder::Rgb linearRgb = oklab.toLinearRGB();
+    targetPlace[0] = std::min(linearRgb.r, 1.f);
+    targetPlace[1] = std::min(linearRgb.g, 1.f);
+    targetPlace[2] = std::min(linearRgb.b, 1.f);
+    targetPlace += 3;
+  }
 }

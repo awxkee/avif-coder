@@ -28,6 +28,7 @@
 
 #include "Rec2408ToneMapper.h"
 #include "Trc.h"
+#include "Oklab.hpp"
 
 float rec2408_pq(float intensity, const float intensity_target) {
   // Lb, Lw, Lmin, Lmax
@@ -38,7 +39,7 @@ float rec2408_pq(float intensity, const float intensity_target) {
       0.f / intensity_target,
   };
 
-  for (float & luminance : luminances) {
+  for (float &luminance : luminances) {
     luminance = avifToGammaPQ(luminance);
   }
 
@@ -80,10 +81,6 @@ float rec2408_pq(float intensity, const float intensity_target) {
 void Rec2408ToneMapper::transferTone(float *inPlace, uint32_t width) {
   float *targetPlace = inPlace;
 
-  const float primaryR = this->lumaPrimaries[0];
-  const float primaryG = this->lumaPrimaries[1];
-  const float primaryB = this->lumaPrimaries[2];
-
   const float vWeightA = this->weightA;
   const float vWeightB = this->weightB;
 
@@ -91,18 +88,16 @@ void Rec2408ToneMapper::transferTone(float *inPlace, uint32_t width) {
     float r = targetPlace[0];
     float g = targetPlace[1];
     float b = targetPlace[2];
-    float Lin =
-        r * primaryR + g * primaryG + b * primaryB;
-    if (Lin == 0) {
+    coder::Oklab oklab = coder::Oklab::fromLinearRGB(r, g, b);
+    if (oklab.L == 0) {
       continue;
     }
-    float shScale = (1.f + vWeightA * Lin) / (1.f + vWeightB * Lin);
-    r = r * shScale;
-    g = g * shScale;
-    b = b * shScale;
-    targetPlace[0] = std::min(r, 1.f);
-    targetPlace[1] = std::min(g, 1.f);
-    targetPlace[2] = std::min(b, 1.f);
+    float shScale = (1.f + vWeightA * oklab.L) / (1.f + vWeightB * oklab.L);
+    oklab.L = oklab.L * shScale;
+    coder::Rgb linearRgb = oklab.toLinearRGB();
+    targetPlace[0] = std::min(linearRgb.r, 1.f);
+    targetPlace[1] = std::min(linearRgb.g, 1.f);
+    targetPlace[2] = std::min(linearRgb.b, 1.f);
     targetPlace += 3;
   }
 }

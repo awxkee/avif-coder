@@ -27,33 +27,28 @@
  */
 
 #include "LogarithmicToneMapper.h"
+#include "Oklab.hpp"
 
 void LogarithmicToneMapper::transferTone(float *inPlace, uint32_t width) {
-    float *targetPlace = inPlace;
+  float *targetPlace = inPlace;
 
-    const float primaryR = this->lumaPrimaries[0];
-    const float primaryG = this->lumaPrimaries[1];
-    const float primaryB = this->lumaPrimaries[2];
+  const float vDen = this->den;
 
-    const float vDen = this->den;
-
-    for (uint32_t x = 0; x < width; ++x) {
-        float r = targetPlace[0];
-        float g = targetPlace[1];
-        float b = targetPlace[2];
-        float Lin =
-                r * primaryR + g * primaryG + b * primaryB;
-        if (Lin == 0) {
-            continue;
-        }
-        float Lout = std::logf(std::abs(1 + Lin)) * vDen;
-        float shScale = Lout / Lin;
-        r = r * shScale;
-        g = g * shScale;
-        b = b * shScale;
-        targetPlace[0] = std::min(r, 1.f);
-        targetPlace[1] = std::min(g, 1.f);
-        targetPlace[2] = std::min(b, 1.f);
-        targetPlace += 3;
+  for (uint32_t x = 0; x < width; ++x) {
+    float r = targetPlace[0];
+    float g = targetPlace[1];
+    float b = targetPlace[2];
+    coder::Oklab oklab = coder::Oklab::fromLinearRGB(r, g, b);
+    if (oklab.L == 0) {
+      continue;
     }
+    float Lout = std::logf(std::abs(1.f + oklab.L)) * vDen;
+    float shScale = Lout / oklab.L;
+    oklab.L = oklab.L * shScale;
+    coder::Rgb linearRgb = oklab.toLinearRGB();
+    targetPlace[0] = std::min(linearRgb.r, 1.f);
+    targetPlace[1] = std::min(linearRgb.g, 1.f);
+    targetPlace[2] = std::min(linearRgb.b, 1.f);
+    targetPlace += 3;
+  }
 }

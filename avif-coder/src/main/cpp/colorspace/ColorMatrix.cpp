@@ -31,6 +31,7 @@
 #include "definitions.h"
 #include "Rec2408ToneMapper.h"
 #include "LogarithmicToneMapper.h"
+#include "FilmicToneMapper.h"
 #include "ITUR.h"
 
 void applyColorMatrix(uint8_t *inPlace, uint32_t stride, uint32_t width, uint32_t height,
@@ -79,6 +80,9 @@ void applyColorMatrix(uint8_t *inPlace, uint32_t stride, uint32_t width, uint32_
       mToneMapper.transferTone(rowVector.data(), width);
     } else if (toneMapper == CurveToneMapper::LOGARITHMIC) {
       LogarithmicToneMapper mToneMapper(mCoeffs);
+      mToneMapper.transferTone(rowVector.data(), width);
+    } else if (toneMapper == CurveToneMapper::FILMIC) {
+      FilmicToneMapper mToneMapper;
       mToneMapper.transferTone(rowVector.data(), width);
     }
 
@@ -162,7 +166,8 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
 
   concurrency::parallel_for(6, height, [&](uint32_t y) {
     aligned_float_vector rowVector(width * 3);
-    auto sourceRow = reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t * >(inPlace) + y * stride);
+    auto sourceRow =
+        reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t * >(inPlace) + y * stride);
 
     float *rowData = rowVector.data();
 
@@ -180,6 +185,9 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
       mToneMapper.transferTone(rowVector.data(), width);
     } else if (toneMapper == CurveToneMapper::LOGARITHMIC) {
       LogarithmicToneMapper mToneMapper(mCoeffs);
+      mToneMapper.transferTone(rowVector.data(), width);
+    } else if (toneMapper == CurveToneMapper::FILMIC) {
+      FilmicToneMapper mToneMapper;
       mToneMapper.transferTone(rowVector.data(), width);
     }
 
@@ -213,7 +221,6 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
       uint16_t scaledValue2 = std::min(
           static_cast<uint16_t >(std::clamp(iter[2], 0.f, 1.0f) * cutOffColors),
           static_cast<uint16_t>(cutOffColors));
-
 
       sourceRow[0] = gammaMap[scaledValue0];
       sourceRow[1] = gammaMap[scaledValue1];

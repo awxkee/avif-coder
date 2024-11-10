@@ -30,7 +30,7 @@
 #define AVIF_TONEMAPPER_H
 
 enum CurveToneMapper {
-    REC2408 = 1, LOGARITHMIC = 2, TONE_SKIP = 3
+  REC2408 = 1, LOGARITHMIC = 2, FILMIC = 3, TONE_SKIP = 4
 };
 
 #endif //AVIF_TONEMAPPER_H
