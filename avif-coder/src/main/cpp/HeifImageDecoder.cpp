@@ -116,7 +116,8 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
                                   static_cast<int>(scaledWidth),
                                   static_cast<int>(scaledHeight),
                                   javaScaleMode,
-                                  scalingQuality);
+                                  scalingQuality,
+                                  imageHasAlpha);
   if (!scaleResult) {
     throw std::runtime_error("Rescaling an image has failed");
   }

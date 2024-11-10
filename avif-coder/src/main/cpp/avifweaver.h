@@ -8,6 +8,7 @@ enum class YuvMatrix {
   Bt601,
   Bt709,
   Bt2020,
+  Identity,
 };
 
 enum class YuvRange {
@@ -135,7 +136,8 @@ void weave_scale_u8(const uint8_t *src,
                     uint32_t dst_stride,
                     uint32_t new_width,
                     uint32_t new_height,
-                    uint32_t method);
+                    uint32_t method,
+                    bool premultiply_alpha);
 
 void weave_scale_u16(const uint16_t *src,
                      uintptr_t src_stride,
@@ -145,6 +147,7 @@ void weave_scale_u16(const uint16_t *src,
                      uint32_t new_width,
                      uint32_t new_height,
                      uintptr_t bit_depth,
-                     uint32_t method);
+                     uint32_t method,
+                     bool premultiply_alpha);
 
-} // extern "C"
+}  // extern "C"

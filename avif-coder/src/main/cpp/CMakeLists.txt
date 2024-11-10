@@ -28,7 +28,7 @@ add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
 add_library(aom SHARED IMPORTED)
 add_library(x265 SHARED IMPORTED)
-add_library(avifweaver SHARED IMPORTED)
+add_library(avifweaver STATIC IMPORTED)
 
 set_target_properties(x265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.so)
 set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.so)
@@ -37,7 +37,7 @@ set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/
 set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.so)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
 set_target_properties(aom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.so)
-set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libavifweaver.so)
+set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libavifweaver.a)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
 target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpufeatures)
@@ -62,7 +62,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2 -ffp-mode=fast")
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif ()
-add_definitions(-DCMS_NO_REGISTER_KEYWORD -DSTB_IMAGE_RESIZE_IMPLEMENTATION)
+add_definitions(-DCMS_NO_REGISTER_KEYWORD)
 
 set(CMAKE_ANDROID_API_MIN 24)
 

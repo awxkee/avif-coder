@@ -42,7 +42,8 @@ bool RescaleImage(aligned_uint8_vector &initialData,
                   int *stride,
                   bool useFloats,
                   int *imageWidthPtr, int *imageHeightPtr,
-                  int scaledWidth, int scaledHeight, ScaleMode scaleMode, int scalingQuality) {
+                  int scaledWidth, int scaledHeight, ScaleMode scaleMode, int scalingQuality,
+                  bool isRgba) {
   int imageWidth = *imageWidthPtr;
   int imageHeight = *imageHeightPtr;
   if ((scaledHeight != 0 || scaledWidth != 0) && (scaledWidth != 0 && scaledHeight != 0)) {
@@ -105,7 +106,9 @@ bool RescaleImage(aligned_uint8_vector &initialData,
                      scaledWidth * 4,
                      scaledWidth,
                      scaledHeight,
-                     scalingQuality);
+                     scalingQuality,
+                     isRgba
+      );
     } else {
       outData.resize(scaledHeight * scaledWidth * 4 * sizeof(uint16_t));
       weave_scale_u16(reinterpret_cast<const uint16_t *>(imagePlane),
@@ -116,7 +119,8 @@ bool RescaleImage(aligned_uint8_vector &initialData,
                       scaledWidth,
                       scaledHeight,
                       bitDepth,
-                      scalingQuality);
+                      scalingQuality,
+                      isRgba);
     }
 
     auto data = outData.data();
@@ -230,7 +234,8 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
                                         uint32_t scaledWidth,
                                         uint32_t scaledHeight,
                                         ScaleMode scaleMode,
-                                        int scalingQuality) {
+                                        int scalingQuality,
+                                        bool isRgba) {
   uint32_t imageWidth = *imageWidthPtr;
   uint32_t imageHeight = *imageHeightPtr;
   if ((scaledHeight != 0 || scaledWidth != 0) && (scaledWidth != 0 && scaledHeight != 0)) {
@@ -284,7 +289,8 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
                      scaledWidth * 4,
                      scaledWidth,
                      scaledHeight,
-                     scalingQuality);
+                     scalingQuality,
+                     isRgba);
     } else {
       outData.resize(scaledHeight * scaledWidth * 4 * sizeof(uint16_t));
       weave_scale_u16(reinterpret_cast<const uint16_t *>(sourceData),
@@ -295,7 +301,8 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
                       scaledWidth,
                       scaledHeight,
                       bitDepth,
-                      scalingQuality);
+                      scalingQuality,
+                      isRgba);
     }
 
     auto data = outData.data();
@@ -309,7 +316,6 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
     *imageHeightPtr = imageHeight;
 
     if (xTranslation > 0 || yTranslation > 0) {
-
       int left = std::max(xTranslation, 0);
       int right = xTranslation + static_cast<int>(canvasWidth);
       int top = std::max(yTranslation, 0);

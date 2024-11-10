@@ -137,6 +137,13 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   } else if (image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_BT2020_NCL
       || image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_SMPTE2085) {
     matrix = YuvMatrix::Bt2020;
+  } else if (image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_IDENTITY) {
+    matrix = YuvMatrix::Identity;
+    if (type != AVIF_PIXEL_FORMAT_YUV444) {
+      std::string
+          str = "On identity matrix image layout must be 4:4:4 but it wasn't";
+      throw std::runtime_error(str);
+    }
   }
 
   YuvRange range = YuvRange::Tv;
@@ -150,8 +157,6 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   } else if (type == AVIF_PIXEL_FORMAT_YUV444) {
     yuvType = YuvType::Yuv444;
   }
-
-  auto start = std::chrono::high_resolution_clock::now();
 
   if (type == AVIF_PIXEL_FORMAT_YUV444 || type == AVIF_PIXEL_FORMAT_YUV422
       || type == AVIF_PIXEL_FORMAT_YUV420) {
@@ -285,11 +290,6 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
     throw std::runtime_error(str);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> duration = end - start;
-  auto count = (float) (duration.count() * 1000.0);
-  __android_log_print(ANDROID_LOG_ERROR, "AVIFCoder", "YUV Conversion time %f", count);
-
   aligned_uint8_vector iccProfile(0);
   if (decoder->image->icc.data && decoder->image->icc.size) {
     iccProfile.resize(decoder->image->icc.size);
@@ -308,7 +308,7 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   imageStore = RescaleSourceImage(avifUniqueImage.rgbImage.pixels, &stride,
                                   bitDepth, isImageRequires64Bit, &imageWidth,
                                   &imageHeight, scaledWidth, scaledHeight, javaScaleMode,
-                                  scalingQuality);
+                                  scalingQuality, imageUsesAlpha);
 
   avifUniqueImage.clear();
 

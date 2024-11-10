@@ -28,20 +28,20 @@
 #
 
 set -e
-rustup default stable
+rustup default nightly
 
-rustup +stable target add x86_64-linux-android aarch64-linux-android armv7-linux-androideabi i686-linux-android
+rustup +nightly target add x86_64-linux-android aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
-RUSTFLAGS="-C target-feature=+neon -C opt-level=2 -C strip=symbols" cargo +stable build --target aarch64-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="-C target-feature=+neon -C opt-level=2 -C strip=symbols" cargo +nightly build -Z build-std=std,panic_abort --target aarch64-linux-android --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +stable build --target x86_64-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std,panic_abort --target x86_64-linux-android --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +stable build --target armv7-linux-androideabi --release --manifest-path Cargo.toml
+RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std,panic_abort --target armv7-linux-androideabi --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +stable build --target i686-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std,panic_abort --target i686-linux-android --release --manifest-path Cargo.toml
 
 
-cp -r target/aarch64-linux-android/release/libavifweaver.so ../avif-coder/src/main/cpp/lib/arm64-v8a/libavifweaver.so
-cp -r target/x86_64-linux-android/release/libavifweaver.so ../avif-coder/src/main/cpp/lib/x86_64/libavifweaver.so
-cp -r target/armv7-linux-androideabi/release/libavifweaver.so ../avif-coder/src/main/cpp/lib/armeabi-v7a/libavifweaver.so
-cp -r target/i686-linux-android/release/libavifweaver.so ../avif-coder/src/main/cpp/lib/x86/libavifweaver.so
+cp -r target/aarch64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/arm64-v8a/libavifweaver.a
+cp -r target/x86_64-linux-android/release/libavifweaver.a ../avif-coder/src/pmain/cpp/lib/x86_64/libavifweaver.a
+cp -r target/armv7-linux-androideabi/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/armeabi-v7a/libavifweaver.a
+cp -r target/i686-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/x86/libavifweaver.a

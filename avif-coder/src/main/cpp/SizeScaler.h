@@ -46,7 +46,8 @@ bool RescaleImage(aligned_uint8_vector &initialData,
                   int *stride,
                   bool useFloats,
                   int *imageWidthPtr, int *imageHeightPtr,
-                  int scaledWidth, int scaledHeight, ScaleMode scaleMode, int scalingQuality);
+                  int scaledWidth, int scaledHeight, ScaleMode scaleMode, int scalingQuality,
+                  bool isRgba);
 
 aligned_uint8_vector RescaleSourceImage(uint8_t *data,
                                         uint32_t *stride,
@@ -57,7 +58,8 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *data,
                                         uint32_t scaledWidth,
                                         uint32_t scaledHeight,
                                         ScaleMode scaleMode,
-                                        int scalingQuality);
+                                        int scalingQuality,
+                                        bool isRgba);
 
 std::pair<uint32_t, uint32_t>
 ResizeAspectFit(std::pair<uint32_t, uint32_t> sourceSize,

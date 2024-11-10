@@ -5,21 +5,19 @@ edition = "2021"
 
 [dependencies]
 num-traits = "0.2.19"
-pic-scale = { version = "0.2.11", default-features = false }
-yuvutils-rs = {  version = "0.4.11", features = ["rayon"] }
-
-[target.'cfg(target_arch = "aarch64")'.dependencies]
-pic-scale = { version = "0.2.11", default-features = false, features = ["disable_simd"] }
-
-[target.'cfg(target_arch = "x86")'.dependencies]
-pic-scale = { version = "0.2.11", default-features = false, features = ["disable_simd"] }
-
-[target.'cfg(target_arch = "x86_64")'.dependencies]
-pic-scale = { version = "0.2.11", default-features = false, features = ["disable_simd"] }
+pic-scale = { version = "0.3.0", default-features = false }
+yuvutils-rs = { path = "../../../RustroverProjects/yuvutils-rs" }
+bytemuck = "1.19.0"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 
 [profile.release]
-lto = true
-codegen-units = 2
+strip = true  # Automatically strip symbols from the binary.
+opt-level = 3  # Optimize for size.
+lto = true  # Enable link time optimization
+codegen-units = 1  # Reduce parallel code generation units
+panic = "abort"
+
+[build-dependencies]
+cbindgen = "0.27.0"
