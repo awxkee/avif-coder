@@ -42,6 +42,6 @@ RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=st
 
 
 cp -r target/aarch64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/arm64-v8a/libavifweaver.a
-cp -r target/x86_64-linux-android/release/libavifweaver.a ../avif-coder/src/pmain/cpp/lib/x86_64/libavifweaver.a
+cp -r target/x86_64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/x86_64/libavifweaver.a
 cp -r target/armv7-linux-androideabi/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/armeabi-v7a/libavifweaver.a
 cp -r target/i686-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/x86/libavifweaver.a

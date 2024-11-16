@@ -37,16 +37,10 @@ void FilmicToneMapper::transferTone(float *inPlace, uint32_t width) {
     float r = targetPlace[0];
     float g = targetPlace[1];
     float b = targetPlace[2];
-    coder::Oklab oklab = coder::Oklab::fromLinearRGB(r, g, b);
-    if (oklab.L == 0) {
-      continue;
-    }
-    float shScale = this->uncharted2_filmic(oklab.L) / oklab.L;
-    oklab.L = oklab.L * shScale;
-    coder::Rgb linearRgb = oklab.toLinearRGB();
-    targetPlace[0] = std::min(linearRgb.r, 1.f);
-    targetPlace[1] = std::min(linearRgb.g, 1.f);
-    targetPlace[2] = std::min(linearRgb.b, 1.f);
+
+    targetPlace[0] = std::min(FilmicToneMapper::uncharted2_filmic(r), 1.f);
+    targetPlace[1] = std::min(FilmicToneMapper::uncharted2_filmic(g), 1.f);
+    targetPlace[2] = std::min(FilmicToneMapper::uncharted2_filmic(b), 1.f);
     targetPlace += 3;
   }
 }

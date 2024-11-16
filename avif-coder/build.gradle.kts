@@ -42,7 +42,7 @@ afterEvaluate {
             create<MavenPublication>("mavenJava") {
                 groupId = "com.github.awxkee"
                 artifactId = "avif-coder"
-                version = "2.0.8"
+                version = "2.0.9"
                 from(components["release"])
 //                artifact("androidSourcesJar")
             }
