@@ -35,9 +35,16 @@
 #include "ToneMapper.h"
 #include "ITUR.h"
 
-void applyColorMatrix(uint8_t *inPlace, uint32_t stride, uint32_t width, uint32_t height,
-                      const float *matrix, TransferFunction intoLinear, TransferFunction intoGamma,
-                      CurveToneMapper toneMapper, ITURColorCoefficients coeffs);
+void applyColorMatrix(uint8_t *inPlace,
+                      uint32_t stride,
+                      uint32_t width,
+                      uint32_t height,
+                      const float *matrix,
+                      TransferFunction intoLinear,
+                      TransferFunction intoGamma,
+                      CurveToneMapper toneMapper,
+                      ITURColorCoefficients coeffs,
+                      float intensityTarget);
 
 void applyColorMatrix16Bit(uint16_t *inPlace,
                            uint32_t stride,
@@ -48,6 +55,6 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
                            TransferFunction intoLinear,
                            TransferFunction intoGamma,
                            CurveToneMapper toneMapper,
-                           ITURColorCoefficients coeffs);
+                           ITURColorCoefficients coeffs, float intensityTarget);
 
 #endif //AVIF_COLORMATRIX_H

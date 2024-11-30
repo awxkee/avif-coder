@@ -89,6 +89,16 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
     heif_image_release(im);
   });
 
+  float intensityTarget = 1000.0f;
+
+  if (heif_image_has_content_light_level(img.get())) {
+    heif_content_light_level light_level = {0};
+    heif_image_get_content_light_level(img.get(), &light_level);
+    if (light_level.max_content_light_level != 0) {
+      intensityTarget = light_level.max_content_light_level;
+    }
+  }
+
   std::vector<uint8_t> profile;
   std::string colorProfile;
 
@@ -231,11 +241,11 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
                             forwardTrc,
                             TransferFunction::Srgb,
                             toneMapper,
-                            coeffs);
+                            coeffs, intensityTarget);
     } else {
       applyColorMatrix(reinterpret_cast<uint8_t *>(dstARGB.data()), stride, imageWidth,
                        imageHeight, matrix, forwardTrc, TransferFunction::Srgb, toneMapper,
-                       coeffs);
+                       coeffs, intensityTarget);
     }
   }
 

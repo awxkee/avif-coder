@@ -32,5 +32,5 @@ import androidx.annotation.Keep
 
 @Keep
 enum class ToneMapper(val value: Int) {
-    REC2408(1), LOGARITHMIC(2), FILMIC(3)
+    REC2408(1), LOGARITHMIC(2), FILMIC(3), ACES(4)
 }

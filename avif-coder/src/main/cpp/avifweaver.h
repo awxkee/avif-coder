@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
@@ -150,4 +152,27 @@ void weave_scale_u16(const uint16_t *src,
                      uint32_t method,
                      bool premultiply_alpha);
 
-}  // extern "C"
+void weave_rgba_to_yuv(const uint8_t *rgba,
+                       uint32_t rgba_stride,
+                       uint8_t *y_plane,
+                       uint32_t y_stride,
+                       uint8_t *u_plane,
+                       uint32_t u_stride,
+                       uint8_t *v_plane,
+                       uint32_t v_stride,
+                       uint32_t width,
+                       uint32_t height,
+                       YuvRange range,
+                       YuvMatrix matrix,
+                       YuvType yuv_type);
+
+void weave_rgba_to_yuv400(const uint8_t *rgba,
+                          uint32_t rgba_stride,
+                          uint8_t *y_plane,
+                          uint32_t y_stride,
+                          uint32_t width,
+                          uint32_t height,
+                          YuvRange range,
+                          YuvMatrix yuv_matrix);
+
+} // extern "C"

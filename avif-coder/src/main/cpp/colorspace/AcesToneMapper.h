@@ -2,9 +2,9 @@
  * MIT License
  *
  * Copyright (c) 2024 Radzivon Bartoshyk
- * avif-coder [https://github.com/awxkee/avif-coder]
+ * jxl-coder [https://github.com/awxkee/jxl-coder]
  *
- * Created by Radzivon Bartoshyk on 13/10/2024
+ * Created by Radzivon Bartoshyk on 12/11/2024
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +26,22 @@
  *
  */
 
-#ifndef AVIF_TONEMAPPER_H
-#define AVIF_TONEMAPPER_H
+#ifndef JXLCODER_ACES_H_
+#define JXLCODER_ACES_H_
 
-enum CurveToneMapper {
-  REC2408 = 1, LOGARITHMIC = 2, FILMIC = 3, ACES = 4, TONE_SKIP = 5
+#include <cstdint>
+
+class AcesToneMapper {
+ public:
+  AcesToneMapper() {
+
+  }
+
+  static void transferTone(float *inPlace, uint32_t width);
+
+ private:
+
+
 };
 
-#endif //AVIF_TONEMAPPER_H
+#endif //JXLCODER_ACES_H_

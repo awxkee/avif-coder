@@ -53,6 +53,7 @@
 #include "avif/avif_cxx.h"
 #include <libyuv.h>
 #include "AvifDecoderController.h"
+#include "avifweaver.h"
 
 using namespace std;
 
@@ -74,7 +75,8 @@ enum AvifChromaSubsampling {
   AVIF_CHROMA_YUV_420,
   AVIF_CHROMA_YUV_422,
   AVIF_CHROMA_YUV_444,
-  AVIF_CHROMA_YUV_400
+  AVIF_CHROMA_YUV_400,
+  AVIF_CHROMA_LOSELESS
 };
 
 struct heif_error writeHeifData(struct heif_context *ctx,
@@ -319,7 +321,7 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
                vStride,
                info.width,
                info.height,
-               profile->full_range_flag ? YuvRange::Full : YuvRange::Tv,
+               profile->full_range_flag ? YuvRange::Pc : YuvRange::Tv,
                matrix);
 
   if (nclxResult) {
@@ -456,10 +458,17 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
     }
   } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_422) {
     pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV422;
-  } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_444) {
+  } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_444
+      || preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_LOSELESS) {
     pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV444;
   } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_400) {
     pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV400;
+  } else if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_YUV_420) {
+    pixelFormat = avifPixelFormat::AVIF_PIXEL_FORMAT_YUV420;
+  } else {
+    std::string str = "Unknown chroma subsampling";
+    throwException(env, str);
+    return static_cast<jbyteArray>(nullptr);
   }
   avif::ImagePtr image(avifImageCreate(info.width, info.height, 8, pixelFormat));
 
@@ -595,7 +604,7 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                  vStride,
                  info.width,
                  info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
                  matrix);
   } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV422) {
     RgbaToYuv422(imageStore.data(),
@@ -608,9 +617,13 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                  vStride,
                  info.width,
                  info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
                  matrix);
   } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV444) {
+    if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_LOSELESS) {
+      matrix = YuvMatrix::Identity;
+      yuvRange = AVIF_RANGE_FULL;
+    }
     RgbaToYuv444(imageStore.data(),
                  stride,
                  yPlane,
@@ -621,7 +634,7 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                  vStride,
                  info.width,
                  info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
                  matrix);
   } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV400) {
     RgbaToYuv400(imageStore.data(),
@@ -630,17 +643,17 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                  yStride,
                  info.width,
                  info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Full : YuvRange::Tv,
+                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
                  matrix);
   }
 
+  image->matrixCoefficients = matrixCoefficients;
+  image->colorPrimaries = colorPrimaries;
+  image->transferCharacteristics = transferCharacteristics;
+  image->yuvRange = yuvRange;
+
   if (nclxResult) {
-    if (iccProfile.empty()) {
-      image->matrixCoefficients = matrixCoefficients;
-      image->colorPrimaries = colorPrimaries;
-      image->transferCharacteristics = transferCharacteristics;
-      image->yuvRange = yuvRange;
-    } else {
+    if (!iccProfile.empty()) {
       result = avifImageSetProfileICC(image.get(), iccProfile.data(), iccProfile.size());
       if (result != AVIF_RESULT_OK) {
         std::string str = "Can't set required color profile";

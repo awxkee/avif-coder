@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 num-traits = "0.2.19"
 pic-scale = { version = "0.3.0", default-features = false }
-yuvutils-rs = "0.5.1"
+yuvutils-rs = "0.5.9"
 bytemuck = "1.19.0"
 
 [lib]

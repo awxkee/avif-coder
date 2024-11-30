@@ -122,8 +122,9 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
+//            allFiles = allFiles.filter { it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
+//            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -148,14 +149,15 @@ class MainActivity : AppCompatActivity() {
 
                         Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
-//                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV400)
+                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV422)
+                        val roundTripped = coder.decode(encode)
 //
-//                        val cachedFile = File(cacheDir, "yuv400.avif")
-//                        FileOutputStream(cachedFile).use {
-//                            val bf = it.sink().buffer()
-//                            bf.write(encode)
-//                            bf.flush()
-//                        }
+                        val cachedFile = File(cacheDir, "yuv400.avif")
+                        FileOutputStream(cachedFile).use {
+                            val bf = it.sink().buffer()
+                            bf.write(encode)
+                            bf.flush()
+                        }
 //
 //                        val round = coder.decode(
 //                            byteArray = encode,
@@ -170,7 +172,7 @@ class MainActivity : AppCompatActivity() {
                                 binding.scrollViewContainer,
                                 false
                             )
-                            imageView.root.setImageBitmap(bitmap0)
+                            imageView.root.setImageBitmap(roundTripped)
                             binding.scrollViewContainer.addView(imageView.root)
                         }
 //                        lifecycleScope.launch(Dispatchers.Main) {

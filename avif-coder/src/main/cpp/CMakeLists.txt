@@ -20,7 +20,7 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         colorspace/Rec2408ToneMapper.cpp colorspace/LogarithmicToneMapper.cpp
         colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp
         AvifDecoderController.cpp HeifImageDecoder.cpp JniAnimatedController.cpp
-        colorspace/FilmicToneMapper.cpp)
+        colorspace/FilmicToneMapper.cpp colorspace/AcesToneMapper.cpp)
 
 add_library(libheif SHARED IMPORTED)
 add_library(libyuv STATIC IMPORTED)

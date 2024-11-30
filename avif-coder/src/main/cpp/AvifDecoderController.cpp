@@ -290,6 +290,9 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
     throw std::runtime_error(str);
   }
 
+  float intensityTarget =
+      decoder->image->clli.maxCLL == 0 ? 1000.0f : static_cast<float>(decoder->image->clli.maxCLL);
+
   aligned_uint8_vector iccProfile(0);
   if (decoder->image->icc.data && decoder->image->icc.size) {
     iccProfile.resize(decoder->image->icc.size);
@@ -409,11 +412,11 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
                             forwardTrc,
                             TransferFunction::Srgb,
                             toneMapper,
-                            coeffs);
+                            coeffs, intensityTarget);
     } else {
       applyColorMatrix(reinterpret_cast<uint8_t *>(imageStore.data()), stride, imageWidth,
                        imageHeight, matrix, forwardTrc, TransferFunction::Srgb, toneMapper,
-                       coeffs);
+                       coeffs, intensityTarget);
     }
 
   }

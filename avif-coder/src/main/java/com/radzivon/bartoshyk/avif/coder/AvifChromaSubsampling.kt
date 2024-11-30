@@ -43,4 +43,5 @@ enum class AvifChromaSubsampling(val value: Int) {
     YUV422(2),
     YUV444(3),
     YUV400(4),
+    LOSELESS(5)
 }

@@ -32,11 +32,19 @@
 #include "Rec2408ToneMapper.h"
 #include "LogarithmicToneMapper.h"
 #include "FilmicToneMapper.h"
+#include "AcesToneMapper.h"
 #include "ITUR.h"
 
-void applyColorMatrix(uint8_t *inPlace, uint32_t stride, uint32_t width, uint32_t height,
-                      const float *matrix, TransferFunction intoLinear, TransferFunction intoGamma,
-                      CurveToneMapper toneMapper, ITURColorCoefficients coeffs) {
+void applyColorMatrix(uint8_t *inPlace,
+                      uint32_t stride,
+                      uint32_t width,
+                      uint32_t height,
+                      const float *matrix,
+                      TransferFunction intoLinear,
+                      TransferFunction intoGamma,
+                      CurveToneMapper toneMapper,
+                      ITURColorCoefficients coeffs,
+                      float intensityTarget) {
   float c0 = matrix[0];
   float c1 = matrix[1];
   float c2 = matrix[2];
@@ -76,7 +84,7 @@ void applyColorMatrix(uint8_t *inPlace, uint32_t stride, uint32_t width, uint32_
 
     float mCoeffs[3] = {coeffs.kr, coeffs.kg, coeffs.kb};
     if (toneMapper == CurveToneMapper::REC2408) {
-      Rec2408ToneMapper mToneMapper(1000.f, 250.f, 203.f, mCoeffs);
+      Rec2408ToneMapper mToneMapper(intensityTarget, 250.f, 203.f, mCoeffs);
       mToneMapper.transferTone(rowVector.data(), width);
     } else if (toneMapper == CurveToneMapper::LOGARITHMIC) {
       LogarithmicToneMapper mToneMapper(mCoeffs);
@@ -84,6 +92,8 @@ void applyColorMatrix(uint8_t *inPlace, uint32_t stride, uint32_t width, uint32_
     } else if (toneMapper == CurveToneMapper::FILMIC) {
       FilmicToneMapper mToneMapper;
       mToneMapper.transferTone(rowVector.data(), width);
+    } else if (toneMapper == CurveToneMapper::ACES) {
+      AcesToneMapper::transferTone(rowVector.data(), width);
     }
 
     float *iter = rowVector.data();
@@ -134,7 +144,8 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
                            TransferFunction intoLinear,
                            TransferFunction intoGamma,
                            CurveToneMapper toneMapper,
-                           ITURColorCoefficients coeffs) {
+                           ITURColorCoefficients coeffs,
+                           float intensityTarget) {
 
   float c0 = matrix[0];
   float c1 = matrix[1];
@@ -181,7 +192,7 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
 
     float mCoeffs[3] = {coeffs.kr, coeffs.kg, coeffs.kb};
     if (toneMapper == CurveToneMapper::REC2408) {
-      Rec2408ToneMapper mToneMapper(1000.f, 250.f, 203.f, mCoeffs);
+      Rec2408ToneMapper mToneMapper(intensityTarget, 250.f, 203.f, mCoeffs);
       mToneMapper.transferTone(rowVector.data(), width);
     } else if (toneMapper == CurveToneMapper::LOGARITHMIC) {
       LogarithmicToneMapper mToneMapper(mCoeffs);
@@ -189,6 +200,8 @@ void applyColorMatrix16Bit(uint16_t *inPlace,
     } else if (toneMapper == CurveToneMapper::FILMIC) {
       FilmicToneMapper mToneMapper;
       mToneMapper.transferTone(rowVector.data(), width);
+    } else if (toneMapper == CurveToneMapper::ACES) {
+      AcesToneMapper::transferTone(rowVector.data(), width);
     }
 
     float *iter = rowVector.data();
