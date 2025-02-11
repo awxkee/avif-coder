@@ -46,7 +46,7 @@ fn work_on_transmuted_ptr_f16<F>(
     let mut allocated = false;
     let mut dst_stride = rgba_stride as usize / 2;
     let mut working_slice: BufferStoreMut<'_, f16> = unsafe {
-        if rgba as usize % 2 == 0 && rgba_stride / 2 != 0 {
+        if rgba as usize % 2 == 0 && rgba_stride / 2 == 0 {
             BufferStoreMut::Borrowed(std::slice::from_raw_parts_mut(
                 rgba as *mut f16,
                 rgba_stride as usize / 2 * height,
@@ -110,7 +110,7 @@ fn work_on_transmuted_ptr_u16<F>(
     let mut allocated = false;
     let mut dst_stride = rgba_stride as usize / 2;
     let mut working_slice: BufferStoreMut<'_, u16> = unsafe {
-        if rgba as usize % 2 == 0 && rgba_stride / 2 != 0 {
+        if rgba as usize % 2 == 0 && rgba_stride / 2 == 0 {
             BufferStoreMut::Borrowed(std::slice::from_raw_parts_mut(
                 rgba as *mut u16,
                 rgba_stride as usize / 2 * height,

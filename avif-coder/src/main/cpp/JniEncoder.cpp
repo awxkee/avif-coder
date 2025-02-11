@@ -869,7 +869,10 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
       AvifImageSize size = AvifDecoderController::getImageSize(srcBuffer.data(), srcBuffer.size());
       jclass sizeClass = env->FindClass("android/util/Size");
       jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
-      auto sizeObject = env->NewObject(sizeClass, methodID, size.width, size.height);
+      auto sizeObject = env->NewObject(sizeClass,
+                                       methodID,
+                                       static_cast<jint >(size.width),
+                                       static_cast<jint>(size.height));
       return sizeObject;
     }
 

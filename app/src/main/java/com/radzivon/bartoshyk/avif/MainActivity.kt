@@ -191,31 +191,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-        binding.buttonTest.setOnClickListener {
-            lifecycleScope.launch(Dispatchers.IO) {
-                val coder = HeifCoder(ToneMapper.REC2408)
-                val file =
-                    getAllFilesFromAssets().filter {
-                        it.contains(".avif") || it.contains(".heic") || it.contains(
-                            ".heif"
-                        )
-                    }.filter { it == "test_1.avif" }
-                val buffer = this@MainActivity.assets.open(file[0]).source().buffer()
-                    .readByteArray()
-                val decoded = coder.decodeSampled(
-                    buffer,
-                    1980,
-                    1020,
-                    preferredColorConfig = PreferredColorConfig.RGBA_8888,
-                    ScaleMode.FIT
-                )
-                val encodingTime = measureTimeMillis {
-                    coder.encodeAvif(decoded)
-                }
-                Log.d("MainActivity", "AVIF: Encoding time $encodingTime")
-            }
-        }
     }
 
     private fun testEncoder(assetName: String) {
