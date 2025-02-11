@@ -48,7 +48,6 @@
 #include "DataSpaceToNCLX.hpp"
 #include "imagebits/CopyUnalignedRGBA.h"
 #include "imagebits/ScanAlpha.h"
-#include "YuvConversion.h"
 #include "avif/avif.h"
 #include "avif/avif_cxx.h"
 #include <libyuv.h>
@@ -103,7 +102,7 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
                             const int dataSpace,
                             const bool loseless,
                             std::string &x265Preset,
-                            const int crf) {
+                            const int crf, bool isCrfMode) {
   std::shared_ptr<heif_context> ctx(heif_context_alloc(),
                                     [](heif_context *c) { heif_context_free(c); });
   if (!ctx) {
@@ -174,21 +173,23 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
 
   AndroidBitmap_unlockPixels(env, bitmap);
 
-  result = heif_encoder_set_parameter(encoder.get(), "x265:preset", x265Preset.c_str());
-  if (result.code != heif_error_Ok) {
-    std::string choke(result.message);
-    std::string str = "Can't create encoded image with exception: " + choke;
-    throwException(env, str);
-    return static_cast<jbyteArray>(nullptr);
-  }
+  if (isCrfMode) {
+    result = heif_encoder_set_parameter(encoder.get(), "x265:preset", x265Preset.c_str());
+    if (result.code != heif_error_Ok) {
+      std::string choke(result.message);
+      std::string str = "Can't create encoded image with exception: " + choke;
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
 
-  auto crfString = std::to_string(crf);
-  result = heif_encoder_set_parameter(encoder.get(), "x265:crf", crfString.c_str());
-  if (result.code != heif_error_Ok) {
-    std::string choke(result.message);
-    std::string str = "Can't create encoded image with exception: " + choke;
-    throwException(env, str);
-    return static_cast<jbyteArray>(nullptr);
+    auto crfString = std::to_string(crf);
+    result = heif_encoder_set_parameter(encoder.get(), "x265:crf", crfString.c_str());
+    if (result.code != heif_error_Ok) {
+      std::string choke(result.message);
+      std::string str = "Can't create encoded image with exception: " + choke;
+      throwException(env, str);
+      return static_cast<jbyteArray>(nullptr);
+    }
   }
 
   heif_image *imagePtr;
@@ -311,18 +312,18 @@ jbyteArray encodeBitmapHevc(JNIEnv *env,
     profile->full_range_flag = 1;
   }
 
-  RgbaToYuv420(imageStore.data(),
-               stride,
-               yPlane,
-               yStride,
-               uPlane,
-               uStride,
-               vPlane,
-               vStride,
-               info.width,
-               info.height,
-               profile->full_range_flag ? YuvRange::Pc : YuvRange::Tv,
-               matrix);
+  weave_rgba8_to_yuv8(yPlane,
+                      yStride,
+                      uPlane,
+                      uStride,
+                      vPlane,
+                      vStride,
+                      imageStore.data(),
+                      stride,
+                      info.width,
+                      info.height,
+                      profile->full_range_flag ? YuvRange::Pc : YuvRange::Tv,
+                      matrix, YuvType::Yuv420);
 
   if (nclxResult) {
     if (iccProfile.empty()) {
@@ -593,58 +594,47 @@ jbyteArray encodeBitmapAvif(JNIEnv *env,
                                                          iccProfile,
                                                          matrix);
 
+  YuvType type = YuvType::Yuv420;
+  bool useDefaultConverters = false;
   if (pixelFormat == AVIF_PIXEL_FORMAT_YUV420) {
-    RgbaToYuv420(imageStore.data(),
-                 stride,
-                 yPlane,
-                 yStride,
-                 uPlane,
-                 uStride,
-                 vPlane,
-                 vStride,
-                 info.width,
-                 info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
-                 matrix);
+    type = YuvType::Yuv420;
+    useDefaultConverters = true;
   } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV422) {
-    RgbaToYuv422(imageStore.data(),
-                 stride,
-                 yPlane,
-                 yStride,
-                 uPlane,
-                 uStride,
-                 vPlane,
-                 vStride,
-                 info.width,
-                 info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
-                 matrix);
+    type = YuvType::Yuv422;
+    useDefaultConverters = true;
   } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV444) {
-    if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_LOSELESS) {
+    type = YuvType::Yuv444;
+    if (preferredChromaSubsampling == AvifChromaSubsampling::AVIF_CHROMA_LOSELESS
+        || quality > 96) {
       matrix = YuvMatrix::Identity;
       yuvRange = AVIF_RANGE_FULL;
     }
-    RgbaToYuv444(imageStore.data(),
-                 stride,
-                 yPlane,
-                 yStride,
-                 uPlane,
-                 uStride,
-                 vPlane,
-                 vStride,
-                 info.width,
-                 info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
-                 matrix);
+    useDefaultConverters = true;
   } else if (pixelFormat == AVIF_PIXEL_FORMAT_YUV400) {
-    RgbaToYuv400(imageStore.data(),
-                 stride,
-                 yPlane,
-                 yStride,
-                 info.width,
-                 info.height,
-                 yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
-                 matrix);
+    useDefaultConverters = false;
+    weave_rgba8_to_y08(yPlane,
+                       yStride,
+                       imageStore.data(),
+                       stride,
+                       info.width,
+                       info.height,
+                       yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
+                       matrix);
+  }
+
+  if (useDefaultConverters) {
+    weave_rgba8_to_yuv8(yPlane,
+                        yStride,
+                        uPlane,
+                        uStride,
+                        vPlane,
+                        vStride,
+                        imageStore.data(),
+                        stride,
+                        info.width,
+                        info.height,
+                        yuvRange == AVIF_RANGE_FULL ? YuvRange::Pc : YuvRange::Tv,
+                        matrix, type);
   }
 
   image->matrixCoefficients = matrixCoefficients;
@@ -743,7 +733,9 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env,
                                                                 jint quality,
                                                                 jint dataSpace,
                                                                 jint qualityMode,
-                                                                jint x265Preset, jint crf) {
+                                                                jint x265Preset,
+                                                                jint crf,
+                                                                jboolean crfMode) {
   try {
     std::string preset = "superfast";
     if (x265Preset == 0) {
@@ -774,7 +766,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_encodeHeicImpl(JNIEnv *env,
                             quality,
                             dataSpace,
                             qualityMode == 2,
-                            preset, crf);
+                            preset, crf, crfMode);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);
@@ -877,7 +869,10 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env, jobjec
       AvifImageSize size = AvifDecoderController::getImageSize(srcBuffer.data(), srcBuffer.size());
       jclass sizeClass = env->FindClass("android/util/Size");
       jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
-      auto sizeObject = env->NewObject(sizeClass, methodID, size.width, size.height);
+      auto sizeObject = env->NewObject(sizeClass,
+                                       methodID,
+                                       static_cast<jint >(size.width),
+                                       static_cast<jint>(size.height));
       return sizeObject;
     }
 

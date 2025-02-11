@@ -5,9 +5,12 @@ edition = "2021"
 
 [dependencies]
 num-traits = "0.2.19"
-pic-scale = { version = "0.3.0", default-features = false }
-yuvutils-rs = "0.5.9"
-bytemuck = "1.19.0"
+pic-scale = { path = "../../../RustroverProjects/image-scale", default-features = false, features = ["nightly_f16"] }
+yuvutils-rs = { path = "../../../RustroverProjects/yuvutils-rs", features = ["nightly_f16"], default-features = false }
+bytemuck = {version = "1.21.0", features = ["nightly_float"]}
+
+[features]
+rdm = ["yuvutils-rs/rdm", "pic-scale/rdm"]
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -17,7 +20,6 @@ strip = true  # Automatically strip symbols from the binary.
 opt-level = 3  # Optimize for size.
 lto = true  # Enable link time optimization
 codegen-units = 1  # Reduce parallel code generation units
-panic = "abort"
 
 [build-dependencies]
-cbindgen = "0.27.0"
+cbindgen = "0.28.0"

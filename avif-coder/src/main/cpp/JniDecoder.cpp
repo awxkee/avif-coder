@@ -18,6 +18,7 @@
 #include "AvifDecoderController.h"
 #include "ReformatBitmap.h"
 #include "JniBitmap.h"
+#include <dlfcn.h>
 
 using namespace std;
 
@@ -28,6 +29,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
   PreferredColorConfig preferredColorConfig;
   ScaleMode scaleMode;
   CurveToneMapper toneMapper;
+
   if (!checkDecodePreconditions(env, javaColorSpace, &preferredColorConfig, javaScaleMode,
                                 &scaleMode, javaToneMapper, &toneMapper)) {
     string exception = "Can't retrieve basic values";

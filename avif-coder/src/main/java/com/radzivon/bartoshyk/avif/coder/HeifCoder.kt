@@ -31,12 +31,9 @@
 package com.radzivon.bartoshyk.avif.coder
 
 import android.annotation.SuppressLint
-import android.content.Context
-import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Size
-import androidx.annotation.IntRange
 import androidx.annotation.Keep
 import java.nio.ByteBuffer
 
@@ -167,21 +164,29 @@ class HeifCoder(
      */
     fun encodeHeic(
         bitmap: Bitmap,
-        quality: Int = 80,
         preciseMode: PreciseMode = PreciseMode.LOSSY,
-        preset: HeifPreset = HeifPreset.ULTRAFAST,
-        @IntRange(from = 0, to = 51) crf: Int = 40,
+        quality: HeifQualityArgument = HeifQualityArg.Quality(100),
     ): ByteArray {
-        require(quality in 0..100) {
-            throw IllegalStateException("Quality should be in 0..100 range")
-        }
-        require(crf in 0..51) {
-            throw IllegalStateException("CRF should be in 0..51 range")
-        }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeHeicImpl(bitmap, quality, bitmap.colorSpace?.dataSpace ?: -1, preciseMode.value, preset.value, crf)
+            encodeHeicImpl(
+                bitmap,
+                quality.getRequiredQuality(),
+                bitmap.colorSpace?.dataSpace ?: -1,
+                preciseMode.value,
+                quality.getRequiredPreset().value,
+                quality.getRequiredCrf(),
+                quality.isCrfMode()
+            )
         } else {
-            encodeHeicImpl(bitmap, quality, -1, preciseMode.value, preset.value, crf)
+            encodeHeicImpl(
+                bitmap,
+                quality.getRequiredQuality(),
+                -1,
+                preciseMode.value,
+                quality.getRequiredPreset().value,
+                quality.getRequiredCrf(),
+                quality.isCrfMode()
+            )
         }
     }
 
@@ -227,6 +232,7 @@ class HeifCoder(
         qualityMode: Int,
         preset: Int,
         crf: Int,
+        crfMode: Boolean,
     ): ByteArray
 
     @SuppressLint("ObsoleteSdkInt")

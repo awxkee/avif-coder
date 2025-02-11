@@ -27,8 +27,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 // build.rs
-use cbindgen;
-
 use std::env;
 
 fn main() {

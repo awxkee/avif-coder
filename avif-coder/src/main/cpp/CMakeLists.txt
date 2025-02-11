@@ -16,7 +16,7 @@ add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         HardwareBuffersCompat.cpp imagebits/half.cpp
         imagebits/half.hpp imagebits/RgbaU16toHF.cpp
         imagebits/RGBAlpha.cpp
-        colorspace/Trc.cpp YuvConversion.cpp
+        colorspace/Trc.cpp
         colorspace/Rec2408ToneMapper.cpp colorspace/LogarithmicToneMapper.cpp
         colorspace/ColorMatrix.cpp imagebits/ScanAlpha.cpp imagebits/Rgba16.cpp
         AvifDecoderController.cpp HeifImageDecoder.cpp JniAnimatedController.cpp
@@ -48,9 +48,6 @@ list(APPEND EXTRA_LIBS cpufeatures)
 include(CheckCXXCompilerFlag)
 if (ANDROID_ABI STREQUAL arm64-v8a)
     add_definitions("-DHAVE_NEON=1")
-    if (CMAKE_BUILD_TYPE STREQUAL "Release")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon -mfloat-abi=hard -ftree-vectorize")
-    endif ()
 endif ()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -84,6 +81,6 @@ include_directories(icc)
 add_subdirectory(avif)
 
 target_link_libraries( # Specifies the target library.
-        coder PRIVATE
+        coder
         ${log-lib} libheif cpufeatures libyuv -ljnigraphics aom avif_shared
-        libde265 libdav1d libsharpyuv ${android-lib} avifweaver x265)
+        libde265 libdav1d libsharpyuv ${android-lib} avifweaver x265 m c)

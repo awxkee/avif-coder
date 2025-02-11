@@ -109,6 +109,7 @@ void AssociateAlphaRgba16(const uint16_t *src, uint32_t srcStride,
           / static_cast<uint32_t >(maxColors);
       mDst[2] = (static_cast<uint32_t>(mSrc[2]) * static_cast<uint32_t>(alpha))
           / static_cast<uint32_t >(maxColors);
+
       mDst[3] = alpha;
       mSrc += 4;
       mDst += 4;
