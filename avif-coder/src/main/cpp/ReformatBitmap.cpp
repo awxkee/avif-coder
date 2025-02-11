@@ -40,6 +40,7 @@
 #include <HardwareBuffersCompat.h>
 #include <mutex>
 #include "imagebits/RGBAlpha.h"
+#include "avifweaver.h"
 
 using namespace std;
 
@@ -68,7 +69,9 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
   switch (preferredColorConfig) {
     case Rgba_8888:
       if (*useFloats) {
-        uint32_t lineWidth = imageWidth * 4 * (uint32_t) sizeof(uint8_t);
+        uint32_t
+            lineWidth = imageWidth * 4 * (uint32_t)
+        sizeof(uint8_t);
         uint32_t alignment = 64;
         uint32_t padding = (alignment - (lineWidth % alignment)) % alignment;
         uint32_t dstStride = lineWidth + padding;
@@ -84,21 +87,22 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
       break;
     case Rgba_F16:
       if (*useFloats) {
-        coder::RgbaU16ToF(reinterpret_cast<const uint16_t *>(imageData.data()),
-                          *stride,
-                          reinterpret_cast<uint16_t *>(imageData.data()),
-                          *stride,
-                          imageWidth, imageHeight,
-                          depth);
+        weave_cvt_rgba16_to_rgba_f16(reinterpret_cast<const uint16_t *>(imageData.data()),
+                                     *stride,
+                                     depth,
+                                     reinterpret_cast<uint16_t *>(imageData.data()),
+                                     *stride,
+                                     imageWidth, imageHeight);
       } else {
-        uint32_t lineWidth = imageWidth * 4 * (uint32_t) sizeof(uint16_t);
-        uint32_t alignment = 64;
-        uint32_t padding = (alignment - (lineWidth % alignment)) % alignment;
-        uint32_t dstStride = lineWidth + padding;
+        uint32_t
+            lineWidth = imageWidth * 4 * (uint32_t)
+        sizeof(uint16_t);
+        uint32_t dstStride = lineWidth;
         aligned_uint8_vector rgbaF16Data(dstStride * imageHeight);
-        coder::Rgba8ToF16(imageData.data(), *stride,
-                          reinterpret_cast<uint16_t *>(rgbaF16Data.data()), dstStride,
-                          imageWidth, imageHeight, !alphaPremultiplied);
+        weave_cvt_rgba8_to_rgba_f16(
+            imageData.data(), *stride,
+            reinterpret_cast<uint16_t *>(rgbaF16Data.data()), dstStride,
+            imageWidth, imageHeight);
         *stride = dstStride;
         *useFloats = true;
         imageConfig = "RGBA_F16";
@@ -107,7 +111,9 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
       break;
     case Rgb_565:
       if (*useFloats) {
-        uint32_t lineWidth = imageWidth * (uint32_t) sizeof(uint16_t);
+        uint32_t
+            lineWidth = imageWidth * (uint32_t)
+        sizeof(uint16_t);
         uint32_t alignment = 64;
         uint32_t padding = (alignment - (lineWidth % alignment)) % alignment;
         uint32_t dstStride = lineWidth + padding;
@@ -122,7 +128,8 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
         imageData = rgb565Data;
         break;
       } else {
-        uint32_t lineWidth = imageWidth * (uint32_t) sizeof(uint16_t);
+        uint32_t lineWidth = imageWidth * (uint32_t)
+        sizeof(uint16_t);
         uint32_t alignment = 64;
         uint32_t padding = (alignment - (lineWidth % alignment)) % alignment;
         uint32_t dstStride = lineWidth + padding;
@@ -139,33 +146,35 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
       break;
     case Rgba_1010102:
       if (*useFloats) {
-        uint32_t lineWidth = imageWidth * (uint32_t) sizeof(uint32_t);
-        uint32_t alignment = 64;
-        uint32_t padding = (alignment - (lineWidth % alignment)) % alignment;
-        uint32_t dstStride = lineWidth + padding;
+        uint32_t
+            lineWidth = imageWidth * (uint32_t)
+        sizeof(uint32_t);
+        uint32_t dstStride = lineWidth;
         aligned_uint8_vector rgba1010102Data(dstStride * imageHeight);
-        coder::Rgba16ToRGBA1010102(reinterpret_cast<const uint16_t *>(imageData.data()),
-                                   *stride,
-                                   reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
-                                   dstStride,
-                                   imageWidth, imageHeight, depth);
+        weave_cvt_rgba16_to_ar30(reinterpret_cast<const uint16_t *>(imageData.data()),
+                                 *stride,
+                                 depth,
+                                 reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
+                                 dstStride,
+                                 imageWidth, imageHeight);
         *stride = dstStride;
         *useFloats = false;
         imageConfig = "RGBA_1010102";
         imageData = rgba1010102Data;
         break;
       } else {
-        uint32_t lineWidth = imageWidth * (uint32_t) sizeof(uint32_t);
+        uint32_t
+            lineWidth = imageWidth * (uint32_t)
+        sizeof(uint32_t);
         uint32_t alignment = 64;
         uint32_t padding = (alignment - (lineWidth % alignment)) % alignment;
         uint32_t dstStride = lineWidth + padding;
         aligned_uint8_vector rgba1010102Data(dstStride * imageHeight);
-        coder::Rgba8ToRGBA1010102(reinterpret_cast<const uint8_t *>(imageData.data()),
-                                  *stride,
-                                  reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
-                                  dstStride,
-                                  imageWidth, imageHeight,
-                                  !alphaPremultiplied);
+        weave_cvt_rgba8_to_ar30(reinterpret_cast<const uint8_t *>(imageData.data()),
+                                *stride,
+                                reinterpret_cast<uint8_t *>(rgba1010102Data.data()),
+                                dstStride,
+                                imageWidth, imageHeight);
         *stride = dstStride;
         *useFloats = false;
         imageConfig = "RGBA_1010102";
@@ -209,12 +218,13 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
       AHardwareBuffer_describe_compat(hardwareBuffer, &bufferDesc);
 
       if (*useFloats) {
-        coder::RgbaU16ToF(reinterpret_cast<const uint16_t *>(imageData.data()),
-                          *stride,
-                          reinterpret_cast<uint16_t *>(buffer),
-                          (uint32_t) bufferDesc.stride * 4 * sizeof(uint16_t),
-                          imageWidth, imageHeight,
-                          depth);
+        weave_cvt_rgba16_to_rgba_f16(reinterpret_cast<const uint16_t *>(imageData.data()),
+                                     *stride,
+                                     depth,
+                                     reinterpret_cast<uint16_t *>(buffer),
+                                     (uint32_t) bufferDesc.stride * 4 * sizeof(uint16_t),
+                                     imageWidth,
+                                     imageHeight);
       } else {
         CopyUnaligned(reinterpret_cast<uint8_t *>(imageData.data()),
                       *stride,

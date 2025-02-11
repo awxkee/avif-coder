@@ -249,13 +249,13 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
       if (scaledHeight > 0 && scaledWidth < 0) {
         auto newBounds = ResizeAspectHeight(currentSize, scaledHeight,
                                             scaledWidth == -2);
-        scaledWidth = newBounds.first;
-        scaledHeight = newBounds.second;
+        scaledWidth = std::max(newBounds.first, static_cast<uint32_t>(1));
+        scaledHeight = std::max(newBounds.second, static_cast<uint32_t>(1));
       } else if (scaledHeight < 0) {
         auto newBounds = ResizeAspectWidth(currentSize, scaledHeight,
                                            scaledHeight == -2);
-        scaledWidth = newBounds.first;
-        scaledHeight = newBounds.second;
+        scaledWidth = std::max(newBounds.first, static_cast<uint32_t>(1));
+        scaledHeight = std::max(newBounds.second, static_cast<uint32_t>(1));
       } else {
         std::pair<uint32_t, uint32_t> dstSize;
         float scale = 1;
@@ -272,8 +272,8 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
         yTranslation = std::max((int) (((float) dstSize.second - (float) canvasHeight) /
             2.0f), 0);
 
-        scaledWidth = dstSize.first;
-        scaledHeight = dstSize.second;
+        scaledWidth = std::max(dstSize.first, static_cast<uint32_t>(1));
+        scaledHeight = std::max(dstSize.second, static_cast<uint32_t>(1));
       }
     }
 
@@ -395,8 +395,8 @@ ResizeAspectFit(std::pair<uint32_t, uint32_t> sourceSize,
   float yFactor = (float) dstSize.second / (float) sourceSize.second;
   float resizeFactor = std::min(xFactor, yFactor);
   *scale = resizeFactor;
-  std::pair<uint32_t, uint32_t> resultSize((uint32_t) ((float) sourceWidth * resizeFactor),
-                                           (uint32_t) ((float) sourceHeight * resizeFactor));
+  std::pair<uint32_t, uint32_t> resultSize((uint32_t)((float) sourceWidth * resizeFactor),
+                                           (uint32_t)((float) sourceHeight * resizeFactor));
   return resultSize;
 }
 
@@ -410,8 +410,8 @@ ResizeAspectFill(std::pair<uint32_t, uint32_t> sourceSize,
   float yFactor = (float) dstSize.second / (float) sourceSize.second;
   float resizeFactor = std::max(xFactor, yFactor);
   *scale = resizeFactor;
-  std::pair<uint32_t, uint32_t> resultSize((uint32_t) ((float) sourceWidth * resizeFactor),
-                                           (uint32_t) ((float) sourceHeight * resizeFactor));
+  std::pair<uint32_t, uint32_t> resultSize((uint32_t)((float) sourceWidth * resizeFactor),
+                                           (uint32_t)((float) sourceHeight * resizeFactor));
   return resultSize;
 }
 
@@ -420,8 +420,8 @@ ResizeAspectHeight(std::pair<uint32_t, uint32_t> sourceSize, uint32_t maxHeight,
   uint32_t sourceWidth = sourceSize.first;
   uint32_t sourceHeight = sourceSize.second;
   float scaleFactor = (float) maxHeight / (float) sourceSize.second;
-  std::pair<uint32_t, uint32_t> resultSize((uint32_t) ((float) sourceWidth * scaleFactor),
-                                           (uint32_t) ((float) sourceHeight * scaleFactor));
+  std::pair<uint32_t, uint32_t> resultSize((uint32_t)((float) sourceWidth * scaleFactor),
+                                           (uint32_t)((float) sourceHeight * scaleFactor));
   if (multipleBy2) {
     resultSize.first = (resultSize.first / 2) * 2;
     resultSize.second = (resultSize.second / 2) * 2;
@@ -434,8 +434,8 @@ ResizeAspectWidth(std::pair<uint32_t, uint32_t> sourceSize, uint32_t maxWidth, b
   uint32_t sourceWidth = sourceSize.first;
   uint32_t sourceHeight = sourceSize.second;
   float scaleFactor = (float) maxWidth / (float) sourceSize.first;
-  std::pair<uint32_t, uint32_t> resultSize((uint32_t) ((float) sourceWidth * scaleFactor),
-                                           (uint32_t) ((float) sourceHeight * scaleFactor));
+  std::pair<uint32_t, uint32_t> resultSize((uint32_t)((float) sourceWidth * scaleFactor),
+                                           (uint32_t)((float) sourceHeight * scaleFactor));
   if (multipleBy2) {
     resultSize.first = (resultSize.first / 2) * 2;
     resultSize.second = (resultSize.second / 2) * 2;

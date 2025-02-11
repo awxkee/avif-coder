@@ -36,14 +36,9 @@ import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
-import com.radzivon.bartoshyk.avif.coder.AvifAnimatedDecoder
-import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
-import com.radzivon.bartoshyk.avif.coder.HeifPreset
-import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
-import com.radzivon.bartoshyk.avif.coder.ScalingQuality
 import com.radzivon.bartoshyk.avif.coder.ToneMapper
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import com.radzivon.bartoshyk.avif.databinding.BindingImageViewBinding
@@ -57,6 +52,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlin.system.measureTimeMillis
 
 
 class MainActivity : AppCompatActivity() {
@@ -122,9 +118,10 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
+            allFiles = allFiles.take(5).toMutableList()
 //            allFiles = allFiles.filter { it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
-//            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
+//            allFiles = allFiles.filter { it.contains("test_alpha.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -134,30 +131,30 @@ class MainActivity : AppCompatActivity() {
                     val size = coder.getSize(buffer)
                     if (size != null) {
                         val bitmap0 = coder.decodeSampled(
-                                buffer,
-                                if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
-                                if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                                PreferredColorConfig.RGBA_8888,
-                                ScaleMode.RESIZE
+                            buffer,
+                            if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
+                            if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
+                            PreferredColorConfig.RGBA_1010102,
+                            ScaleMode.RESIZE
                         )
                         var start = System.currentTimeMillis()
 
 //                        var bitmap0 = coder.decode(
 //                            byteArray = buffer,
-//                            preferredColorConfig = PreferredColorConfig.RGBA_8888,
+//                            preferredColorConfig = PreferredColorConfig.RGBA_F16,
 //                        )
 
                         Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
-                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV422)
-                        val roundTripped = coder.decode(encode)
+//                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
+//                        val roundTripped = coder.decode(encode)
 //
-                        val cachedFile = File(cacheDir, "yuv400.avif")
-                        FileOutputStream(cachedFile).use {
-                            val bf = it.sink().buffer()
-                            bf.write(encode)
-                            bf.flush()
-                        }
+//                        val cachedFile = File(cacheDir, "yuv400.avif")
+//                        FileOutputStream(cachedFile).use {
+//                            val bf = it.sink().buffer()
+//                            bf.write(encode)
+//                            bf.flush()
+//                        }
 //
 //                        val round = coder.decode(
 //                            byteArray = encode,
@@ -172,7 +169,7 @@ class MainActivity : AppCompatActivity() {
                                 binding.scrollViewContainer,
                                 false
                             )
-                            imageView.root.setImageBitmap(roundTripped)
+                            imageView.root.setImageBitmap(bitmap0)
                             binding.scrollViewContainer.addView(imageView.root)
                         }
 //                        lifecycleScope.launch(Dispatchers.Main) {
@@ -195,75 +192,30 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-//        https://wh.aimuse.online/creatives/IMUSE_03617fe2db82a584166_27/TT_a9d21ff1061d785347935fef/68f06252.avif
-//        https://wh.aimuse.online/preset/federico-beccari.avif
-//         https://wh.aimuse.online/preset/avif10bit.avif
-//
-//        Glide.with(this)
-//            .load("https://wh.aimuse.online/preset/federico-beccari.avif")
-//            .skipMemoryCache(true)
-//            .into(binding.imageView)
-
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            binding.imageView.load("https://wh.aimuse.online/preset/federico-beccari.avif",
-//                imageLoader = ImageLoader.Builder(this)
-//                    .components {
-//                        add(HeifDecoder.Factory())
-//                    }
-//                    .bitmapConfig(Bitmap.Config.RGBA_F16)
-//                    .build())
-//        }
-
-//        binding.imageView.setImageBitmap(bitmap)
-//        binding.imageView.setImageBitmap(cc16)
-//        val avif12DepthBuffer =
-//            this.assets.open("test_avif_12_bitdepth.avif").source().buffer().readByteArray()
-//        assert(HeifCoder().isAvif(avif12DepthBuffer))
-//        val avifHDRBitmap = HeifCoder().decode(avif12DepthBuffer)
-//        binding.imageView.setImageBitmap(avifHDRBitmap)
-//        val heicBuffer = this.assets.open("pexels-heif.heif").source().buffer().readByteArray()
-//        assert(HeifCoder().isHeif(heicBuffer))
-//        val heicBitmap = HeifCoder().decode(heicBuffer)
-//        binding.imageView.setImageBitmap(heicBitmap)
-//        assert(HeifCoder().getSize(heicBuffer) != null)
-//        assert(HeifCoder().getSize(buffer) != null)
-//        val heicScaled = HeifCoder().decodeSampled(heicBuffer, 350, 900)
-//        binding.imageView.setImageBitmap(heicScaled)
-//        val extremlyLargeBitmapBuffer =
-//            this.assets.open("extremly_large.avif").source().buffer().readByteArray()
-//        assert(HeifCoder().isAvif(extremlyLargeBitmapBuffer))
-//        val extremlyLargeBitmap = HeifCoder().decode(extremlyLargeBitmapBuffer)
-//        binding.imageView.setImageBitmap(extremlyLargeBitmap)
-
-//        val ff = File(this.filesDir, "result.avif")
-//        ff.delete()
-//        val output = FileOutputStream(ff)
-//        output.sink().buffer().use {
-//            it.write(bytes)
-//            it.flush()
-//        }
-//        output.close()
-//        Log.d("p", bytes.size.toString())
-//        writeHevc(decodedBitmap)
-//        val numbers = IntArray(5) { 1 * (it + 1) }
-//        numbers.forEach {
-//            testEncoder("test_${it}.jpg")
-//        }
-//        val bytes = HeifCoder().encodeAvif(cc16)
-//        val ff = File(this.filesDir, "result.avif")
-//        ff.delete()
-//        val output = FileOutputStream(ff)
-//        output.sink().buffer().use {
-//            it.write(bytes)
-//            it.flush()
-//        }
-//        output.close()
-//        Log.d("p", bytes.size.toString())
-//        writeHevc(decodedBitmap)
-//        val numbers = IntArray(5) { 1 * (it + 1) }
-//        numbers.forEach {
-//            testEncoder("test_${it}.jpg")
-//        }
+        binding.buttonTest.setOnClickListener {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val coder = HeifCoder(ToneMapper.REC2408)
+                val file =
+                    getAllFilesFromAssets().filter {
+                        it.contains(".avif") || it.contains(".heic") || it.contains(
+                            ".heif"
+                        )
+                    }.filter { it == "test_1.avif" }
+                val buffer = this@MainActivity.assets.open(file[0]).source().buffer()
+                    .readByteArray()
+                val decoded = coder.decodeSampled(
+                    buffer,
+                    1980,
+                    1020,
+                    preferredColorConfig = PreferredColorConfig.RGBA_8888,
+                    ScaleMode.FIT
+                )
+                val encodingTime = measureTimeMillis {
+                    coder.encodeAvif(decoded)
+                }
+                Log.d("MainActivity", "AVIF: Encoding time $encodingTime")
+            }
+        }
     }
 
     private fun testEncoder(assetName: String) {

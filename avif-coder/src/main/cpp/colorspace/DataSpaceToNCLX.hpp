@@ -33,7 +33,7 @@
 #include "Eigen/Eigen"
 #include "ColorSpaceProfile.h"
 #include "colorspace.h"
-#include "YuvConversion.h"
+#include "avifweaver.h"
 #include "avif/avif.h"
 
 namespace coder {
