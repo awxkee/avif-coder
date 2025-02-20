@@ -36,6 +36,7 @@ import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
+import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
@@ -118,10 +119,10 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.take(5).toMutableList()
+//            allFiles = allFiles.take(5).toMutableList()
 //            allFiles = allFiles.filter { it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
-//            allFiles = allFiles.filter { it.contains("test_alpha.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -146,15 +147,9 @@ class MainActivity : AppCompatActivity() {
 
                         Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
-//                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
+                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
 //                        val roundTripped = coder.decode(encode)
 //
-//                        val cachedFile = File(cacheDir, "yuv400.avif")
-//                        FileOutputStream(cachedFile).use {
-//                            val bf = it.sink().buffer()
-//                            bf.write(encode)
-//                            bf.flush()
-//                        }
 //
 //                        val round = coder.decode(
 //                            byteArray = encode,
