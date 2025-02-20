@@ -60,8 +60,8 @@ fn work_on_transmuted_ptr_f16<F>(
                 let src_slice =
                     std::slice::from_raw_parts(rgba as *mut u8, rgba_stride as usize * height);
                 for (dst, src) in dst_slice
-                    .chunks_exact_mut(rgba_stride as usize)
-                    .zip(src_slice.chunks_exact(dst_stride))
+                    .chunks_exact_mut(dst_stride)
+                    .zip(src_slice.chunks_exact(rgba_stride as usize))
                 {
                     let src = &src[0..width * 4 * 2];
                     let dst = &mut dst[0..width * 4];
@@ -124,8 +124,8 @@ fn work_on_transmuted_ptr_u16<F>(
                 let src_slice =
                     std::slice::from_raw_parts(rgba as *mut u8, rgba_stride as usize * height);
                 for (dst, src) in dst_slice
-                    .chunks_exact_mut(rgba_stride as usize)
-                    .zip(src_slice.chunks_exact(dst_stride))
+                    .chunks_exact_mut(dst_stride)
+                    .zip(src_slice.chunks_exact(rgba_stride as usize))
                 {
                     let src = &src[0..width * 4 * 2];
                     let dst = &mut dst[0..width * 4];

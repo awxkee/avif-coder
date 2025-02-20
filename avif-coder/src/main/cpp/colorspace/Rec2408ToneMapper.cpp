@@ -88,7 +88,8 @@ void Rec2408ToneMapper::transferTone(float *inPlace, uint32_t width) {
     float r = targetPlace[0];
     float g = targetPlace[1];
     float b = targetPlace[2];
-    float inLight = 0.2627f * static_cast<float>(r) +  0.6780f* static_cast<float>(g) +  0.0593f * static_cast<float>(b);
+    float inLight = 0.2627f * static_cast<float>(r) + 0.6780f * static_cast<float>(g)
+        + 0.0593f * static_cast<float>(b);
     if (inLight == 0) {
       continue;
     }
