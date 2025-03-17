@@ -3,13 +3,7 @@ cmake_minimum_required(VERSION 3.22.1)
 project("coder")
 
 add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
-        icc/cmsalpha.c icc/cmscam02.c
-        icc/cmscgats.c icc/cmscnvrt.c icc/cmserr.c icc/cmsgamma.c
-        icc/cmsgmt.c icc/cmshalf.c icc/cmsintrp.c icc/cmsio0.c
-        icc/cmsio1.c icc/cmslut.c icc/cmsmd5.c icc/cmsmtrx.c icc/cmsnamed.c
-        icc/cmsopt.c icc/cmspack.c icc/cmspcs.c icc/cmsplugin.c
-        icc/cmsps2.c icc/cmssamp.c icc/cmssm.c icc/cmstypes.c icc/cmsvirt.c
-        icc/cmswtpnt.c icc/cmsxform.c colorspace/colorspace.cpp
+        colorspace/colorspace.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp IccRecognizer.cpp

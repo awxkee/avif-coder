@@ -57,7 +57,6 @@ class HeifImageDecoder {
                           uint32_t scaledHeight,
                           PreferredColorConfig javaColorSpace,
                           ScaleMode javaScaleMode,
-                          CurveToneMapper javaToneMapper,
                           int scalingQuality);
 
   static std::string getImageType(std::vector<uint8_t> &srcBuffer);

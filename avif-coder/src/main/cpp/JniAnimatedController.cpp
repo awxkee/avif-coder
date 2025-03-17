@@ -181,9 +181,8 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl(JNIEnv *
   try {
     PreferredColorConfig preferredColorConfig;
     ScaleMode scaleMode;
-    CurveToneMapper toneMapper;
     if (!checkDecodePreconditions(env, javaColorSpace, &preferredColorConfig, javaScaleMode,
-                                  &scaleMode, javaToneMapper, &toneMapper)) {
+                                  &scaleMode)) {
       std::string exception = "Can't retrieve basic values";
       throwException(env, exception);
       return static_cast<jobject>(nullptr);
@@ -195,7 +194,6 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl(JNIEnv *
                                       scaledHeight,
                                       preferredColorConfig,
                                       scaleMode,
-                                      toneMapper,
                                       scaleQuality);
 
     int osVersion = androidOSVersion();
