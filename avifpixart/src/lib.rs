@@ -933,7 +933,8 @@ pub extern "C" fn weave_scale_u8(
             ResamplingFunction::Bilinear
         });
 
-        scaler.set_threading_policy(ThreadingPolicy::Adaptive);
+        scaler.set_threading_policy(ThreadingPolicy::Single);
+        // scaler.set_workload_strategy(WorkloadStrategy::PreferQuality);
 
         let mut dst_store = ImageStoreMut::<u8, 4> {
             buffer: BufferStore::Borrowed(dst_slice),
@@ -1005,7 +1006,7 @@ pub extern "C" fn weave_scale_u16(
         } else {
             ResamplingFunction::Bilinear
         });
-        scaler.set_threading_policy(ThreadingPolicy::Adaptive);
+        scaler.set_threading_policy(ThreadingPolicy::Single);
         scaler.set_workload_strategy(WorkloadStrategy::PreferQuality);
 
         if dst as usize % 2 != 0 {

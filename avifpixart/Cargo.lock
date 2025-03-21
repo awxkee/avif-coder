@@ -245,9 +245,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "gainforge"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "444b930fbd8ade219d45402f9bc7630e0495112f479348e25cc1cc993b2d25b1"
+version = "0.3.1"
 dependencies = [
  "moxcms",
  "num-traits",
@@ -346,9 +344,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "moxcms"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e90dcbe5fd101d85f2a864aee45fb019ee6b6aa9216ea42506f27e19036806aa"
+version = "0.5.1"
 dependencies = [
  "chrono",
  "num-traits",
@@ -371,9 +367,9 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "pic-scale"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47852301bb9fc2546a613f86028ab59ca783399855e0f0c822f48082c89b8fae"
+checksum = "92d2c4eb414bf136223bea87f3ba5e77011c2130d956f2c89fd52034b587316d"
 dependencies = [
  "libc",
  "num-traits",

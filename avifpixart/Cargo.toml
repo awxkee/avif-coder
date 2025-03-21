@@ -5,11 +5,11 @@ edition = "2021"
 
 [dependencies]
 num-traits = "0.2"
-pic-scale = { version = "0.5.3", default-features = false, features = ["nightly_f16"] }
+pic-scale = { version = "0.5.4", default-features = false, features = ["nightly_f16"] }
 yuvutils-rs = { path = "../../../RustroverProjects/yuvutils-rs", features = ["nightly_f16"], default-features = false }
 bytemuck = { version = "1.22", features = ["nightly_float"] }
-moxcms = "0.4"
-gainforge = "0.3"
+moxcms = {path = "../../../RustroverProjects/moxcms"}
+gainforge = {path = "../../../RustroverProjects/gainforge"}
 
 [features]
 rdm = ["yuvutils-rs/rdm", "pic-scale/rdm"]

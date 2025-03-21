@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
 //            allFiles = allFiles.take(5).toMutableList()
 //            allFiles = allFiles.filter { it.contains("hato-wide-gamut-8bit.avif") || it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
-//            allFiles = allFiles.filter { it.contains("hdr_cosmos07296_12bit.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("result.heic") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
