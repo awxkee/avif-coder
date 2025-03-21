@@ -97,7 +97,7 @@ fn work_on_transmuted_ptr_f16<F>(
 }
 
 #[inline(always)]
-fn work_on_transmuted_ptr_u16<F>(
+pub(crate) fn work_on_transmuted_ptr_u16<F>(
     rgba: *const u16,
     rgba_stride: u32,
     width: usize,

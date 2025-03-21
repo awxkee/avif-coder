@@ -58,7 +58,6 @@ class AvifDecoderController {
                           uint32_t scaledHeight,
                           PreferredColorConfig javaColorSpace,
                           ScaleMode javaScaleMode,
-                          CurveToneMapper javaToneMapper,
                           int scalingQuality);
   void attachBuffer(uint8_t *data, uint32_t bufferSize);
   uint32_t getFramesCount();

@@ -25,13 +25,12 @@ using namespace std;
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    std::vector<uint8_t> &srcBuffer, jint scaledWidth,
                                    jint scaledHeight, jint javaColorSpace, jint javaScaleMode,
-                                   jint javaToneMapper, jint scalingQuality) {
+                                   jint scalingQuality) {
   PreferredColorConfig preferredColorConfig;
   ScaleMode scaleMode;
-  CurveToneMapper toneMapper;
 
   if (!checkDecodePreconditions(env, javaColorSpace, &preferredColorConfig, javaScaleMode,
-                                &scaleMode, javaToneMapper, &toneMapper)) {
+                                &scaleMode)) {
     string exception = "Can't retrieve basic values";
     throwException(env, exception);
     return static_cast<jobject>(nullptr);
@@ -50,7 +49,6 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                       scaledHeight,
                                       preferredColorConfig,
                                       scaleMode,
-                                      toneMapper,
                                       scalingQuality);
     } else {
       HeifImageDecoder heifDecoder;
@@ -59,7 +57,6 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    scaledHeight,
                                    preferredColorConfig,
                                    scaleMode,
-                                   toneMapper,
                                    scalingQuality);
     }
 
@@ -100,7 +97,6 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
                                                             jint scaledHeight,
                                                             jint javaColorspace,
                                                             jint scaleMode,
-                                                            jint javaToneMapper,
                                                             jint scaleQuality) {
   try {
     auto totalLength = env->GetArrayLength(byte_array);
@@ -110,7 +106,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
     return decodeImplementationNative(env, thiz, srcBuffer,
                                       scaledWidth, scaledHeight,
                                       javaColorspace, scaleMode,
-                                      javaToneMapper, scaleQuality);
+                                      scaleQuality);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);
@@ -126,7 +122,6 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
                                                                       jint scaledHeight,
                                                                       jint clrConfig,
                                                                       jint scaleMode,
-                                                                      jint javaToneMapper,
                                                                       jint scalingQuality) {
   try {
     auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
@@ -140,7 +135,7 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
     return decodeImplementationNative(env, thiz, srcBuffer,
                                       scaledWidth, scaledHeight,
-                                      clrConfig, scaleMode, javaToneMapper, scalingQuality);
+                                      clrConfig, scaleMode, scalingQuality);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);

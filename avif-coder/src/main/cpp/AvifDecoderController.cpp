@@ -81,7 +81,6 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
                                                uint32_t scaledHeight,
                                                PreferredColorConfig javaColorSpace,
                                                ScaleMode javaScaleMode,
-                                               CurveToneMapper toneMapper,
                                                int scalingQuality) {
   std::lock_guard guard(this->mutex);
   if (!this->isBufferAttached) {
@@ -318,7 +317,7 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   if (!iccProfile.empty()) {
     convertUseICC(imageStore, stride, imageWidth, imageHeight, iccProfile.data(),
                   iccProfile.size(),
-                  isImageRequires64Bit);
+                  isImageRequires64Bit, bitDepth);
   } else if (transferCharacteristics != AVIF_TRANSFER_CHARACTERISTICS_UNSPECIFIED
       || colorPrimaries != AVIF_COLOR_PRIMARIES_UNSPECIFIED) {
     Eigen::Matrix<float, 3, 2> primaries;
@@ -341,82 +340,80 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
 
     Eigen::Matrix3f conversion = destinationProfile.inverse() * sourceProfile;
 
+    ToneMapping toneMapping = ToneMapping::Rec2408;
+
     if (transferCharacteristics !=
         AVIF_TRANSFER_CHARACTERISTICS_HLG &&
         transferCharacteristics != AVIF_TRANSFER_CHARACTERISTICS_PQ) {
-      toneMapper = TONE_SKIP;
+      toneMapping = ToneMapping::Skip;
     }
 
-    TransferFunction forwardTrc = TransferFunction::Srgb;
+    FfiTrc transferFfi = FfiTrc::Srgb;
 
     if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_HLG) {
-      forwardTrc = TransferFunction::Hlg;
+      transferFfi = FfiTrc::Hlg;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_SMPTE428) {
-      forwardTrc = TransferFunction::Smpte428;
+      transferFfi = FfiTrc::Smpte428;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_PQ) {
-      forwardTrc = TransferFunction::Pq;
+      transferFfi = FfiTrc::Smpte2084;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_LINEAR) {
-      forwardTrc = TransferFunction::Linear;
+      transferFfi = FfiTrc::Linear;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_BT470M) {
-      forwardTrc = TransferFunction::Gamma2p2;
+      transferFfi = FfiTrc::Bt470M;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_BT470BG) {
-      forwardTrc = TransferFunction::Gamma2p8;
+      transferFfi = FfiTrc::Bt470Bg;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_BT601) {
-      forwardTrc = TransferFunction::Itur709;
+      transferFfi = FfiTrc::Bt709;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_BT709) {
-      forwardTrc = TransferFunction::Itur709;
+      transferFfi = FfiTrc::Bt709;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_BT2020_10BIT ||
         transferCharacteristics ==
             AVIF_TRANSFER_CHARACTERISTICS_BT2020_12BIT) {
-      forwardTrc = TransferFunction::Itur709;
+      transferFfi = FfiTrc::Bt709;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_SMPTE240) {
-      forwardTrc = TransferFunction::Smpte240;
+      transferFfi = FfiTrc::Smpte240;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_LOG100) {
-      forwardTrc = TransferFunction::Log100;
+      transferFfi = FfiTrc::Log100;
     } else if (transferCharacteristics ==
         AVIF_TRANSFER_CHARACTERISTICS_LOG100_SQRT10) {
-      forwardTrc = TransferFunction::Log100Sqrt10;
+      transferFfi = FfiTrc::Log100sqrt10;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_SRGB) {
-      forwardTrc = TransferFunction::Srgb;
+      transferFfi = FfiTrc::Srgb;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_IEC61966) {
-      forwardTrc = TransferFunction::Iec61966;
+      transferFfi = FfiTrc::Iec61966;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_BT1361) {
-      forwardTrc = TransferFunction::Bt1361;
+      transferFfi = FfiTrc::Bt1361;
     } else if (transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_UNSPECIFIED) {
-      forwardTrc = TransferFunction::Srgb;
+      transferFfi = FfiTrc::Srgb;
     }
 
-    ITURColorCoefficients coeffs = colorPrimariesComputeYCoeffs(primaries, whitePoint);
-
-    const float matrix[9] = {
-        conversion(0, 0), conversion(0, 1), conversion(0, 2),
-        conversion(1, 0), conversion(1, 1), conversion(1, 2),
-        conversion(2, 0), conversion(2, 1), conversion(2, 2),
+    const float cPrimaries[6] = {
+        imagePrimaries[0], imagePrimaries[1],
+        imagePrimaries[2], imagePrimaries[3],
+        imagePrimaries[4], imagePrimaries[5]
+    };
+    const float wp[2] = {
+        whitePoint(0), whitePoint(1)
     };
 
     if (isImageRequires64Bit) {
-      applyColorMatrix16Bit(reinterpret_cast<uint16_t *>(imageStore.data()),
-                            stride,
-                            imageWidth,
-                            imageHeight,
-                            bitDepth,
-                            matrix,
-                            forwardTrc,
-                            TransferFunction::Srgb,
-                            toneMapper,
-                            coeffs, intensityTarget);
+      apply_tone_mapping_rgba16(
+          reinterpret_cast<uint16_t *>(imageStore.data()), stride, bitDepth,
+          imageWidth, imageHeight, cPrimaries, wp, transferFfi, toneMapping, intensityTarget
+      );
     } else {
-      applyColorMatrix(reinterpret_cast<uint8_t *>(imageStore.data()), stride, imageWidth,
-                       imageHeight, matrix, forwardTrc, TransferFunction::Srgb, toneMapper,
-                       coeffs, intensityTarget);
+      apply_tone_mapping_rgba8(
+          reinterpret_cast<uint8_t *>(imageStore.data()), stride,
+          imageWidth, imageHeight, cPrimaries, wp, transferFfi, toneMapping, intensityTarget
+      );
     }
 
   }

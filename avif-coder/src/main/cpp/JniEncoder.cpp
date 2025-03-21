@@ -36,7 +36,6 @@
 #include <android/log.h>
 #include <android/data_space.h>
 #include <sys/system_properties.h>
-#include "icc/lcms2.h"
 #include "colorspace/colorspace.h"
 #include <cmath>
 #include <limits>

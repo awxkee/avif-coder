@@ -30,72 +30,11 @@
 #define AVIF_COLORSPACE_H
 
 #include <vector>
-#include "lcms2.h"
 #include "definitions.h"
 
 void
 convertUseICC(aligned_uint8_vector &vector, uint32_t stride, uint32_t width, uint32_t height,
               const unsigned char *colorSpace, size_t colorSpaceSize,
-              bool image16Bits);
-
-class ColorSpace {
- public:
-  ColorSpace(cmsHPROFILE profile) {
-    this->cmsProfile = profile;
-  };
-
-  std::vector<uint8_t> iccProfile() {
-    std::vector<uint8_t> vec;
-    cmsUInt32Number profileSize = 0;
-    cmsSaveProfileToMem(cmsProfile, nullptr, &profileSize);
-    if (profileSize == 0) {
-      return vec;
-    }
-    vec.resize(profileSize);
-    if (!cmsSaveProfileToMem(cmsProfile, reinterpret_cast<void *>(vec.data()), &profileSize)) {
-      vec.resize(0);
-      return vec;
-    }
-
-    return vec;
-  }
-
-  ~ColorSpace() {
-    cmsCloseProfile(this->cmsProfile);
-  }
-
- protected:
-  cmsHPROFILE cmsProfile;
-};
-
-cmsHPROFILE colorspacesCreateSrgbProfile(bool v2);
-
-cmsHPROFILE colorspacesCreatePqP3RgbProfile();
-
-cmsHPROFILE colorspacesCreateHlgP3RgbProfile();
-
-cmsHPROFILE colorspacesCreateLinearProphotoRgbProfile();
-
-cmsHPROFILE colorspacesCreateLinearInfraredProfile();
-
-cmsHPROFILE colorspacesCreateLinearRec2020RgbProfile();
-
-cmsHPROFILE colorspacesCreatePqRec2020RgbProfile();
-
-cmsHPROFILE colorspacesCreateLinearRec709RgbProfile();
-
-ColorSpace colorspacesCreateAdobergbProfile();
-
-ColorSpace colorspacesCreateDisplayP3RgbProfile();
-
-ColorSpace colorspacesCreateDCIP3RgbProfile();
-
-cmsHPROFILE createGammaCorrectionProfile(double gamma);
-void
-convertUseProfiles(aligned_uint8_vector &vector, int stride,
-                   cmsHPROFILE srcProfile,
-                   int width, int height,
-                   cmsHPROFILE dstProfile,
-                   bool image16Bits);
+              bool image16Bits, uint16_t bitDepth);
 
 #endif //AVIF_COLORSPACE_H

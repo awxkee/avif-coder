@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
 //                imageView.root.setImageBitmap(decoded100)
 //                binding.scrollViewContainer.addView(imageView.root)
 //            }
-            val coder = HeifCoder(ToneMapper.REC2408)
+            val coder = HeifCoder()
             val allFiles1 =
                 getAllFilesFromAssets().filter {
                     it.contains(".avif") || it.contains(".heic") || it.contains(
@@ -120,9 +120,9 @@ class MainActivity : AppCompatActivity() {
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
 //            allFiles = allFiles.take(5).toMutableList()
-//            allFiles = allFiles.filter { it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
+//            allFiles = allFiles.filter { it.contains("hato-wide-gamut-8bit.avif") || it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
-            allFiles = allFiles.filter { it.contains("bt_2020_pq.avif") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("result.heic") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
                             buffer,
                             if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
                             if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                            PreferredColorConfig.RGBA_1010102,
+                            PreferredColorConfig.RGBA_8888,
                             ScaleMode.RESIZE
                         )
                         var start = System.currentTimeMillis()

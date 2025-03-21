@@ -35,13 +35,13 @@
 #include <Trc.h>
 #include <ITUR.h>
 #include "ColorMatrix.h"
+#include "avifweaver.h"
 
 AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
                                           uint32_t scaledWidth,
                                           uint32_t scaledHeight,
                                           PreferredColorConfig javaColorSpace,
                                           ScaleMode javaScaleMode,
-                                          CurveToneMapper toneMapper,
                                           int scalingQuality) {
   heif_context_set_max_decoding_threads(ctx.get(), (int) std::thread::hardware_concurrency());
 
@@ -142,7 +142,7 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
   if (!profile.empty()) {
     convertUseICC(dstARGB, stride, imageWidth, imageHeight, profile.data(),
                   profile.size(),
-                  useBitmapHalf16Floats);
+                  useBitmapHalf16Floats, bitDepth);
   } else if (hasNCLX && nclx &&
       nclx->transfer_characteristics != heif_transfer_characteristic_unspecified &&
       nclx->color_primaries != heif_color_primaries_unspecified) {
@@ -170,82 +170,81 @@ AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
 
     Eigen::Matrix3f conversion = destinationProfile.inverse() * sourceProfile;
 
+    ToneMapping toneMapping = ToneMapping::Rec2408;
+
     if (nclx->transfer_characteristics !=
         heif_transfer_characteristic_ITU_R_BT_2100_0_HLG &&
         nclx->transfer_characteristics != heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
-      toneMapper = TONE_SKIP;
+      toneMapping = ToneMapping::Skip;
     }
 
+    FfiTrc transferFfi = FfiTrc::Srgb;
     TransferFunction forwardTrc = TransferFunction::Srgb;
 
     if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2100_0_HLG) {
-      forwardTrc = TransferFunction::Hlg;
+      transferFfi = FfiTrc::Hlg;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_SMPTE_ST_428_1) {
-      forwardTrc = TransferFunction::Smpte428;
+      transferFfi = FfiTrc::Smpte428;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2100_0_PQ) {
-      forwardTrc = TransferFunction::Pq;
+      transferFfi = FfiTrc::Smpte2084;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_linear) {
-      forwardTrc = TransferFunction::Linear;
+      transferFfi = FfiTrc::Linear;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_470_6_System_M) {
-      forwardTrc = TransferFunction::Gamma2p2;
+      transferFfi = FfiTrc::Bt470M;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_470_6_System_B_G) {
-      forwardTrc = TransferFunction::Gamma2p8;
+      transferFfi = FfiTrc::Bt470Bg;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_601_6) {
-      forwardTrc = TransferFunction::Itur709;
+      transferFfi = FfiTrc::Bt709;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_709_5) {
-      forwardTrc = TransferFunction::Itur709;
+      transferFfi = FfiTrc::Bt709;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_ITU_R_BT_2020_2_10bit ||
         nclx->transfer_characteristics ==
             heif_transfer_characteristic_ITU_R_BT_2020_2_12bit) {
-      forwardTrc = TransferFunction::Itur709;
+      transferFfi = FfiTrc::Bt709;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_SMPTE_240M) {
-      forwardTrc = TransferFunction::Smpte240;
+      transferFfi = FfiTrc::Smpte240;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_logarithmic_100) {
-      forwardTrc = TransferFunction::Log100;
+      transferFfi = FfiTrc::Log100;
     } else if (nclx->transfer_characteristics ==
         heif_transfer_characteristic_logarithmic_100_sqrt10) {
-      forwardTrc = TransferFunction::Log100Sqrt10;
+      transferFfi = FfiTrc::Log100sqrt10;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_1) {
-      forwardTrc = TransferFunction::Srgb;
+      transferFfi = FfiTrc::Srgb;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_IEC_61966_2_4) {
-      forwardTrc = TransferFunction::Iec61966;
+      transferFfi = FfiTrc::Iec61966;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_ITU_R_BT_1361) {
-      forwardTrc = TransferFunction::Bt1361;
+      transferFfi = FfiTrc::Bt1361;
     } else if (nclx->transfer_characteristics == heif_transfer_characteristic_unspecified) {
-      forwardTrc = TransferFunction::Srgb;
+      transferFfi = FfiTrc::Srgb;
     }
 
-    ITURColorCoefficients coeffs = colorPrimariesComputeYCoeffs(primaries, whitePoint);
-
-    const float matrix[9] = {
-        conversion(0, 0), conversion(0, 1), conversion(0, 2),
-        conversion(1, 0), conversion(1, 1), conversion(1, 2),
-        conversion(2, 0), conversion(2, 1), conversion(2, 2),
+    const float cPrimaries[6] = {
+        primaries(0), primaries(1),
+        primaries(2), primaries(3),
+        primaries(4), primaries(5)
+    };
+    const float wp[2] = {
+        whitePoint(0), whitePoint(1)
     };
 
     if (useBitmapHalf16Floats) {
-      applyColorMatrix16Bit(reinterpret_cast<uint16_t *>(dstARGB.data()),
-                            stride,
-                            imageWidth,
-                            imageHeight,
-                            bitDepth,
-                            matrix,
-                            forwardTrc,
-                            TransferFunction::Srgb,
-                            toneMapper,
-                            coeffs, intensityTarget);
+      apply_tone_mapping_rgba16(
+          reinterpret_cast<uint16_t *>(dstARGB.data()), stride, bitDepth,
+          imageWidth, imageHeight, cPrimaries, wp, transferFfi, toneMapping, intensityTarget
+      );
     } else {
-      applyColorMatrix(reinterpret_cast<uint8_t *>(dstARGB.data()), stride, imageWidth,
-                       imageHeight, matrix, forwardTrc, TransferFunction::Srgb, toneMapper,
-                       coeffs, intensityTarget);
+      apply_tone_mapping_rgba8(
+          reinterpret_cast<uint8_t *>(dstARGB.data()), stride,
+          imageWidth, imageHeight, cPrimaries, wp, transferFfi, toneMapping, intensityTarget
+      );
     }
   }
 

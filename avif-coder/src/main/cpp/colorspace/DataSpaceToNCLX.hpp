@@ -36,7 +36,34 @@
 #include "avifweaver.h"
 #include "avif/avif.h"
 
+std::vector<uint8_t> newAdobeRGBProfile() {
+  auto new_ffi_profile = new_adobe_rgb_profile();
+  std::vector<uint8_t> newVector;
+  if (new_ffi_profile.size == 0 || new_ffi_profile.data == nullptr) {
+    free_profile(new_ffi_profile);
+    return newVector;
+  }
+  newVector.resize(new_ffi_profile.size);
+  std::copy(new_ffi_profile.data, new_ffi_profile.data + new_ffi_profile.size, newVector.begin());
+  free_profile(new_ffi_profile);
+  return newVector;
+}
+
+std::vector<uint8_t> newDCIP3Profile() {
+  auto new_ffi_profile = new_dci_p3_profile();
+  std::vector<uint8_t> newVector;
+  if (new_ffi_profile.size == 0 || new_ffi_profile.data == nullptr) {
+    free_profile(new_ffi_profile);
+    return newVector;
+  }
+  newVector.resize(new_ffi_profile.size);
+  std::copy(new_ffi_profile.data, new_ffi_profile.data + new_ffi_profile.size, newVector.begin());
+  free_profile(new_ffi_profile);
+  return newVector;
+}
+
 namespace coder {
+
 bool colorProfileFromDataSpace(const int dataSpace, heif_color_profile_nclx *profile,
                                std::vector<uint8_t> &iccProfile, YuvMatrix &matrix) {
   if (dataSpace == -1) {
@@ -90,10 +117,9 @@ bool colorProfileFromDataSpace(const int dataSpace, heif_color_profile_nclx *pro
     profile->full_range_flag = true;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_DCI_P3) {
-    auto dciP3Profile = colorspacesCreateDCIP3RgbProfile();
-    auto icc = dciP3Profile.iccProfile();
+    auto dciP3Profile = newDCIP3Profile();
     matrix = YuvMatrix::Bt709;
-    iccProfile = icc;
+    iccProfile = dciP3Profile;
     profile->full_range_flag = true;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_SCRGB_LINEAR) {
@@ -122,10 +148,9 @@ bool colorProfileFromDataSpace(const int dataSpace, heif_color_profile_nclx *pro
     }
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_ADOBE_RGB) {
-    auto adobe = colorspacesCreateAdobergbProfile();
-    auto icc = adobe.iccProfile();
+    auto adobe = newAdobeRGBProfile();
     matrix = YuvMatrix::Bt709;
-    iccProfile = icc;
+    iccProfile = adobe;
     isResolved = true;
   }
 
@@ -190,10 +215,9 @@ bool colorProfileFromDataSpaceAvif(const int dataSpace,
     avifRange = AVIF_RANGE_FULL;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_DCI_P3) {
-    auto dciP3Profile = colorspacesCreateDCIP3RgbProfile();
-    auto icc = dciP3Profile.iccProfile();
+    auto dciP3Profile = newDCIP3Profile();
     matrix = YuvMatrix::Bt709;
-    iccProfile = icc;
+    iccProfile = dciP3Profile;
     avifRange = AVIF_RANGE_FULL;
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_SCRGB_LINEAR) {
@@ -222,10 +246,9 @@ bool colorProfileFromDataSpaceAvif(const int dataSpace,
     }
     isResolved = true;
   } else if (dataSpace == ADataSpace::ADATASPACE_ADOBE_RGB) {
-    auto adobe = colorspacesCreateAdobergbProfile();
-    auto icc = adobe.iccProfile();
+    auto adobe = newAdobeRGBProfile();
     matrix = YuvMatrix::Bt709;
-    iccProfile = icc;
+    iccProfile = adobe;
     isResolved = true;
   }
 

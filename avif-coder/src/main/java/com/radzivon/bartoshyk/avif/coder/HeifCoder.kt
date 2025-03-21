@@ -38,9 +38,7 @@ import androidx.annotation.Keep
 import java.nio.ByteBuffer
 
 @Keep
-class HeifCoder(
-    private val toneMapper: ToneMapper = ToneMapper.REC2408
-) {
+class HeifCoder {
 
     fun isAvif(byteArray: ByteArray): Boolean {
         return isAvifImageImpl(byteArray)
@@ -72,7 +70,6 @@ class HeifCoder(
             0,
             preferredColorConfig.value,
             ScaleMode.FIT.value,
-            toneMapper.value,
             ScalingQuality.DEFAULT.level,
         )
     }
@@ -91,7 +88,6 @@ class HeifCoder(
             scaledHeight,
             preferredColorConfig.value,
             scaleMode.value,
-            toneMapper.value,
             scaleQuality.level,
         )
     }
@@ -110,7 +106,6 @@ class HeifCoder(
             scaledHeight,
             preferredColorConfig.value,
             scaleMode.value,
-            toneMapper.value,
             scaleQuality.level,
         )
     }
@@ -201,7 +196,6 @@ class HeifCoder(
         scaledHeight: Int,
         clrConfig: Int,
         scaleMode: Int,
-        toneMapper: Int,
         scaleQuality: Int,
     ): Bitmap
 
@@ -211,7 +205,6 @@ class HeifCoder(
         scaledHeight: Int,
         clrConfig: Int,
         scaleMode: Int,
-        toneMapper: Int,
         scaleQuality: Int,
     ): Bitmap
 
