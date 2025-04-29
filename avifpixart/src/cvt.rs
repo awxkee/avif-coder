@@ -27,7 +27,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use core::f16;
-use yuvutils_rs::{
+use yuv::{
     convert_rgba16_to_f16, convert_rgba_to_f16, rgba10_to_ar30, rgba12_to_ar30, rgba8_to_ar30,
     BufferStoreMut, Rgb30ByteOrder,
 };
@@ -46,7 +46,7 @@ fn work_on_transmuted_ptr_f16<F>(
     let mut allocated = false;
     let mut dst_stride = rgba_stride as usize / 2;
     let mut working_slice: BufferStoreMut<'_, f16> = unsafe {
-        if rgba as usize % 2 == 0 && rgba_stride / 2 == 0 {
+        if rgba as usize % 2 == 0 && rgba_stride % 2 == 0 {
             BufferStoreMut::Borrowed(std::slice::from_raw_parts_mut(
                 rgba as *mut f16,
                 rgba_stride as usize / 2 * height,
@@ -78,7 +78,7 @@ fn work_on_transmuted_ptr_f16<F>(
 
     if allocated {
         let src_slice = working_slice.borrow();
-        let dst_slice = unsafe {
+        let dst_slice: &mut [u8] = unsafe {
             std::slice::from_raw_parts_mut(rgba as *mut u8, rgba_stride as usize * height)
         };
         for (src, dst) in src_slice
@@ -110,7 +110,7 @@ pub(crate) fn work_on_transmuted_ptr_u16<F>(
     let mut allocated = false;
     let mut dst_stride = rgba_stride as usize / 2;
     let mut working_slice: BufferStoreMut<'_, u16> = unsafe {
-        if rgba as usize % 2 == 0 && rgba_stride / 2 == 0 {
+        if rgba as usize % 2 == 0 && rgba_stride % 2 == 0 {
             BufferStoreMut::Borrowed(std::slice::from_raw_parts_mut(
                 rgba as *mut u16,
                 rgba_stride as usize / 2 * height,
@@ -320,32 +320,150 @@ pub extern "C" fn weave_cvt_rgba16_to_rgba_f16(
     width: u32,
     height: u32,
 ) {
-    work_on_transmuted_ptr_u16(
-        rgba16,
-        rgba16_stride,
-        width as usize,
-        height as usize,
-        true,
-        |src: &mut [u16], src_stride: usize| {
-            work_on_transmuted_ptr_f16(
-                rgba_f16,
-                rgba_f16_stride,
-                width as usize,
-                height as usize,
-                false,
-                |dst: &mut [f16], dst_stride: usize| {
-                    convert_rgba16_to_f16(
-                        src,
-                        src_stride,
-                        dst,
-                        dst_stride,
-                        bit_depth,
-                        width as usize,
-                        height as usize,
-                    )
-                    .unwrap();
-                },
-            );
-        },
-    );
+    if rgba16 == rgba_f16 {
+        let mut new_src = vec![0; width as usize * height as usize * 4];
+        let src_slice = unsafe {
+            std::slice::from_raw_parts(rgba16 as *mut u8, rgba16_stride as usize * height as usize)
+        };
+        for (dst, src) in new_src
+            .chunks_exact_mut(width as usize * 4)
+            .zip(src_slice.chunks_exact(rgba16_stride as usize))
+        {
+            let src = &src[0..width as usize * 4 * 2];
+            let dst = &mut dst[0..width as usize * 4];
+            for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
+                *dst = u16::from_ne_bytes([src[0], src[1]]);
+            }
+        }
+
+        work_on_transmuted_ptr_f16(
+            rgba_f16,
+            rgba_f16_stride,
+            width as usize,
+            height as usize,
+            false,
+            |dst: &mut [f16], dst_stride: usize| {
+                convert_rgba16_to_f16(
+                    &new_src,
+                    width as usize * 4,
+                    dst,
+                    dst_stride,
+                    bit_depth,
+                    width as usize,
+                    height as usize,
+                )
+                .unwrap();
+            },
+        );
+    } else {
+        work_on_transmuted_ptr_u16(
+            rgba16,
+            rgba16_stride,
+            width as usize,
+            height as usize,
+            true,
+            |src: &mut [u16], src_stride: usize| {
+                work_on_transmuted_ptr_f16(
+                    rgba_f16,
+                    rgba_f16_stride,
+                    width as usize,
+                    height as usize,
+                    false,
+                    |dst: &mut [f16], dst_stride: usize| {
+                        convert_rgba16_to_f16(
+                            src,
+                            src_stride,
+                            dst,
+                            dst_stride,
+                            bit_depth,
+                            width as usize,
+                            height as usize,
+                        )
+                        .unwrap();
+                    },
+                );
+            },
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::f16;
+    #[test]
+    fn test_u16_f16() {
+        let width = 16usize;
+        let height = 16usize;
+        let origin = vec![512; width * height * 4];
+        let mut dst: Vec<f16> = vec![0.; width * height * 4];
+        weave_cvt_rgba16_to_rgba_f16(
+            origin.as_ptr(),
+            width as u32 * 4 * 2,
+            10,
+            dst.as_mut_ptr() as *mut _,
+            width as u32 * 4 * 2,
+            width as u32,
+            height as u32,
+        );
+        let v_src = origin
+            .iter()
+            .map(|&x| (x as f32 / 1023f32) as f16)
+            .collect::<Vec<f16>>();
+        assert_eq!(dst, v_src);
+
+        let mut origin = vec![512; width * height * 4];
+        weave_cvt_rgba16_to_rgba_f16(
+            origin.as_ptr(),
+            width as u32 * 4 * 2,
+            10,
+            origin.as_mut_ptr() as *mut _,
+            width as u32 * 4 * 2,
+            width as u32,
+            height as u32,
+        );
+        let v_src = origin
+            .iter()
+            .map(|&x| f16::from_bits(x))
+            .collect::<Vec<f16>>();
+        assert_eq!(dst, v_src);
+    }
+
+    #[test]
+    fn test_u16_f16_12() {
+        let width = 16usize;
+        let height = 16usize;
+        let origin = vec![4095; width * height * 4];
+        let mut dst: Vec<f16> = vec![0.; width * height * 4];
+        weave_cvt_rgba16_to_rgba_f16(
+            origin.as_ptr(),
+            width as u32 * 4 * 2,
+            12,
+            dst.as_mut_ptr() as *mut _,
+            width as u32 * 4 * 2,
+            width as u32,
+            height as u32,
+        );
+        let v_src = origin
+            .iter()
+            .map(|&x| (x as f32 / 4095f32) as f16)
+            .collect::<Vec<f16>>();
+        assert_eq!(dst, v_src);
+
+        let mut origin = vec![512; width * height * 4];
+        weave_cvt_rgba16_to_rgba_f16(
+            origin.as_ptr(),
+            width as u32 * 4 * 2,
+            12,
+            origin.as_mut_ptr() as *mut _,
+            width as u32 * 4 * 2,
+            width as u32,
+            height as u32,
+        );
+        let v_src = origin
+            .iter()
+            .map(|&x| f16::from_bits(x))
+            .collect::<Vec<f16>>();
+        assert_eq!(dst, v_src);
+    }
 }

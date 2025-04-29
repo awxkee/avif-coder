@@ -82,7 +82,7 @@ dependencies = [
  "moxcms",
  "num-traits",
  "pic-scale",
- "yuvutils-rs",
+ "yuv",
 ]
 
 [[package]]
@@ -245,7 +245,9 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "gainforge"
-version = "0.3.1"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10b2c6f201a7840e95f5944bff31d67af1a603b38d59fd01ef633d74c6e18b28"
 dependencies = [
  "moxcms",
  "num-traits",
@@ -344,7 +346,9 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "moxcms"
-version = "0.5.1"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22b5f1d64e65ddd89792dffd073a1305b3ba5263e64f7885b91fb241cd8b9ae2"
 dependencies = [
  "chrono",
  "num-traits",
@@ -367,11 +371,10 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "pic-scale"
-version = "0.5.4"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92d2c4eb414bf136223bea87f3ba5e77011c2130d956f2c89fd52034b587316d"
+checksum = "9ba4bffd8be69ed93fd2a2ff0859bd7c8c8255988972b7f15b8aebb61ce67c9c"
 dependencies = [
- "libc",
  "num-traits",
  "rayon",
 ]
@@ -718,8 +721,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "yuvutils-rs"
-version = "0.8.2"
+name = "yuv"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "286db5a334f270dc6fdb6577946d4588768e154bc3dfd291c833cd035afd22f6"
 dependencies = [
  "num-traits",
 ]

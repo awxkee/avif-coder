@@ -247,6 +247,14 @@ ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, string &imageC
     }
       break;
     default: {
+      if (*useFloats) {
+        weave_cvt_rgba16_to_rgba_f16(reinterpret_cast<const uint16_t *>(imageData.data()),
+                                     *stride,
+                                     depth,
+                                     reinterpret_cast<uint16_t *>(imageData.data()),
+                                     *stride,
+                                     imageWidth, imageHeight);
+      }
     }
       break;
   }

@@ -30,7 +30,7 @@ use crate::cvt::work_on_transmuted_ptr_u16;
 use crate::icc::{apply_icc_rgba16_impl, apply_icc_rgba8_impl};
 use gainforge::{
     create_tone_mapper_rgba, create_tone_mapper_rgba10, create_tone_mapper_rgba12,
-    create_tone_mapper_rgba16, GainHdrMetadata, GamutClipping,
+    create_tone_mapper_rgba16, CommonToneMapperParameters, GainHdrMetadata, GamutClipping,
     MappingColorSpace, RgbToneMapperParameters, ToneMappingMethod,
 };
 use moxcms::{
@@ -147,9 +147,9 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
             primaries.add(5).read_unaligned(),
         );
         let white_point = XyY {
-            x: white_point.read_unaligned(),
-            y: white_point.add(1).read_unaligned(),
-            yb: 1.0f32,
+            x: white_point.read_unaligned() as f64,
+            y: white_point.add(1).read_unaligned() as f64,
+            yb: 1.0,
         };
 
         let trc = trc.to_characteristics();
@@ -157,9 +157,9 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
         let mut new_profile = ColorProfile::default();
         new_profile.update_rgb_colorimetry_triplet(
             white_point,
-            red_chromaticity.to_xyz(),
-            blue_chromaticity.to_xyz(),
-            green_chromaticity.to_xyz(),
+            red_chromaticity.to_xyzd(),
+            blue_chromaticity.to_xyzd(),
+            green_chromaticity.to_xyzd(),
         );
         new_profile.cicp = Some(CicpProfile {
             full_range: true,
@@ -184,7 +184,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
                         content_max_brightness: brightness,
                     }),
                     MappingColorSpace::Rgb(RgbToneMapperParameters {
-                        gamut_clipping: GamutClipping::NoClip,
+                        gamut_clipping: GamutClipping::Clip,
                         exposure: 1.0,
                     }),
                 ) {
@@ -232,9 +232,9 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
             primaries.add(5).read_unaligned(),
         );
         let white_point = XyY {
-            x: white_point.read_unaligned(),
-            y: white_point.add(1).read_unaligned(),
-            yb: 1.0f32,
+            x: white_point.read_unaligned() as f64,
+            y: white_point.add(1).read_unaligned() as f64,
+            yb: 1.0,
         };
 
         let trc = trc.to_characteristics();
@@ -242,9 +242,9 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
         let mut new_profile = ColorProfile::default();
         new_profile.update_rgb_colorimetry_triplet(
             white_point,
-            red_chromaticity.to_xyz(),
-            blue_chromaticity.to_xyz(),
-            green_chromaticity.to_xyz(),
+            red_chromaticity.to_xyzd(),
+            blue_chromaticity.to_xyzd(),
+            green_chromaticity.to_xyzd(),
         );
         new_profile.cicp = Some(CicpProfile {
             full_range: true,
@@ -283,7 +283,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                     content_max_brightness: brightness,
                                 }),
                                 MappingColorSpace::Rgb(RgbToneMapperParameters {
-                                    gamut_clipping: GamutClipping::NoClip,
+                                    gamut_clipping: GamutClipping::Clip,
                                     exposure: 1.0,
                                 }),
                             )
@@ -296,7 +296,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                     content_max_brightness: brightness,
                                 }),
                                 MappingColorSpace::Rgb(RgbToneMapperParameters {
-                                    gamut_clipping: GamutClipping::NoClip,
+                                    gamut_clipping: GamutClipping::Clip,
                                     exposure: 1.0,
                                 }),
                             )
@@ -308,8 +308,8 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                     display_max_brightness: 203f32,
                                     content_max_brightness: brightness,
                                 }),
-                                MappingColorSpace::Rgb(RgbToneMapperParameters {
-                                    gamut_clipping: GamutClipping::NoClip,
+                                MappingColorSpace::YRgb(CommonToneMapperParameters {
+                                    gamut_clipping: GamutClipping::Clip,
                                     exposure: 1.0,
                                 }),
                             )

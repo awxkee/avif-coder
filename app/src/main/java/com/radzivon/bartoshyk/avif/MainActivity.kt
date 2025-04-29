@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
 //            allFiles = allFiles.take(5).toMutableList()
 //            allFiles = allFiles.filter { it.contains("hato-wide-gamut-8bit.avif") || it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
 //            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
-            allFiles = allFiles.filter { it.contains("result.heic") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("head-empty-hdr.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -138,6 +138,9 @@ class MainActivity : AppCompatActivity() {
                             PreferredColorConfig.RGBA_8888,
                             ScaleMode.RESIZE
                         )
+//                        val bitmap0 = coder.decode(
+//                            buffer,
+//                        )
                         var start = System.currentTimeMillis()
 
 //                        var bitmap0 = coder.decode(
@@ -147,7 +150,7 @@ class MainActivity : AppCompatActivity() {
 
                         Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
-                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
+//                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
 //                        val roundTripped = coder.decode(encode)
 //
 //
