@@ -43,7 +43,7 @@ use pic_scale::{
 };
 use std::fmt::Debug;
 use std::slice;
-use yuvutils_rs::{
+use yuv::{
     convert_rgba16_to_f16, gb10_alpha_to_rgba10, gb10_to_rgba10, gb10_to_rgba_f16,
     gb12_alpha_to_rgba12, gb12_to_rgba12, gb12_to_rgba_f16, gbr_to_rgba, gbr_with_alpha_to_rgba,
     i010_alpha_to_rgba10, i010_to_rgba10, i010_to_rgba_f16, i012_alpha_to_rgba12, i012_to_rgba12,
@@ -126,8 +126,8 @@ pub extern "C" fn weave_yuv8_to_rgba8(
         let rgba_slice = slice::from_raw_parts_mut(rgba, height as usize * rgba_stride as usize);
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let planar_image = YuvPlanarImage {
@@ -187,8 +187,8 @@ pub extern "C" fn weave_yuv400_to_rgba8(
         let rgba_slice = slice::from_raw_parts_mut(rgba, height as usize * rgba_stride as usize);
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let matrix = match yuv_matrix {
@@ -229,8 +229,8 @@ pub extern "C" fn weave_yuv400_with_alpha_to_rgba8(
         let rgba_slice = slice::from_raw_parts_mut(rgba, height as usize * rgba_stride as usize);
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let gray_with_alpha = YuvGrayAlphaImage {
@@ -289,8 +289,8 @@ pub extern "C" fn weave_yuv400_p16_to_rgba16(
         };
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let matrix = match yuv_matrix {
@@ -365,8 +365,8 @@ pub extern "C" fn weave_yuv400_p16_with_alpha_to_rgba16(
         );
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let matrix = match yuv_matrix {
@@ -475,8 +475,8 @@ pub extern "C" fn weave_yuv8_with_alpha_to_rgba8(
         let rgba_slice = slice::from_raw_parts_mut(rgba, height as usize * rgba_stride as usize);
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let planar_with_alpha = YuvPlanarImageWithAlpha {
@@ -585,8 +585,8 @@ pub extern "C" fn weave_yuv16_to_rgba16(
         };
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let planar_image_with_alpha = YuvPlanarImage {
@@ -771,8 +771,8 @@ pub extern "C" fn weave_yuv16_with_alpha_to_rgba16(
         };
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let planar_image_with_alpha = YuvPlanarImageWithAlpha {
@@ -1198,8 +1198,8 @@ pub extern "C" fn weave_rgba_to_yuv(
         };
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         if matrix == YuvMatrix::Identity {
@@ -1263,8 +1263,8 @@ pub extern "C" fn weave_rgba_to_yuv400(
         };
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let matrix = match yuv_matrix {
@@ -1342,8 +1342,8 @@ pub extern "C" fn weave_yuv16_to_rgba_f16(
         };
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let planar_image_with_alpha = YuvPlanarImage {

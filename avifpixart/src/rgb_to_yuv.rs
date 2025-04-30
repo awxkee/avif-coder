@@ -28,7 +28,7 @@
  */
 use crate::{YuvMatrix, YuvRange, YuvType};
 use std::slice;
-use yuvutils_rs::{
+use yuv::{
     rgba_to_gbr, rgba_to_ycgco420, rgba_to_ycgco422, rgba_to_ycgco444, rgba_to_yuv400,
     rgba_to_yuv420, rgba_to_yuv422, rgba_to_yuv444, BufferStoreMut, YuvConversionMode,
     YuvGrayImageMut, YuvPlanarImageMut, YuvStandardMatrix,
@@ -65,8 +65,8 @@ pub extern "C" fn weave_rgba8_to_yuv8(
         let rgba_slice = slice::from_raw_parts(rgba, height as usize * rgba_stride as usize);
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let mut planar_image = YuvPlanarImageMut {
@@ -134,8 +134,8 @@ pub extern "C" fn weave_rgba8_to_y08(
         let rgba_slice = slice::from_raw_parts(rgba, height as usize * rgba_stride as usize);
 
         let yuv_range = match range {
-            YuvRange::Tv => yuvutils_rs::YuvRange::Limited,
-            YuvRange::Pc => yuvutils_rs::YuvRange::Full,
+            YuvRange::Tv => yuv::YuvRange::Limited,
+            YuvRange::Pc => yuv::YuvRange::Full,
         };
 
         let mut planar_image = YuvGrayImageMut {
