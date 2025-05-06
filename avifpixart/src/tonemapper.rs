@@ -243,8 +243,8 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
         new_profile.update_rgb_colorimetry_triplet(
             white_point,
             red_chromaticity.to_xyzd(),
-            blue_chromaticity.to_xyzd(),
             green_chromaticity.to_xyzd(),
+            blue_chromaticity.to_xyzd(),
         );
         new_profile.cicp = Some(CicpProfile {
             full_range: true,
@@ -279,11 +279,11 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                 &new_profile,
                                 &ColorProfile::new_srgb(),
                                 ToneMappingMethod::Rec2408(GainHdrMetadata {
-                                    display_max_brightness: 203f32,
+                                    display_max_brightness: 203.,
                                     content_max_brightness: brightness,
                                 }),
                                 MappingColorSpace::Rgb(RgbToneMapperParameters {
-                                    gamut_clipping: GamutClipping::Clip,
+                                    gamut_clipping: GamutClipping::NoClip,
                                     exposure: 1.0,
                                 }),
                             )
@@ -292,11 +292,11 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                 &new_profile,
                                 &ColorProfile::new_srgb(),
                                 ToneMappingMethod::Rec2408(GainHdrMetadata {
-                                    display_max_brightness: 203f32,
+                                    display_max_brightness: 203.,
                                     content_max_brightness: brightness,
                                 }),
                                 MappingColorSpace::Rgb(RgbToneMapperParameters {
-                                    gamut_clipping: GamutClipping::Clip,
+                                    gamut_clipping: GamutClipping::NoClip,
                                     exposure: 1.0,
                                 }),
                             )
@@ -305,11 +305,11 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                 &new_profile,
                                 &ColorProfile::new_srgb(),
                                 ToneMappingMethod::Rec2408(GainHdrMetadata {
-                                    display_max_brightness: 203f32,
+                                    display_max_brightness: 203.,
                                     content_max_brightness: brightness,
                                 }),
                                 MappingColorSpace::YRgb(CommonToneMapperParameters {
-                                    gamut_clipping: GamutClipping::Clip,
+                                    gamut_clipping: GamutClipping::NoClip,
                                     exposure: 1.0,
                                 }),
                             )
