@@ -5,14 +5,15 @@ edition = "2021"
 
 [dependencies]
 num-traits = "0.2"
-pic-scale = { version = "0.6.1", default-features = false, features = ["nightly_f16"] }
+pic-scale = { version = "0.6.4", default-features = false, features = ["nightly_f16"] }
 yuv = { path = "../../../RustroverProjects/yuvutils-rs", features = ["nightly_f16"], default-features = false }
 bytemuck = { version = "1.22", features = ["nightly_float"] }
-moxcms = "0.6.2"
+moxcms = "0.6.3"
 gainforge = "0.3.2"
 
 [features]
 rdm = ["yuv/rdm", "pic-scale/rdm"]
+i8mm = ["pic-scale/nightly_i8mm"]
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -24,4 +25,4 @@ lto = true  # Enable link time optimization
 codegen-units = 1  # Reduce parallel code generation units
 
 [build-dependencies]
-cbindgen = "0.28.0"
+cbindgen = "0.29.0"

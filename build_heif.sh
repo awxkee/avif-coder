@@ -25,12 +25,14 @@
 #
 
 set -e
+
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
 export NDK=$NDK_PATH
 
 destination_directory=libheif
 if [ ! -d "$destination_directory" ]; then
-   # git clone --depth 1 --branch v1.16.0 https://github.com/strukturag/libheif -b v1.18.0
-     git clone --depth 1 https://github.com/strukturag/libheif
+    git clone --depth 1 --branch v1.16.0 https://github.com/strukturag/libheif -b v1.18.0
+#     git clone --depth 1 https://github.com/strukturag/libheif
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
@@ -45,7 +47,7 @@ for abi in ${ABI_LIST}; do
   cd "build-${abi}"
   cp -r ./../../libde265/build-${abi}/libde265/de265-version.h ../../libde265/libde265/de265-version.h
   cp -r ./../../x265_git/build-${abi}/x265_config.h ./../../x265_git/source/x265_config.h
-  cp -r ./../../dav1d/build-${abi}/include/dav1d/version.h ./../../dav1d/include/dav1d/version.h
+#  cp -r ./../../dav1d/build-${abi}/include/dav1d/version.h ./../../dav1d/include/dav1d/version.h
 #  mkdir -p ./../../SVT-AV1/svt-av1
 #  cp -r ./../../SVT-AV1/Source/API/* ./../../SVT-AV1/svt-av1
   cmake .. \
@@ -59,6 +61,7 @@ for abi in ${ABI_LIST}; do
     -DWITH_AOM=OFF \
     -DWITH_DAV1D=OFF \
     -DAOM_DECODER=OFF \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
     -DAOM_ENCODER=OFF \
     -DWITH_AOM_DECODER=OFF \
     -DWITH_KVAZAAR=ON \

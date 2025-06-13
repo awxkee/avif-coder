@@ -68,6 +68,7 @@ for abi in ${ABI_LIST}; do
         -DENABLE_TOOLS=0 \
         -DBUILD_APPS=0 \
         -DBUILD_TESTING=0 \
+        -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
         -DNDEBUG=1 \
         -DCMAKE_C_FLAGS="-O2" \
         -DCMAKE_CXX_FLAGS="-O2" \
@@ -88,6 +89,7 @@ for abi in ${ABI_LIST}; do
         -DENABLE_TOOLS=0 \
         -DBUILD_APPS=0 \
         -DNDEBUG=1 \
+        -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
         -DBUILD_TESTING=0 \
         -DCMAKE_C_FLAGS="-Os" \
         -DCMAKE_CXX_FLAGS="-Os" \

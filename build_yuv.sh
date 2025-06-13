@@ -26,11 +26,13 @@
 
 set -e
 
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
+
 export NDK=$NDK_PATH
 
 destination_directory=libyuv
 if [ ! -d "$destination_directory" ]; then
-    git clone https://chromium.googlesource.com/libyuv/libyuv
+    git clone https://chromium.googlesource.com/libyuv/libyuv --branch stable
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
@@ -58,9 +60,12 @@ for abi in ${ABI_LIST}; do
     -DANDROID_PLATFORM=android-24 \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DCMAKE_SYSTEM_NAME=Generic \
     -DCMAKE_ANDROID_STL_TYPE=c++_shared \
     -DCMAKE_SYSTEM_NAME=Android \
+    -DLIBYUV_DISABLE_SME=1 \
     -DCMAKE_THREAD_PREFER_PTHREAD=TRUE \
     -DTHREADS_PREFER_PTHREAD_FLAG=TRUE \
     -DBUILD_STATIC_LIBS=ON
