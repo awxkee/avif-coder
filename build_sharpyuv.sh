@@ -26,6 +26,8 @@
 
 set -e
 
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
+
 export NDK=$NDK_PATH
 
 destination_directory=libwebp
@@ -61,6 +63,7 @@ for abi in ${ABI_LIST}; do
     -DCMAKE_SYSTEM_NAME=Generic \
     -DCMAKE_ANDROID_STL_TYPE=c++_shared \
     -DCMAKE_SYSTEM_NAME=Android \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
     -DCMAKE_THREAD_PREFER_PTHREAD=TRUE \
     -DTHREADS_PREFER_PTHREAD_FLAG=TRUE \
     -DBUILD_STATIC_LIBS=ON

@@ -32,13 +32,13 @@ rustup default nightly
 
 rustup +nightly target add x86_64-linux-android aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
-RUSTFLAGS="-C target-feature=+neon -C opt-level=3 -C strip=symbols" cargo +nightly build -Z build-std=std --target aarch64-linux-android --features rdm --release --manifest-path Cargo.toml
+RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C target-feature=+neon -C opt-level=3 -C strip=symbols" cargo +nightly build -Z build-std=std --target aarch64-linux-android --features rdm,i8mm --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --no-default-features --target x86_64-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --no-default-features --target x86_64-linux-android --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --no-default-features --target armv7-linux-androideabi --release --manifest-path Cargo.toml
+RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --no-default-features --target armv7-linux-androideabi --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --target i686-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --target i686-linux-android --release --manifest-path Cargo.toml
 
 cp -r target/aarch64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/arm64-v8a/libavifweaver.a
 cp -r target/x86_64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/x86_64/libavifweaver.a

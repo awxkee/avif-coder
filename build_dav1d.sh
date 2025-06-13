@@ -26,9 +26,11 @@
 
 set -e
 
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
+
 destination_directory=dav1d
 if [ ! -d "$destination_directory" ]; then
-    git clone https://code.videolan.org/videolan/dav1d -b 1.4.3
+    git clone https://code.videolan.org/videolan/dav1d -b 1.5.1
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
@@ -60,7 +62,10 @@ done
 
 for abi in ${ARMEABI_LIST}; do
   mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
+#  rm "build-${abi}/src/libdav1d.so" "build-${abi}/src/libdav1d.so.7"
+#  mv "build-${abi}/src/libdav1d.so.7.0.0" "build-${abi}/src/libdav1d.so"
   cp -r "build-${abi}/src/libdav1d.so" "../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so"
+#  cp -r "build-${abi}/src/libdav1d.so.7" "../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so.7"
   echo "build-${abi}/src/libdav1d.so was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so!"
 done
 

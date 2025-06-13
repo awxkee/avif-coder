@@ -137,7 +137,9 @@ fi
 #git checkout 191f79d5a914c647fa941ee8c72f807ca2bd1fcb
 
 echo "Build: calling meson..."
-meson setup --buildtype release --cross-file ./android_cross_${ABI}.txt -Denable_tools=false --default-library=shared -Denable_tests=false ./${dir_name}-${ABI}
+meson setup --buildtype release -Dc_link_args='-Wl,-z,max-page-size=16384' --cross-file ./android_cross_${ABI}.txt -Denable_tools=false --default-library=shared -Denable_tests=false ./${dir_name}-${ABI}
+#meson setup --buildtype release --cross-file ./android_cross_${ABI}.txt -Denable_tools=false --default-library=shared -Denable_tests=false ./${dir_name}-${ABI}
+
 
 echo "Building with Ninja"
 #cd ${dir_name}-${ABI}

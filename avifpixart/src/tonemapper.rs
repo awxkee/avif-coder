@@ -158,8 +158,8 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
         new_profile.update_rgb_colorimetry_triplet(
             white_point,
             red_chromaticity.to_xyzd(),
-            blue_chromaticity.to_xyzd(),
             green_chromaticity.to_xyzd(),
+            blue_chromaticity.to_xyzd(),
         );
         new_profile.cicp = Some(CicpProfile {
             full_range: true,

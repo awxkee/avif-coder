@@ -26,23 +26,25 @@
 
 set -e
 
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/26.2.11394342"
+
 export NDK=$NDK_PATH
 
 destination_directory=libde265
 if [ ! -d "$destination_directory" ]; then
-    git clone https://github.com/strukturag/libde265 -b v1.0.15
+    git clone https://github.com/strukturag/libde265 -b v1.0.16
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
 
 cd libde265
 
-if [ -z "$INCLUDE_X86" ]; then
-  ABI_LIST="armeabi-v7a arm64-v8a x86_64"
-  echo "X86 won't be included into a build"
-else
+#if [ -z "$INCLUDE_X86" ]; then
+#  ABI_LIST="armeabi-v7a arm64-v8a x86_64"
+#  echo "X86 won't be included into a build"
+#else
   ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
-fi
+#fi
 
 for abi in ${ABI_LIST}; do
   rm -rf "build-${abi}"
@@ -53,6 +55,7 @@ for abi in ${ABI_LIST}; do
     -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
     -DANDROID_PLATFORM=android-24 \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
     -DBUILD_SHARED_LIBS=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DENABLE_DOCS=0 \

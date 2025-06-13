@@ -26,7 +26,7 @@
 
 set -e
 
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
 export NDK=$NDK_PATH
 
 destination_directory=aom
@@ -55,6 +55,7 @@ for abi in ${ABI_LIST}; do
           -DBUILD_SHARED_LIBS=ON \
           -DCMAKE_BUILD_TYPE=Release \
           -DENABLE_DOCS=0 \
+          -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
           -DAOM_TARGET_CPU=generic \
           -DENABLE_EXAMPLES=0 \
           -DENABLE_TESTDATA=0 \
@@ -75,6 +76,7 @@ for abi in ${ABI_LIST}; do
       -DBUILD_SHARED_LIBS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -DENABLE_DOCS=0 \
+      -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
       -DCONFIG_AV1_DECODER=OFF \
       -DENABLE_EXAMPLES=0 \
       -DENABLE_TESTDATA=0 \

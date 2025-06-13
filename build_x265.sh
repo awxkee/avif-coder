@@ -25,7 +25,7 @@
 #
 
 set -e
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/27.0.12077973"
+export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
 export NDK=$NDK_PATH
 
 destination_directory=x265_git
@@ -69,6 +69,7 @@ for abi in ${ABI_LIST}; do
     -DANDROID_PLATFORM=android-24 \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
     -DCMAKE_ANDROID_STL_TYPE=c++_shared \
     -DCMAKE_SYSTEM_NAME=Android \
     -DCMAKE_THREAD_PREFER_PTHREAD=TRUE \
