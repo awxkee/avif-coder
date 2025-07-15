@@ -31,7 +31,7 @@ export NDK=$NDK_PATH
 
 destination_directory=libheif
 if [ ! -d "$destination_directory" ]; then
-    git clone --depth 1 --branch v1.16.0 https://github.com/strukturag/libheif -b v1.18.0
+    git clone --depth 1 --branch v1.16.0 https://github.com/strukturag/libheif -b v1.20.1
 #     git clone --depth 1 https://github.com/strukturag/libheif
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
