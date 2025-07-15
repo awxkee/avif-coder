@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity() {
 
                         Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
-//                        val encode = coder.encodeAvif(bitmap0, avifChromaSubsampling = AvifChromaSubsampling.YUV420)
+                        val encode = coder.encodeHeic(bitmap0)
 //                        val roundTripped = coder.decode(encode)
 //
 //

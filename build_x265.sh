@@ -30,7 +30,7 @@ export NDK=$NDK_PATH
 
 destination_directory=x265_git
 if [ ! -d "$destination_directory" ]; then
-    git clone https://bitbucket.org/multicoreware/x265_git.git -b 4.0
+    git clone https://bitbucket.org/multicoreware/x265_git.git -b stable
 else
     echo "Destination directory '$destination_directory' already exists. Cloning skipped."
 fi
