@@ -49,7 +49,11 @@ mavenPublishing {
         )
     )
 
-    coordinates("io.github.awxkee", "avif-coder", System.getenv("VERSION_NAME") ?: "0.0.10")
+    if (System.getenv("PUBLISH_STATE") == "Release") {
+        coordinates("io.github.awxkee", "avif-coder", System.getenv("VERSION_NAME") ?: "0.0.10")
+    } else {
+        coordinates("io.github.awxkee", "avif-coder", "0.0.10")
+    }
 
     pom {
         name.set("AVIF Coder")
