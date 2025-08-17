@@ -7,14 +7,11 @@ concurrency:
 on:
   push:
     branches:
-      - '*'
-      - '!ci_test_*'
+      - 'master'
     tags-ignore:
       - '*'
   pull_request:
     branches:
-      - '*'
-      - '!ci_test_*'
       - 'master'
 
 jobs:

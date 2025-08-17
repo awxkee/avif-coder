@@ -48,15 +48,16 @@ for abi in ${ABI_LIST}; do
   if [ "$abi" == "x86_64" ] || [ "$abi" == "x86" ]; then
         cmake .. \
           -G Ninja \
+          -Wno-dev -Wno-policy \
           -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
           -DANDROID_PLATFORM=android-24 \
           -DCMAKE_BUILD_TYPE=Release \
           -DBUILD_SHARED_LIBS=ON \
           -DCMAKE_BUILD_TYPE=Release \
           -DENABLE_DOCS=0 \
           -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
-          -DAOM_TARGET_CPU=generic \
           -DENABLE_EXAMPLES=0 \
           -DENABLE_TESTDATA=0 \
           -DCONFIG_AV1_DECODER=OFF \
@@ -66,12 +67,28 @@ for abi in ${ABI_LIST}; do
           -DCONFIG_PIC=1 \
           -DCONFIG_AV1_DECODER=0 \
           -DANDROID_ABI=${abi} \
+          -DENABLE_SSE=OFF \
+          -DENABLE_SSE2=OFF \
+          -DENABLE_SSSE3=OFF \
+          -DENABLE_MMX=OFF \
+          -DENABLE_SSE4_1=OFF \
+          -DENABLE_SSE4_2=OFF \
+          -DENABLE_AVX=OFF \
+          -DENABLE_AVX2=OFF \
+          -DCONFIG_RUNTIME_CPU_DETECT=0 \
+          -DAOM_ARCH_X86=OFF \
+          -DAOM_ARCH_X86_64=OFF \
+          -DAOM_TARGET_CPU=generic \
           -DCMAKE_ASM_NASM_COMPILER=/opt/homebrew/bin/nasm
   else
     cmake .. \
       -G Ninja \
+      -Wno-dev -Wno-policy \
       -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
       -DANDROID_PLATFORM=android-24 \
+      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+      -DENABLE_SVE=OFF \
+      -DENABLE_SVE2=OFF \
       -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_SHARED_LIBS=ON \
       -DCMAKE_BUILD_TYPE=Release \
