@@ -8,13 +8,10 @@ on:
   push:
     branches:
       - '*'
-      - '!ci_test_*'
     tags-ignore:
       - '*'
   pull_request:
     branches:
-      - '*'
-      - '!ci_test_*'
       - 'master'
 
 jobs:

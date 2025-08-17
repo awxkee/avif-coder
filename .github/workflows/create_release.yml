@@ -33,15 +33,3 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.ORG_GRADLE_PROJECT_SIGNINGINMEMORYKEYPASSWORD }}
           PUBLISH_STATE: Release
         run: bash ./gradlew avif-coder:publishAllPublicationsToMavenCentralRepository
-
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    needs:
-      - build
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ncipollo/release-action@v1
-        with:
-          bodyFile: 'CHANGELOG.md'

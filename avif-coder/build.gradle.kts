@@ -59,7 +59,7 @@ mavenPublishing {
         name.set("AVIF Coder")
         description.set("AVIF encoder/decoder for Android")
         inceptionYear.set("2025")
-        url.set("https://github.com/awxkee/jxl-coder")
+        url.set("https://github.com/awxkee/avif-coder")
         licenses {
             license {
                 name.set("The Apache License, Version 2.0")
