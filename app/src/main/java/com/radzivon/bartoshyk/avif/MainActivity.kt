@@ -119,72 +119,42 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-//            allFiles = allFiles.take(5).toMutableList()
-//            allFiles = allFiles.filter { it.contains("hato-wide-gamut-8bit.avif") || it.contains("wide_gamut.avif") || it.contains("IMG_0199_rr.avif") || it.contains("bt_2020_pq.avif") }.toMutableList()
-//            allFiles = allFiles.filter { it.contains("bbb_alpha_inverted.avif") }.toMutableList()
-//            allFiles = allFiles.filter { it.contains("federico-beccari.avif") }.toMutableList()
-            for (file in allFiles) {
-                try {
-                    Log.d("AVIF", "start processing $file")
-                    val buffer = this@MainActivity.assets.open(file).source().buffer()
-                        .readByteArray()
+            allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
+            for (i in 0 until 5 ) {
+                for (file in allFiles) {
+                    try {
+                        Log.d("AVIF", "start processing $file")
+                        val buffer = this@MainActivity.assets.open(file).source().buffer()
+                            .readByteArray()
 
-                    val size = coder.getSize(buffer)
-                    if (size != null) {
-                        val bitmap0 = coder.decodeSampled(
-                            buffer,
-                            if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
-                            if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                            PreferredColorConfig.RGBA_8888,
-                            ScaleMode.RESIZE
-                        )
-//                        val bitmap0 = coder.decode(
-//                            buffer,
-//                        )
-                        var start = System.currentTimeMillis()
-
-//                        var bitmap0 = coder.decode(
-//                            byteArray = buffer,
-//                            preferredColorConfig = PreferredColorConfig.RGBA_F16,
-//                        )
-
-                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
-
-                        val encode = coder.encodeHeic(bitmap0)
-//                        val roundTripped = coder.decode(encode)
-//
-//
-//                        val round = coder.decode(
-//                            byteArray = encode,
-//                            preferredColorConfig = PreferredColorConfig.RGBA_8888,
-//                        )
-
-//                        bitmap0.setColorSpace(ColorSpace.getFromDataSpace(DataSpace.DATASPACE_BT2020_PQ)!!)
-
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            val imageView = BindingImageViewBinding.inflate(
-                                layoutInflater,
-                                binding.scrollViewContainer,
-                                false
+                        val size = coder.getSize(buffer)
+                        if (size != null) {
+                            val bitmap0 = coder.decodeSampled(
+                                buffer,
+                                if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
+                                if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
+                                PreferredColorConfig.RGBA_8888,
+                                ScaleMode.RESIZE
                             )
-                            imageView.root.setImageBitmap(bitmap0)
-                            binding.scrollViewContainer.addView(imageView.root)
+                            var start = System.currentTimeMillis()
+                            Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
+
+                            lifecycleScope.launch(Dispatchers.Main) {
+                                val imageView = BindingImageViewBinding.inflate(
+                                    layoutInflater,
+                                    binding.scrollViewContainer,
+                                    false
+                                )
+                                imageView.root.setImageBitmap(bitmap0)
+                                binding.scrollViewContainer.addView(imageView.root)
+                            }
                         }
-//                        lifecycleScope.launch(Dispatchers.Main) {
-//                            val imageView = BindingImageViewBinding.inflate(
-//                                layoutInflater,
-//                                binding.scrollViewContainer,
-//                                false
-//                            )
-//                            imageView.root.setImageBitmap(round)
-//                            binding.scrollViewContainer.addView(imageView.root)
-//                        }
-                    }
-                } catch (e: Exception) {
-                    Log.d("AVIF", e.toString())
-                    if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
-                    } else {
-                        throw e
+                    } catch (e: Exception) {
+                        Log.d("AVIF", e.toString())
+                        if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
+                        } else {
+                            throw e
+                        }
                     }
                 }
             }
