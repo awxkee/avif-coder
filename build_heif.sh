@@ -26,7 +26,7 @@
 
 set -e
 
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
+export NDK_PATH="$HOME/Library/Android/sdk/ndk/28.1.13356709"
 export NDK=$NDK_PATH
 
 destination_directory=libheif

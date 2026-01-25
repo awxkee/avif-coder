@@ -26,7 +26,7 @@
 
 set -e
 
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/26.2.11394342"
+export NDK_PATH="$HOME/Library/Android/sdk/ndk/28.1.13356709"
 
 export NDK=$NDK_PATH
 
