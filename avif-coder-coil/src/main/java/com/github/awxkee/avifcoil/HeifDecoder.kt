@@ -56,7 +56,7 @@ class HeifDecoder(
     private val imageLoader: ImageLoader,
 ) : Decoder {
 
-    private val coder = HeifCoder(context)
+    private val coder = HeifCoder()
 
     override suspend fun decode(): DecodeResult? = runInterruptible {
         // ColorSpace is preferred to be ignored due to lib is trying to handle all color profile by itself
