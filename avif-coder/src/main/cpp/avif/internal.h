@@ -601,8 +601,6 @@ typedef struct avifCodec
 avifResult avifCodecCreate(avifCodecChoice choice, avifCodecFlags requiredFlags, avifCodec ** codec);
 void avifCodecDestroy(avifCodec * codec);
 
-AVIF_NODISCARD avifCodec * avifCodecCreateAOM(void);   // requires AVIF_CODEC_AOM (codec_aom.c)
-const char * avifCodecVersionAOM(void);                // requires AVIF_CODEC_AOM (codec_aom.c)
 AVIF_NODISCARD avifCodec * avifCodecCreateDav1d(void); // requires AVIF_CODEC_DAV1D (codec_dav1d.c)
 const char * avifCodecVersionDav1d(void);              // requires AVIF_CODEC_DAV1D (codec_dav1d.c)
 AVIF_NODISCARD avifCodec * avifCodecCreateGav1(void);  // requires AVIF_CODEC_LIBGAV1 (codec_libgav1.c)

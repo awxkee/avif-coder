@@ -1000,7 +1000,6 @@ AVIF_API int avifLimitedToFullUV(uint32_t depth, int v);
 typedef enum avifCodecChoice
 {
     AVIF_CODEC_CHOICE_AUTO = 0,
-    AVIF_CODEC_CHOICE_AOM,
     AVIF_CODEC_CHOICE_DAV1D,   // Decode only
     AVIF_CODEC_CHOICE_LIBGAV1, // Decode only
     AVIF_CODEC_CHOICE_RAV1E,   // Encode only
@@ -1443,8 +1442,7 @@ typedef struct avifScalingMode
 //   automatically chooses suitable tiling values.
 // * Speed range: [AVIF_SPEED_SLOWEST - AVIF_SPEED_FASTEST]. Slower should make for a better quality
 //   image in less bytes. AVIF_SPEED_DEFAULT means "Leave the AV1 codec to its default speed settings"./
-//   If avifEncoder uses rav1e, the speed value is directly passed through (0-10). If libaom is used,
-//   a combination of settings are tweaked to simulate this speed range.
+//   If avifEncoder uses rav1e, the speed value is directly passed through (0-10).
 // * Extra layer count: [0 - (AVIF_MAX_AV1_LAYER_COUNT-1)]. Non-zero value indicates a layered
 //   (progressive) image.
 // * Some encoder settings can be changed after encoding starts. Changes will take effect in the next

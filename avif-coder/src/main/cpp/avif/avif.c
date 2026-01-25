@@ -1065,23 +1065,6 @@ static struct AvailableCodec availableCodecs[] = {
 #if defined(AVIF_CODEC_LIBGAV1)
     { AVIF_CODEC_CHOICE_LIBGAV1, AVIF_CODEC_TYPE_AV1, "libgav1", avifCodecVersionGav1, avifCodecCreateGav1, AVIF_CODEC_FLAG_CAN_DECODE },
 #endif
-#if defined(AVIF_CODEC_AOM)
-    { AVIF_CODEC_CHOICE_AOM,
-      AVIF_CODEC_TYPE_AV1,
-      "aom",
-      avifCodecVersionAOM,
-      avifCodecCreateAOM,
-#if defined(AVIF_CODEC_AOM_DECODE) && defined(AVIF_CODEC_AOM_ENCODE)
-      AVIF_CODEC_FLAG_CAN_DECODE | AVIF_CODEC_FLAG_CAN_ENCODE
-#elif defined(AVIF_CODEC_AOM_DECODE)
-      AVIF_CODEC_FLAG_CAN_DECODE
-#elif defined(AVIF_CODEC_AOM_ENCODE)
-      AVIF_CODEC_FLAG_CAN_ENCODE
-#else
-#error AVIF_CODEC_AOM_DECODE or AVIF_CODEC_AOM_ENCODE must be defined
-#endif
-    },
-#endif
 #if defined(AVIF_CODEC_RAV1E)
     { AVIF_CODEC_CHOICE_RAV1E, AVIF_CODEC_TYPE_AV1, "rav1e", avifCodecVersionRav1e, avifCodecCreateRav1e, AVIF_CODEC_FLAG_CAN_ENCODE },
 #endif
