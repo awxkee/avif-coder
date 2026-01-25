@@ -122,11 +122,8 @@ android {
 
     }
 
-    sourceSets {
-        getByName("main") {
-            jniLibs.srcDirs("src/main/jniLibs")
-        }
-    }
+    // Native libraries are built via CMake and automatically packaged in the AAR
+    // No jniLibs directory needed - libraries come from CMake build output
 
     buildTypes {
         release {
