@@ -63,7 +63,7 @@ for abi in ${ABI_LIST}; do
     -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
     -DAOM_ENCODER=OFF \
     -DWITH_AOM_DECODER=OFF \
-    -DWITH_KVAZAAR=ON \
+    -DWITH_KVAZAAR=OFF \
     -DWITH_X265=OFF \
     -DLIBDE265_LIBRARY=./../../libde265/build-${abi}/libde265/libde265.so \
     -DLIBDE265_INCLUDE_DIR=../../libde265 \

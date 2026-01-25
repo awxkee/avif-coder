@@ -26,7 +26,6 @@
 
 set -e
 
-bash build_svt.sh
 bash build_dav1d.sh
 bash build_de265.sh
 bash build_yuv.sh
