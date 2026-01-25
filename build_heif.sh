@@ -46,7 +46,6 @@ for abi in ${ABI_LIST}; do
   mkdir "build-${abi}"
   cd "build-${abi}"
   cp -r ./../../libde265/build-${abi}/libde265/de265-version.h ../../libde265/libde265/de265-version.h
-  cp -r ./../../x265_git/build-${abi}/x265_config.h ./../../x265_git/source/x265_config.h
 #  cp -r ./../../dav1d/build-${abi}/include/dav1d/version.h ./../../dav1d/include/dav1d/version.h
 #  mkdir -p ./../../SVT-AV1/svt-av1
 #  cp -r ./../../SVT-AV1/Source/API/* ./../../SVT-AV1/svt-av1
@@ -65,9 +64,7 @@ for abi in ${ABI_LIST}; do
     -DAOM_ENCODER=OFF \
     -DWITH_AOM_DECODER=OFF \
     -DWITH_KVAZAAR=ON \
-    -DWITH_X265=ON \
-    -DX265_INCLUDE_DIR=./../../x265_git/source \
-    -DX265_LIBRARY=./../../x265_git/build-${abi}/libx265.so \
+    -DWITH_X265=OFF \
     -DLIBDE265_LIBRARY=./../../libde265/build-${abi}/libde265/libde265.so \
     -DLIBDE265_INCLUDE_DIR=../../libde265 \
     -DLIBSHARPYUV_INCLUDE_DIR=../../libwebp \

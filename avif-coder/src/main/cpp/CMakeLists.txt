@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
 
-add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
+add_library(coder SHARED JniException.cpp SizeScaler.cpp
         colorspace/colorspace.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
@@ -21,17 +21,13 @@ add_library(libyuv STATIC IMPORTED)
 add_library(libde265 SHARED IMPORTED)
 add_library(libdav1d SHARED IMPORTED)
 add_library(libsharpyuv STATIC IMPORTED)
-add_library(aom SHARED IMPORTED)
-add_library(x265 SHARED IMPORTED)
 add_library(avifweaver STATIC IMPORTED)
 
-set_target_properties(x265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libx265.so)
 set_target_properties(libheif PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libheif.so)
 set_target_properties(libyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libyuv.a)
 set_target_properties(libde265 PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libde265.so)
 set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libdav1d.so)
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
-set_target_properties(aom PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libaom.so)
 set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libavifweaver.a)
 
 target_link_options(coder PRIVATE "-Wl,-z,max-page-size=16384")
@@ -78,5 +74,5 @@ add_subdirectory(avif)
 
 target_link_libraries( # Specifies the target library.
         coder
-        ${log-lib} libheif cpufeatures libyuv -ljnigraphics aom avif_shared
-        libde265 libdav1d libsharpyuv ${android-lib} avifweaver x265 m c)
+        ${log-lib} libheif cpufeatures libyuv -ljnigraphics avif_shared
+        libde265 libdav1d libsharpyuv ${android-lib} avifweaver m c)

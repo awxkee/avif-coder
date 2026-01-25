@@ -110,81 +110,6 @@ class HeifCoder {
         )
     }
 
-    /**
-     * Encodes an avif image
-     *
-     * @param quality must be in range 0..100
-     * @param speed - see [AvifSpeed] for more info
-     * @param preciseMode - LOSSY or LOSELESS compression mode
-     * @param surfaceMode - see [AvifSurfaceMode] for more info
-     *
-     * @throws IllegalArgumentException if image size is not even
-     */
-    fun encodeAvif(
-        bitmap: Bitmap,
-        quality: Int = 80,
-        speed: AvifSpeed = AvifSpeed.TEN,
-        preciseMode: PreciseMode = PreciseMode.LOSSY,
-        surfaceMode: AvifSurfaceMode = AvifSurfaceMode.AUTO,
-        avifChromaSubsampling: AvifChromaSubsampling = AvifChromaSubsampling.AUTO,
-    ): ByteArray {
-        require(quality in 0..100) {
-            throw IllegalStateException("Quality should be in 0..100 range")
-        }
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeAvifImpl(
-                bitmap,
-                quality,
-                bitmap.colorSpace?.dataSpace ?: -1,
-                preciseMode.value,
-                surfaceMode.value,
-                speed = speed.value,
-                avifChromaSubsampling.value
-            )
-        } else {
-            encodeAvifImpl(
-                bitmap,
-                quality,
-                -1,
-                preciseMode.value,
-                surfaceMode.value,
-                speed = speed.value,
-                avifChromaSubsampling.value
-            )
-        }
-    }
-
-    /**
-     * @param crf - consult x265 doc for crf understanding
-     */
-    fun encodeHeic(
-        bitmap: Bitmap,
-        preciseMode: PreciseMode = PreciseMode.LOSSY,
-        quality: HeifQualityArgument = HeifQualityArg.Quality(100),
-    ): ByteArray {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeHeicImpl(
-                bitmap,
-                quality.getRequiredQuality(),
-                bitmap.colorSpace?.dataSpace ?: -1,
-                preciseMode.value,
-                quality.getRequiredPreset().value,
-                quality.getRequiredCrf(),
-                quality.isCrfMode()
-            )
-        } else {
-            encodeHeicImpl(
-                bitmap,
-                quality.getRequiredQuality(),
-                -1,
-                preciseMode.value,
-                quality.getRequiredPreset().value,
-                quality.getRequiredCrf(),
-                quality.isCrfMode()
-            )
-        }
-    }
-
     private external fun getSizeImpl(byteArray: ByteArray): Size
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
@@ -207,26 +132,6 @@ class HeifCoder {
         scaleMode: Int,
         scaleQuality: Int,
     ): Bitmap
-
-    private external fun encodeAvifImpl(
-        bitmap: Bitmap,
-        quality: Int,
-        dataSpace: Int,
-        qualityMode: Int,
-        surfaceMode: Int,
-        speed: Int,
-        chromaSubsampling: Int,
-    ): ByteArray
-
-    private external fun encodeHeicImpl(
-        bitmap: Bitmap,
-        quality: Int,
-        dataSpace: Int,
-        qualityMode: Int,
-        preset: Int,
-        crf: Int,
-        crfMode: Boolean,
-    ): ByteArray
 
     @SuppressLint("ObsoleteSdkInt")
     companion object {
