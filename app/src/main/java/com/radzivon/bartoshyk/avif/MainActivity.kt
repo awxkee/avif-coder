@@ -165,9 +165,7 @@ class MainActivity : AppCompatActivity() {
         private const val ITERATION_COUNT = 5
         private const val LARGE_IMAGE_THRESHOLD = 1800
         private const val LARGE_IMAGE_SCALE_FACTOR = 4
-        // Used to load the 'avif' library on application startup.
-        init {
-            System.loadLibrary("avif")
-        }
+        // Note: Native libraries (libcoder.so) are loaded automatically by HeifCoder
+        // The app module's native library (libavif.so) is not needed for functionality
     }
 }
