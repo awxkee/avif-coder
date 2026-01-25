@@ -25,46 +25,26 @@
 
 package com.radzivon.bartoshyk.avif
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ColorSpace
-import android.hardware.DataSpace
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.scale
 import androidx.lifecycle.lifecycleScope
-import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.HeifCoder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
-import com.radzivon.bartoshyk.avif.coder.ToneMapper
 import com.radzivon.bartoshyk.avif.databinding.ActivityMainBinding
 import com.radzivon.bartoshyk.avif.databinding.BindingImageViewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okio.buffer
-import okio.sink
 import okio.source
-import java.io.ByteArrayInputStream
-import java.io.File
 import java.io.FileNotFoundException
-import java.io.FileOutputStream
 import java.io.IOException
-import kotlin.system.measureTimeMillis
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-
-    companion object {
-        private const val ITERATION_COUNT = 5
-        private const val LARGE_IMAGE_THRESHOLD = 1800
-        private const val LARGE_IMAGE_SCALE_FACTOR = 4
-    }
 
     fun getAllFilesFromAssets(path: String = ""): List<String> {
         val assetManager = assets
@@ -122,13 +102,13 @@ class MainActivity : AppCompatActivity() {
                         ".heif"
                     )
                 }
-            var allFiles = mutableListOf<String>()
+            val allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
             // Removed filter - process all AVIF/HEIC/HEIF images
             // allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
-            
-            for (i in 0 until ITERATION_COUNT) {
+
+            (0 until ITERATION_COUNT).forEach { _ ->
                 for (file in allFiles) {
                     try {
                         Log.d("AVIF", "start processing $file")
@@ -172,8 +152,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     } catch (e: Exception) {
                         Log.e("AVIF", "Error processing $file: ${e.message}", e)
-                        if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
-                        } else {
+                        if (e !is FileNotFoundException) {
                             throw e
                         }
                     }
@@ -182,44 +161,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun Bitmap.aspectFit(maxWidth: Int, maxHeight: Int): Bitmap {
-        val image = this
-        val width: Int = image.width
-        val height: Int = image.height
-        val ratioBitmap = width.toFloat() / height.toFloat()
-        val ratioMax = maxWidth.toFloat() / maxHeight.toFloat()
-
-        var finalWidth = maxWidth
-        var finalHeight = maxHeight
-        if (ratioMax > ratioBitmap) {
-            finalWidth = (maxHeight.toFloat() * ratioBitmap).toInt()
-        } else {
-            finalHeight = (maxWidth.toFloat() / ratioBitmap).toInt()
-        }
-        return Bitmap.createScaledBitmap(image, finalWidth, finalHeight, true)
-    }
-
-    fun aspectScale(sourceSize: Size, dstSize: Size): Size {
-        val isHorizontal = sourceSize.width > sourceSize.height
-        val targetSize = if (isHorizontal) dstSize else Size(dstSize.height, dstSize.width)
-        if (targetSize.width > sourceSize.width && targetSize.width > sourceSize.height) {
-            return sourceSize
-        }
-        val imageAspectRatio = sourceSize.width.toFloat() / sourceSize.height.toFloat()
-        val canvasAspectRation = targetSize.width.toFloat() / targetSize.height.toFloat()
-        val resizeFactor: Float
-        if (imageAspectRatio > canvasAspectRation) {
-            resizeFactor = targetSize.width.toFloat() / sourceSize.width.toFloat()
-        } else {
-            resizeFactor = targetSize.height.toFloat() / sourceSize.height.toFloat()
-        }
-        return Size(
-            (sourceSize.width.toFloat() * resizeFactor).toInt(),
-            (sourceSize.height.toFloat() * resizeFactor).toInt()
-        )
-    }
-
     companion object {
+        private const val ITERATION_COUNT = 5
+        private const val LARGE_IMAGE_THRESHOLD = 1800
+        private const val LARGE_IMAGE_SCALE_FACTOR = 4
         // Used to load the 'avif' library on application startup.
         init {
             System.loadLibrary("avif")
