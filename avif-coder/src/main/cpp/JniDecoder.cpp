@@ -142,3 +142,51 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
     return static_cast<jobject>(nullptr);
   }
 }
+
+extern "C"
+JNIEXPORT jobject JNICALL
+Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env,
+                                                             jobject thiz,
+                                                             jbyteArray byte_array) {
+  try {
+    auto totalLength = env->GetArrayLength(byte_array);
+    std::vector<uint8_t> srcBuffer(totalLength);
+    env->GetByteArrayRegion(byte_array, 0, totalLength,
+                            reinterpret_cast<jbyte *>(srcBuffer.data()));
+
+    std::string mimeType = HeifImageDecoder::getImageType(srcBuffer);
+    AvifImageSize size;
+
+    if (mimeType == "image/avif" || mimeType == "image/avif-sequence") {
+      size = AvifDecoderController::getImageSize(srcBuffer.data(), srcBuffer.size());
+    } else {
+      size = HeifImageDecoder::getImageSize(srcBuffer);
+    }
+
+    jclass sizeClass = env->FindClass("android/util/Size");
+    if (!sizeClass) {
+      throwException(env, "Can't find Size class");
+      return static_cast<jobject>(nullptr);
+    }
+
+    jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
+    if (!methodID) {
+      throwException(env, "Can't find Size constructor");
+      return static_cast<jobject>(nullptr);
+    }
+
+    jobject sizeObject = env->NewObject(sizeClass,
+                                        methodID,
+                                        static_cast<jint>(size.width),
+                                        static_cast<jint>(size.height));
+    return sizeObject;
+  } catch (std::bad_alloc &err) {
+    std::string exception = "Not enough memory to get image size";
+    throwException(env, exception);
+    return static_cast<jobject>(nullptr);
+  } catch (std::runtime_error &err) {
+    std::string exception(err.what());
+    throwException(env, exception);
+    return static_cast<jobject>(nullptr);
+  }
+}

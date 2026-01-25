@@ -269,3 +269,40 @@ std::string HeifImageDecoder::getImageType(std::vector<uint8_t> &srcBuffer) {
   std::string mime(cMime);
   return mime;
 }
+
+AvifImageSize HeifImageDecoder::getImageSize(std::vector<uint8_t> &srcBuffer) {
+  auto ctx = std::unique_ptr<heif_context, HeifUniquePtrDeleter>(heif_context_alloc());
+  if (!ctx) {
+    throw std::runtime_error("Can't create HEIF/AVIF decoder");
+  }
+
+  auto result = heif_context_read_from_memory_without_copy(ctx.get(), srcBuffer.data(),
+                                                           srcBuffer.size(),
+                                                           nullptr);
+  if (result.code != heif_error_Ok) {
+    throw std::runtime_error("Can't read heif file");
+  }
+
+  heif_image_handle *handlePtr;
+  result = heif_context_get_primary_image_handle(ctx.get(), &handlePtr);
+  if (result.code != heif_error_Ok || handlePtr == nullptr) {
+    throw std::runtime_error("Acquiring an image from file has failed");
+  }
+
+  std::shared_ptr<heif_image_handle> handle(handlePtr, [](heif_image_handle *hd) {
+    heif_image_handle_release(hd);
+  });
+
+  int width = heif_image_handle_get_width(handle.get());
+  int height = heif_image_handle_get_height(handle.get());
+
+  if (width <= 0 || height <= 0) {
+    throw std::runtime_error("Invalid image dimensions");
+  }
+
+  AvifImageSize size = {
+      .width = static_cast<uint32_t>(width),
+      .height = static_cast<uint32_t>(height)
+  };
+  return size;
+}

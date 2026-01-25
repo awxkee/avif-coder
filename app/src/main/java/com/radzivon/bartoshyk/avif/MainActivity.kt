@@ -119,7 +119,8 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
+            // Removed filter - process all AVIF/HEIC/HEIF images
+            // allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
             for (i in 0 until 5 ) {
                 for (file in allFiles) {
                     try {
@@ -129,6 +130,7 @@ class MainActivity : AppCompatActivity() {
 
                         val size = coder.getSize(buffer)
                         if (size != null) {
+                            Log.d("AVIF", "Image size: ${size.width}x${size.height}")
                             val bitmap0 = coder.decodeSampled(
                                 buffer,
                                 if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
@@ -147,10 +149,13 @@ class MainActivity : AppCompatActivity() {
                                 )
                                 imageView.root.setImageBitmap(bitmap0)
                                 binding.scrollViewContainer.addView(imageView.root)
+                                Log.d("AVIF", "Successfully displayed image: $file")
                             }
+                        } else {
+                            Log.w("AVIF", "getSize() returned null for file: $file")
                         }
                     } catch (e: Exception) {
-                        Log.d("AVIF", e.toString())
+                        Log.e("AVIF", "Error processing $file: ${e.message}", e)
                         if (e is FileNotFoundException || e is java.io.FileNotFoundException) {
                         } else {
                             throw e

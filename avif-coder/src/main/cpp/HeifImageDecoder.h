@@ -60,6 +60,8 @@ class HeifImageDecoder {
                           int scalingQuality);
 
   static std::string getImageType(std::vector<uint8_t> &srcBuffer);
+  
+  static AvifImageSize getImageSize(std::vector<uint8_t> &srcBuffer);
 
  private:
 
