@@ -40,6 +40,12 @@ find_library( # Sets the name of the path variable.
 # can link multiple libraries, such as libraries you define in this
 # build script, prebuilt third-party libraries, or system libraries.
 
+# Add 16 KB page size alignment for Android 15+ compatibility
+target_link_options(avif PRIVATE 
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384"
+)
+
 target_link_libraries( # Specifies the target library.
         avif
 

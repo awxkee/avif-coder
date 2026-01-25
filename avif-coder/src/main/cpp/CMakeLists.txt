@@ -30,7 +30,12 @@ set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/
 set_target_properties(libsharpyuv PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libsharpyuv.a)
 set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/${ANDROID_ABI}/libavifweaver.a)
 
-target_link_options(coder PRIVATE "-Wl,-z,max-page-size=16384")
+target_link_options(coder PRIVATE 
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384"
+    "-Wl,-z,relro"
+    "-Wl,-z,now"
+)
 
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
 target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpufeatures)
