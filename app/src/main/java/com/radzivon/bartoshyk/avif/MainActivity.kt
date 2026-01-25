@@ -161,33 +161,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Encoding functionality removed - library now supports decoding only
-    // private fun testEncoder(assetName: String) {
-    //     val coder = HeifCoder()
-    //     val buffer = this.assets.open(assetName).source().buffer().readByteArray()
-    //     val opts = BitmapFactory.Options()
-    //     opts.inMutable = true
-    //     var bitmap = BitmapFactory.decodeByteArray(buffer, 0, buffer.size, opts)
-    //     val rr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-    //         bitmap.copy(Bitmap.Config.ARGB_8888, true)
-    //     } else {
-    //         bitmap.copy(Bitmap.Config.ARGB_8888, true)
-    //     }
-    //     bitmap.recycle()
-    //     bitmap = rr
-    //     val bytes = coder.encodeAvif(bitmap)
-    //     bitmap.recycle()
-    //     val ff = File(this.filesDir, "${File(assetName).nameWithoutExtension}.avif")
-    //     ff.delete()
-    //     val output = FileOutputStream(ff)
-    //     output.sink().buffer().use {
-    //         it.write(bytes)
-    //         it.flush()
-    //     }
-    //     output.close()
-    //     Log.d("p", bytes.size.toString())
-    // }
-
     fun Bitmap.aspectFit(maxWidth: Int, maxHeight: Int): Bitmap {
         val image = this
         val width: Int = image.width
@@ -224,20 +197,6 @@ class MainActivity : AppCompatActivity() {
             (sourceSize.height.toFloat() * resizeFactor).toInt()
         )
     }
-
-    // Encoding functionality removed - library now supports decoding only
-    // private fun writeHevc(bitmap: Bitmap) {
-    //     val bytes = HeifCoder().encodeHeic(bitmap)
-    //     val ff = File(this.filesDir, "result.heic")
-    //     ff.delete()
-    //     val output = FileOutputStream(ff)
-    //     output.sink().buffer().use {
-    //         it.write(bytes)
-    //         it.flush()
-    //     }
-    //     output.close()
-    //     Log.d("p", bytes.size.toString())
-    // }
 
     companion object {
         // Used to load the 'avif' library on application startup.
