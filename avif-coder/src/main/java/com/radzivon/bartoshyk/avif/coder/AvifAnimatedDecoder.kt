@@ -62,11 +62,28 @@ class AvifAnimatedDecoder : Closeable {
         nativeController = createControllerFromByteBuffer(source)
     }
 
+    /**
+     * Tone mapper to use for HDR images.
+     * Default is [ToneMapper.REC2408].
+     */
     var toneMapper: ToneMapper = ToneMapper.REC2408
 
     private var nativeController: Long = -1
     private val lock = Any()
 
+    /**
+     * Gets a specific frame from an animated AVIF image with scaling.
+     * 
+     * @param frame The frame index (0-based)
+     * @param scaledWidth The target width (0 means no scaling)
+     * @param scaledHeight The target height (0 means no scaling)
+     * @param preferredColorConfig The preferred color configuration for the output bitmap
+     * @param scaleMode The scaling mode (FIT or FILL)
+     * @param scaleQuality The quality of scaling
+     * @return The decoded and scaled frame as a Bitmap
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     * @throws Exception if decoding fails or frame index is out of bounds
+     */
     fun getScaledFrame(
         frame: Int, scaledWidth: Int,
         scaledHeight: Int,
@@ -91,6 +108,15 @@ class AvifAnimatedDecoder : Closeable {
         }
     }
 
+    /**
+     * Gets a specific frame from an animated AVIF image at its original size.
+     * 
+     * @param frame The frame index (0-based)
+     * @param preferredColorConfig The preferred color configuration for the output bitmap
+     * @return The decoded frame as a Bitmap
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     * @throws Exception if decoding fails or frame index is out of bounds
+     */
     fun getFrame(
         frame: Int,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT,
@@ -105,6 +131,12 @@ class AvifAnimatedDecoder : Closeable {
         )
     }
 
+    /**
+     * Gets the dimensions of the animated AVIF image.
+     * 
+     * @return The image size as [Size]
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     */
     fun getImageSize(): Size {
         synchronized(lock) {
             if (nativeController == -1L) {
@@ -114,6 +146,12 @@ class AvifAnimatedDecoder : Closeable {
         }
     }
 
+    /**
+     * Gets the total number of frames in the animated AVIF image.
+     * 
+     * @return The number of frames
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     */
     fun getFramesCount(): Int {
         synchronized(lock) {
             if (nativeController == -1L) {
@@ -123,6 +161,12 @@ class AvifAnimatedDecoder : Closeable {
         }
     }
 
+    /**
+     * Gets the number of times the animation should loop.
+     * 
+     * @return The loop count (0 means infinite loop)
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     */
     fun getLoopsCount(): Int {
         synchronized(lock) {
             if (nativeController == -1L) {
@@ -132,6 +176,12 @@ class AvifAnimatedDecoder : Closeable {
         }
     }
 
+    /**
+     * Gets the total duration of the animation in milliseconds.
+     * 
+     * @return The total duration in milliseconds
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     */
     fun getTotalDuration(): Int {
         synchronized(lock) {
             if (nativeController == -1L) {
@@ -141,21 +191,20 @@ class AvifAnimatedDecoder : Closeable {
         }
     }
 
+    /**
+     * Gets the duration of a specific frame in milliseconds.
+     * 
+     * @param frame The frame index (0-based)
+     * @return The frame duration in milliseconds
+     * @throws IllegalStateException if the decoder wasn't properly initialized
+     * @throws Exception if frame index is out of bounds
+     */
     fun getFrameDuration(frame: Int): Int {
         synchronized(lock) {
             if (nativeController == -1L) {
                 throw IllegalStateException("Animated decoder wasn't properly initialized")
             }
             return getFrameDurationImpl(nativeController, frame)
-        }
-    }
-
-    protected fun finalize() {
-        synchronized(lock) {
-            if (nativeController != -1L) {
-                destroy(nativeController)
-                nativeController = -1L
-            }
         }
     }
 

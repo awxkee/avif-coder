@@ -88,13 +88,16 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
   }
 
   if (frame >= this->decoder->imageCount) {
-    std::string str = "Can't time of frame number: " + std::to_string(frame);
+    std::string str = "Can't get frame number: " + std::to_string(frame) + " (total frames: " + std::to_string(this->decoder->imageCount) + ")";
     throw std::runtime_error(str);
   }
+  
+  // Note: scaledWidth and scaledHeight can be 0 to indicate no scaling
+  // Only validate that they're not negative (uint32_t prevents this, but keeping for clarity)
 
   avifResult nextImageResult = avifDecoderNthImage(this->decoder.get(), frame);
   if (nextImageResult != AVIF_RESULT_OK) {
-    std::string str = "Can't time of frame number: " + std::to_string(frame);
+    std::string str = "Can't get frame number: " + std::to_string(frame);
     throw std::runtime_error(str);
   }
 
@@ -434,6 +437,12 @@ void AvifDecoderController::attachBuffer(uint8_t *data, uint32_t bufferSize) {
   if (this->isBufferAttached) {
     throw std::runtime_error("AVIF controller can accept buffer only once");
   }
+  if (!data) {
+    throw std::runtime_error("Buffer data cannot be null");
+  }
+  if (bufferSize == 0) {
+    throw std::runtime_error("Buffer size must be greater than zero");
+  }
   this->buffer.resize(bufferSize);
   std::copy(data, data + bufferSize, this->buffer.begin());
   auto result =
@@ -449,7 +458,7 @@ void AvifDecoderController::attachBuffer(uint8_t *data, uint32_t bufferSize) {
   this->decoder->maxThreads = static_cast<int>(hwThreads);
   result = avifDecoderParse(decoder.get());
   if (result != AVIF_RESULT_OK) {
-    throw std::runtime_error("This is doesn't looks like AVIF image");
+    throw std::runtime_error("This doesn't look like an AVIF image");
   }
   this->isBufferAttached = true;
 }
@@ -515,6 +524,12 @@ AvifImageSize AvifDecoderController::getImageSize() {
 }
 
 AvifImageSize AvifDecoderController::getImageSize(uint8_t *data, uint32_t bufferSize) {
+  if (!data) {
+    throw std::runtime_error("Buffer data cannot be null");
+  }
+  if (bufferSize == 0) {
+    throw std::runtime_error("Buffer size must be greater than zero");
+  }
   auto decoder = avif::DecoderPtr(avifDecoderCreate());
   if (!decoder) {
     throw std::runtime_error("Can't create decoder");
@@ -530,7 +545,7 @@ AvifImageSize AvifDecoderController::getImageSize(uint8_t *data, uint32_t buffer
 
   result = avifDecoderParse(decoder.get());
   if (result != AVIF_RESULT_OK) {
-    throw std::runtime_error("This is doesn't looks like AVIF image");
+    throw std::runtime_error("This doesn't look like an AVIF image");
   }
   if (!decoder->image) {
     throw std::runtime_error("Image is expected but after decoding there are none");

@@ -60,6 +60,12 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+    companion object {
+        private const val ITERATION_COUNT = 5
+        private const val LARGE_IMAGE_THRESHOLD = 1800
+        private const val LARGE_IMAGE_SCALE_FACTOR = 4
+    }
+
     fun getAllFilesFromAssets(path: String = ""): List<String> {
         val assetManager = assets
         val fileList: MutableList<String> = mutableListOf()
@@ -121,7 +127,8 @@ class MainActivity : AppCompatActivity() {
             allFiles.addAll(allFiles1)
             // Removed filter - process all AVIF/HEIC/HEIF images
             // allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
-            for (i in 0 until 5 ) {
+            
+            for (i in 0 until ITERATION_COUNT) {
                 for (file in allFiles) {
                     try {
                         Log.d("AVIF", "start processing $file")
@@ -131,15 +138,24 @@ class MainActivity : AppCompatActivity() {
                         val size = coder.getSize(buffer)
                         if (size != null) {
                             Log.d("AVIF", "Image size: ${size.width}x${size.height}")
+                            val start = System.currentTimeMillis()
                             val bitmap0 = coder.decodeSampled(
                                 buffer,
-                                if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
-                                if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
+                                if (size.width > LARGE_IMAGE_THRESHOLD || size.height > LARGE_IMAGE_THRESHOLD) {
+                                    size.width / LARGE_IMAGE_SCALE_FACTOR
+                                } else {
+                                    size.width
+                                },
+                                if (size.width > LARGE_IMAGE_THRESHOLD || size.height > LARGE_IMAGE_THRESHOLD) {
+                                    size.height / LARGE_IMAGE_SCALE_FACTOR
+                                } else {
+                                    size.height
+                                },
                                 PreferredColorConfig.RGBA_8888,
                                 ScaleMode.RESIZE
                             )
-                            var start = System.currentTimeMillis()
-                            Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
+                            val decodeTime = System.currentTimeMillis() - start
+                            Log.d("AVIF", "Decode time: ${decodeTime}ms for $file")
 
                             lifecycleScope.launch(Dispatchers.Main) {
                                 val imageView = BindingImageViewBinding.inflate(

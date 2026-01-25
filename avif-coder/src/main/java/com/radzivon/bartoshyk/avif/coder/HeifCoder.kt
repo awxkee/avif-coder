@@ -37,29 +37,82 @@ import android.util.Size
 import androidx.annotation.Keep
 import java.nio.ByteBuffer
 
+/**
+ * Main decoder class for AVIF and HEIF/HEIC images on Android.
+ * 
+ * This class provides a simple interface to decode AVIF (AV1) and HEIC/HEIF (HEVC) images,
+ * with support for HDR images, wide color gamut, and ICC profiles.
+ * 
+ * @sample
+ * ```
+ * val coder = HeifCoder()
+ * val bitmap = coder.decode(imageBytes)
+ * ```
+ */
 @Keep
 class HeifCoder {
 
+    /**
+     * Checks if the provided byte array contains an AVIF image.
+     * 
+     * @param byteArray The image data to check
+     * @return true if the data represents an AVIF image, false otherwise
+     */
     fun isAvif(byteArray: ByteArray): Boolean {
         return isAvifImageImpl(byteArray)
     }
 
+    /**
+     * Checks if the provided byte array contains a HEIF/HEIC image.
+     * 
+     * @param byteArray The image data to check
+     * @return true if the data represents a HEIF/HEIC image, false otherwise
+     */
     fun isHeif(byteArray: ByteArray): Boolean {
         return isHeifImageImpl(byteArray)
     }
 
+    /**
+     * Checks if the provided byte array contains a supported image format (AVIF or HEIF/HEIC).
+     * 
+     * @param byteArray The image data to check
+     * @return true if the data represents a supported image format, false otherwise
+     */
     fun isSupportedImage(byteArray: ByteArray): Boolean {
         return isSupportedImageImpl(byteArray)
     }
 
+    /**
+     * Checks if the provided ByteBuffer contains a supported image format (AVIF or HEIF/HEIC).
+     * 
+     * @param byteBuffer The image data to check (must be a direct ByteBuffer)
+     * @return true if the data represents a supported image format, false otherwise
+     * @throws Exception if the ByteBuffer is not a direct buffer
+     */
     fun isSupportedImage(byteBuffer: ByteBuffer): Boolean {
         return isSupportedImageImplBB(byteBuffer)
     }
 
+    /**
+     * Gets the dimensions of the image without fully decoding it.
+     * 
+     * This method is efficient as it only reads the image header.
+     * 
+     * @param bytes The image data
+     * @return The image size as [Size], or null if the image cannot be read or is invalid
+     */
     fun getSize(bytes: ByteArray): Size? {
         return getSizeImpl(bytes)
     }
 
+    /**
+     * Decodes an AVIF or HEIF/HEIC image to a Bitmap at its original size.
+     * 
+     * @param byteArray The image data to decode
+     * @param preferredColorConfig The preferred color configuration for the output bitmap
+     * @return The decoded Bitmap
+     * @throws Exception if decoding fails or the image format is not supported
+     */
     fun decode(
         byteArray: ByteArray,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT
@@ -74,6 +127,18 @@ class HeifCoder {
         )
     }
 
+    /**
+     * Decodes an AVIF or HEIF/HEIC image to a Bitmap with scaling.
+     * 
+     * @param byteArray The image data to decode
+     * @param scaledWidth The target width (0 means no scaling)
+     * @param scaledHeight The target height (0 means no scaling)
+     * @param preferredColorConfig The preferred color configuration for the output bitmap
+     * @param scaleMode The scaling mode (FIT or FILL)
+     * @param scaleQuality The quality of scaling
+     * @return The decoded and scaled Bitmap
+     * @throws Exception if decoding fails, the image format is not supported, or dimensions are invalid
+     */
     fun decodeSampled(
         byteArray: ByteArray,
         scaledWidth: Int,
@@ -92,6 +157,18 @@ class HeifCoder {
         )
     }
 
+    /**
+     * Decodes an AVIF or HEIF/HEIC image from a ByteBuffer with scaling.
+     * 
+     * @param byteBuffer The image data to decode (must be a direct ByteBuffer)
+     * @param scaledWidth The target width (0 means no scaling)
+     * @param scaledHeight The target height (0 means no scaling)
+     * @param preferredColorConfig The preferred color configuration for the output bitmap
+     * @param scaleMode The scaling mode (FIT or FILL)
+     * @param scaleQuality The quality of scaling
+     * @return The decoded and scaled Bitmap
+     * @throws Exception if decoding fails, the ByteBuffer is not direct, or dimensions are invalid
+     */
     fun decodeSampled(
         byteBuffer: ByteBuffer,
         scaledWidth: Int,

@@ -38,8 +38,12 @@ JNIEXPORT void JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_destroy(JNIEnv *env,
                                                                    jobject thiz,
                                                                    jlong ptr) {
-  auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
-  delete controller;
+  if (ptr != 0) {
+    auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (controller) {
+      delete controller;
+    }
+  }
 }
 
 extern "C"
@@ -48,11 +52,26 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_createControllerFromB
                                                                                          jobject thiz,
                                                                                          jbyteArray byteArray) {
   try {
+    if (!byteArray) {
+      std::string exception = "ByteArray cannot be null";
+      throwException(env, exception);
+      return static_cast<jlong>(-1);
+    }
     auto totalLength = env->GetArrayLength(byteArray);
+    if (totalLength <= 0) {
+      std::string exception = "Buffer size must be greater than zero";
+      throwException(env, exception);
+      return static_cast<jlong>(-1);
+    }
     aligned_uint8_vector srcBuffer(totalLength);
     env->GetByteArrayRegion(byteArray, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
     auto controller = new AvifDecoderController(srcBuffer.data(), srcBuffer.size());
+    if (!controller) {
+      std::string exception = "Failed to create decoder controller";
+      throwException(env, exception);
+      return static_cast<jlong>(-1);
+    }
     return reinterpret_cast<jlong>(controller);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
@@ -78,6 +97,9 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_createControllerFromB
       throwException(env, errorString);
       return static_cast<jlong>(-1);
     }
+    // Copy buffer to ensure memory safety and proper alignment.
+    // The ByteBuffer may be freed by Java GC, and decoder functions require
+    // a contiguous, aligned buffer that persists for the duration of decoding.
     aligned_uint8_vector srcBuffer(length);
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
     auto controller = new AvifDecoderController(srcBuffer.data(), srcBuffer.size());
@@ -98,16 +120,26 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFramesCount(JNIEnv
                                                                           jobject thiz,
                                                                           jlong ptr) {
   try {
+    if (ptr == 0) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (!controller) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     return static_cast<jint >(controller->getFramesCount());
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   } catch (std::runtime_error &err) {
     std::string exception(err.what());
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   }
 }
 extern "C"
@@ -116,16 +148,26 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getLoopsCountImpl(JNI
                                                                              jobject thiz,
                                                                              jlong ptr) {
   try {
+    if (ptr == 0) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (!controller) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     return static_cast<jint >(controller->getLoopsCount());
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   } catch (std::runtime_error &err) {
     std::string exception(err.what());
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   }
 }
 
@@ -135,16 +177,26 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getTotalDurationImpl(
                                                                                 jobject thiz,
                                                                                 jlong ptr) {
   try {
+    if (ptr == 0) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (!controller) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     return static_cast<jint >(controller->getTotalDuration());
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   } catch (std::runtime_error &err) {
     std::string exception(err.what());
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   }
 }
 extern "C"
@@ -154,16 +206,31 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameDurationImpl(
                                                                                 jlong ptr,
                                                                                 jint frame) {
   try {
+    if (ptr == 0) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
+    if (frame < 0) {
+      std::string exception = "Frame index must be non-negative";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (!controller) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jint>(-1);
+    }
     return static_cast<jint >(controller->getFrameDuration(static_cast<uint32_t>(frame)));
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   } catch (std::runtime_error &err) {
     std::string exception(err.what());
     throwException(env, exception);
-    return static_cast<jlong>(-1);
+    return static_cast<jint>(-1);
   }
 }
 extern "C"
@@ -179,6 +246,21 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl(JNIEnv *
                                                                         jint scaleQuality,
                                                                         jint javaToneMapper) {
   try {
+    if (ptr == 0) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+    if (frameIndex < 0) {
+      std::string exception = "Frame index must be non-negative";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+    if (scaledWidth < 0 || scaledHeight < 0) {
+      std::string exception = "Scaled dimensions must be non-negative";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     PreferredColorConfig preferredColorConfig;
     ScaleMode scaleMode;
     if (!checkDecodePreconditions(env, javaColorSpace, &preferredColorConfig, javaScaleMode,
@@ -189,6 +271,11 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl(JNIEnv *
     }
 
     auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (!controller) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     auto frame = controller->getFrame(frameIndex,
                                       scaledWidth,
                                       scaledHeight,
@@ -234,10 +321,30 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getSizeImpl(JNIEnv *e
                                                                        jobject thiz,
                                                                        jlong ptr) {
   try {
+    if (ptr == 0) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     auto controller = reinterpret_cast<AvifDecoderController *>(ptr);
+    if (!controller) {
+      std::string exception = "Invalid controller pointer";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     auto size = controller->getImageSize();
     jclass sizeClass = env->FindClass("android/util/Size");
+    if (!sizeClass) {
+      std::string exception = "Can't find Size class";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
+    if (!methodID) {
+      std::string exception = "Can't find Size constructor";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     auto sizeObject = env->NewObject(sizeClass,
                                      methodID,
                                      static_cast<int>(size.width),

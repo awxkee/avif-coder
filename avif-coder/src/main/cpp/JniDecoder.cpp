@@ -22,6 +22,19 @@
 
 using namespace std;
 
+/**
+ * Internal function to decode an image from a buffer.
+ * 
+ * @param env JNI environment
+ * @param thiz Java object reference
+ * @param srcBuffer The image data buffer
+ * @param scaledWidth Target width (0 means no scaling)
+ * @param scaledHeight Target height (0 means no scaling)
+ * @param javaColorSpace Preferred color configuration
+ * @param javaScaleMode Scaling mode (FIT or FILL)
+ * @param scalingQuality Quality of scaling
+ * @return Decoded Bitmap object, or nullptr on error
+ */
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    std::vector<uint8_t> &srcBuffer, jint scaledWidth,
                                    jint scaledHeight, jint javaColorSpace, jint javaScaleMode,
@@ -88,6 +101,19 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
   }
 }
 
+/**
+ * JNI function to decode an AVIF or HEIF/HEIC image from a ByteArray.
+ * 
+ * @param env JNI environment
+ * @param thiz Java object reference
+ * @param byte_array The image data as a ByteArray
+ * @param scaledWidth Target width (0 means no scaling)
+ * @param scaledHeight Target height (0 means no scaling)
+ * @param javaColorspace Preferred color configuration
+ * @param scaleMode Scaling mode (FIT or FILL)
+ * @param scaleQuality Quality of scaling
+ * @return Decoded Bitmap object, or nullptr on error
+ */
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
@@ -99,7 +125,22 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
                                                             jint scaleMode,
                                                             jint scaleQuality) {
   try {
+    if (!byte_array) {
+      std::string exception = "ByteArray cannot be null";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     auto totalLength = env->GetArrayLength(byte_array);
+    if (totalLength <= 0) {
+      std::string exception = "Buffer size must be greater than zero";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+    if (scaledWidth < 0 || scaledHeight < 0) {
+      std::string exception = "Scaled dimensions must be non-negative";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     std::vector<uint8_t> srcBuffer(totalLength);
     env->GetByteArrayRegion(byte_array, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
@@ -113,6 +154,19 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
     return static_cast<jobject>(nullptr);
   }
 }
+/**
+ * JNI function to decode an AVIF or HEIF/HEIC image from a ByteBuffer.
+ * 
+ * @param env JNI environment
+ * @param thiz Java object reference
+ * @param byteBuffer The image data as a direct ByteBuffer
+ * @param scaledWidth Target width (0 means no scaling)
+ * @param scaledHeight Target height (0 means no scaling)
+ * @param clrConfig Preferred color configuration
+ * @param scaleMode Scaling mode (FIT or FILL)
+ * @param scalingQuality Quality of scaling
+ * @return Decoded Bitmap object, or nullptr on error
+ */
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *env,
@@ -124,13 +178,26 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
                                                                       jint scaleMode,
                                                                       jint scalingQuality) {
   try {
+    if (!byteBuffer) {
+      std::string errorString = "ByteBuffer cannot be null";
+      throwException(env, errorString);
+      return static_cast<jobject>(nullptr);
+    }
     auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
     int length = (int) env->GetDirectBufferCapacity(byteBuffer);
     if (!bufferAddress || length <= 0) {
       std::string errorString = "Only direct byte buffers are supported";
       throwException(env, errorString);
-      return nullptr;
+      return static_cast<jobject>(nullptr);
     }
+    if (scaledWidth < 0 || scaledHeight < 0) {
+      std::string exception = "Scaled dimensions must be non-negative";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
+    // Copy buffer to ensure memory safety and proper alignment.
+    // The ByteBuffer may be freed by Java GC, and decoder functions require
+    // a contiguous, aligned buffer that persists for the duration of decoding.
     std::vector<uint8_t> srcBuffer(length);
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
     return decodeImplementationNative(env, thiz, srcBuffer,
@@ -143,13 +210,31 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
   }
 }
 
+/**
+ * JNI function to get the dimensions of an image without fully decoding it.
+ * 
+ * @param env JNI environment
+ * @param thiz Java object reference
+ * @param byte_array The image data as a ByteArray
+ * @return Size object with width and height, or nullptr on error
+ */
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env,
                                                              jobject thiz,
                                                              jbyteArray byte_array) {
   try {
+    if (!byte_array) {
+      std::string exception = "ByteArray cannot be null";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     auto totalLength = env->GetArrayLength(byte_array);
+    if (totalLength <= 0) {
+      std::string exception = "Buffer size must be greater than zero";
+      throwException(env, exception);
+      return static_cast<jobject>(nullptr);
+    }
     std::vector<uint8_t> srcBuffer(totalLength);
     env->GetByteArrayRegion(byte_array, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
