@@ -165,13 +165,15 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_getSizeImpl(JNIEnv *env,
 
     jclass sizeClass = env->FindClass("android/util/Size");
     if (!sizeClass) {
-      throwException(env, "Can't find Size class");
+      std::string exception = "Can't find Size class";
+      throwException(env, exception);
       return static_cast<jobject>(nullptr);
     }
 
     jmethodID methodID = env->GetMethodID(sizeClass, "<init>", "(II)V");
     if (!methodID) {
-      throwException(env, "Can't find Size constructor");
+      std::string exception = "Can't find Size constructor";
+      throwException(env, exception);
       return static_cast<jobject>(nullptr);
     }
 
