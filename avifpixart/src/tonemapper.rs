@@ -179,7 +179,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
                 match create_tone_mapper_rgba(
                     &new_profile,
                     &ColorProfile::new_srgb(),
-                    ToneMappingMethod::Rec2408(GainHdrMetadata {
+                    ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                         display_max_brightness: 203f32,
                         content_max_brightness: brightness,
                     }),
@@ -278,7 +278,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                             create_tone_mapper_rgba10(
                                 &new_profile,
                                 &ColorProfile::new_srgb(),
-                                ToneMappingMethod::Rec2408(GainHdrMetadata {
+                                ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                                     display_max_brightness: 203.,
                                     content_max_brightness: brightness,
                                 }),
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                             create_tone_mapper_rgba12(
                                 &new_profile,
                                 &ColorProfile::new_srgb(),
-                                ToneMappingMethod::Rec2408(GainHdrMetadata {
+                                ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                                     display_max_brightness: 203.,
                                     content_max_brightness: brightness,
                                 }),
@@ -304,11 +304,11 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                             create_tone_mapper_rgba16(
                                 &new_profile,
                                 &ColorProfile::new_srgb(),
-                                ToneMappingMethod::Rec2408(GainHdrMetadata {
+                                ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                                     display_max_brightness: 203.,
                                     content_max_brightness: brightness,
                                 }),
-                                MappingColorSpace::YRgb(CommonToneMapperParameters {
+                                MappingColorSpace::Yrg(CommonToneMapperParameters {
                                     gamut_clipping: GamutClipping::NoClip,
                                     exposure: 1.0,
                                 }),

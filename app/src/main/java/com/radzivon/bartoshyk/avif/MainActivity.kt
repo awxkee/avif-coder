@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
+//            allFiles = allFiles.filter { it.contains("test_img444.avif") }.toMutableList()
             for (i in 0 until 5 ) {
                 for (file in allFiles) {
                     try {

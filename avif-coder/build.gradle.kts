@@ -32,7 +32,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("maven-publish")
     id("signing")
-    id("com.vanniktech.maven.publish") version "0.34.0"
+    id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
 mavenPublishing {
@@ -95,7 +95,7 @@ task("androidSourcesJar", Jar::class) {
 
 android {
     namespace = "com.github.awxkee.avifcoder"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 24
@@ -148,10 +148,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    kotlin {
+        jvmToolchain {
+            languageVersion.set(JavaLanguageVersion.of(17))
+        }
     }
 }
+
 dependencies {
-    implementation("androidx.annotation:annotation-jvm:1.7.1")
+    implementation("androidx.annotation:annotation-jvm:1.9.1")
 }
