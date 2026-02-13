@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 num-traits = "0.2"
-pic-scale = { version = "0.6.13", default-features = false, features = ["nightly_f16"] }
-yuv = { version = "0.8.8", features = ["nightly_f16"], default-features = false }
+pic-scale = { version = "0.6.15", default-features = false, features = ["nightly_f16"] }
+yuv = { version = "0.8.11", features = ["nightly_f16"], default-features = false }
 bytemuck = { version = "1.24", features = ["nightly_float"] }
-moxcms = { version = "0.7.8", default-features = false}
-gainforge = "0.3.6"
+moxcms = { version = "0.8.0", default-features = false }
+gainforge = "0.4.0"
 
 [features]
-rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon"]
+rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "moxcms/neon_shaper_optimized_paths"]
 i8mm = ["pic-scale/nightly_i8mm"]
 
 [lib]
