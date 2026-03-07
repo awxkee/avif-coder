@@ -28,22 +28,18 @@ val imageSize: Size? = HeifCoder().getSize(byteArray)
 val bitmap: Bitmap = decodeSampled(byteArray, scaledWidth, scaledHeight)
 ```
 
-# Add Jitpack repository
+### How to add
 
-```groovy
-repositories {
-    maven { url "https://jitpack.io" }
-}
-```
+Note versions prior 2.2.0 were published to jitpack, but this way is outdated and no longer supported.
 
-```groovy
-implementation 'com.github.awxkee:avif-coder:1.8.0' // or any version above picked from release tags
+```kotlin
+implementation("io.github.awxkee:avif-coder:2.2.0") // or any version above picker from release tags
 
 // Glide avif plugin if you need one
-implementation 'com.github.awxkee:avif-coder-glide:1.8.0' // or any version above picked from release tags
+implementation("io.github.awxkee:avif-coder-glide:2.2.0") // or any version above picker from release tags
 
 // Coil avif plugin if you need one
-implementation 'com.github.awxkee:avif-coder-coil:1.8.0' // or any version above picked from release tags
+implementation("io.github.awxkee:avif-coder-coil:2.2.0") // or any version above picker from release tags
 ```
 
 # Also supports coil integration
