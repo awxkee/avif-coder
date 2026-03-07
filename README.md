@@ -30,7 +30,7 @@ val bitmap: Bitmap = decodeSampled(byteArray, scaledWidth, scaledHeight)
 
 ### How to add
 
-Note versions prior 2.2.0 were published to jitpack, but this way is outdated and no longer is supported.
+Note versions prior 2.2.0 were published to jitpack, but this way is outdated and no longer supported.
 
 ```kotlin
 implementation("io.github.awxkee:avif-coder:2.2.0") // or any version above picker from release tags
