@@ -10,7 +10,7 @@ on:
       - '*'
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     environment: Maven Central
     steps:
