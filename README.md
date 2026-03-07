@@ -1,13 +1,13 @@
 # AVIF/HEIF Coder for Android 24+
 
-Library provides simple interface to decode or encode ( create ) AVIF and HEIF images for Android
-Very fast and convinient to use AVIF in android apps with api version 24+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d
+This library provides a simple interface to decode or encode (create) AVIF and HEIF images for Android.
+Very fast and convenient to use AVIF in Android apps with API version 24+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d.
 
-Correctly handles ICC, and color profiles and HDR images.
-Fully supports HDR images, 10, 12 bit. Preprocess image in tile to increase speed.
-Extremly fast in decoding large HDR images or just large images.
-The most featured AVIF, HEIF library in android.
-Supported decoding in all necessary pixel formats in Android and avoids android decoding bugs.
+Correctly handles ICC, color profiles, and HDR images.
+Fully supports HDR images, 10, 12 bit. Preprocesses images in tiles to increase speed.
+Extremely fast in decoding large HDR images or just large images.
+The most feature-rich AVIF, HEIF library in android.
+Supports decoding to all necessary pixel formats in Android and avoids Android decoding bugs.
 
 # Usage example
 
@@ -84,7 +84,7 @@ If you wish to build by yourself you may use ready `build_aom.sh`
 script, `build_dav1d.sh`, `build_x265.sh`, `build_de265.sh`, `build_yuv.sh`, `build_heif.sh` or you
 may use `build_all.sh`
 
-**All commands are require the NDK path set by NDK_PATH environment variable**
+**All commands require the NDK path set by NDK_PATH environment variable**
 
 * If you wish to build for **x86** you have to add a **$INCLUDE_X86** environment variable for
   example:*
