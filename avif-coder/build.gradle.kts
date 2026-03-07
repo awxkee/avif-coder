@@ -37,6 +37,7 @@ plugins {
 
 mavenPublishing {
     if (System.getenv("PUBLISH_STATE") == "Release") {
+        publishToMavenCentral()
         signAllPublications()
     }
 }
@@ -88,10 +89,10 @@ mavenPublishing {
     }
 }
 
-task("androidSourcesJar", Jar::class) {
-    archiveClassifier.set("sources")
-    from(android.sourceSets.getByName("main").java.srcDirs)
-}
+//task("androidSourcesJar", Jar::class) {
+//    archiveClassifier.set("sources")
+//    from(android.sourceSets.getByName("main").java.srcDirs)
+//}
 
 android {
     namespace = "com.github.awxkee.avifcoder"
@@ -109,7 +110,7 @@ android {
                     )
                 )
 //                abiFilters += setOf("arm64-v8a")
-                abiFilters += setOf( "arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+                abiFilters += setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
             }
         }
 
