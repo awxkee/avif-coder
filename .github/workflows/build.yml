@@ -17,7 +17,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: Maven Central
     steps:
       - uses: actions/checkout@v6
       - name: set up JDK 17
@@ -30,10 +29,10 @@ jobs:
         run: echo "GITHUB_REF_NAME=$GITHUB_REF_NAME" >> $GITHUB_ENV
       - name: Compile to maven local
         env:
-          VERSION_NAME: ${{ env.GITHUB_REF_NAME }}
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.ORG_GRADLE_PROJECT_MAVENCENTRALUSERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.ORG_GRADLE_PROJECT_MAVENCENTRALPASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ORG_GRADLE_PROJECT_SIGNINGINMEMORYKEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.ORG_GRADLE_PROJECT_SIGNINGINMEMORYKEYID }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.ORG_GRADLE_PROJECT_SIGNINGINMEMORYKEYPASSWORD }}
+          VERSION_NAME: "2.0.0"
+          ORG_GRADLE_PROJECT_mavenCentralUsername: "stub_name"
+          ORG_GRADLE_PROJECT_mavenCentralPassword: "stub_password"
+          ORG_GRADLE_PROJECT_signingInMemoryKey: "stub"
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: "stub"
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: "stub"
         run: bash ./gradlew avif-coder:publishToMavenLocal
