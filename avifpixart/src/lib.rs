@@ -33,14 +33,11 @@
 mod cvt;
 mod icc;
 mod rgb_to_yuv;
+mod scaling;
 mod support;
 mod tonemapper;
 
 use crate::support::{transmute_const_ptr16, SliceStoreMut};
-use pic_scale::{
-    BufferStore, ImageStore, ImageStoreMut, ResamplingFunction, Scaler, Scaling, ScalingU16,
-    ThreadingPolicy, WorkloadStrategy,
-};
 use std::fmt::Debug;
 use std::slice;
 use yuv::{
@@ -68,6 +65,10 @@ pub use cvt::{
     weave_cvt_rgba8_to_rgba_f16, weave_premultiply_rgba_f16,
 };
 pub use rgb_to_yuv::{weave_rgba8_to_y08, weave_rgba8_to_yuv8};
+pub use scaling::{
+    weave_scale_f16, weave_scale_u16, weave_scale_u8, weave_scaling_result16_free,
+    weave_scaling_result_free, ScalingResult, ScalingResultU16, WeaveScaleMode,
+};
 pub use tonemapper::{apply_tone_mapping_rgba16, apply_tone_mapping_rgba8, FfiTrc, ToneMapping};
 
 #[repr(C)]
@@ -889,269 +890,12 @@ pub extern "C" fn weave_yuv16_with_alpha_to_rgba16(
                     .borrow()
                     .chunks_exact(rgba_stride_u16 as usize),
             ) {
-                for (dst, src) in dst.chunks_exact_mut(2).zip(src.iter()) {
+                for (dst, src) in dst.as_chunks_mut::<2>().0.iter_mut().zip(src.iter()) {
                     let bytes = src.to_ne_bytes();
                     dst[0] = bytes[0];
                     dst[1] = bytes[1];
                 }
             }
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn weave_scale_u8(
-    src: *const u8,
-    src_stride: u32,
-    width: u32,
-    height: u32,
-    dst: *mut u8,
-    dst_stride: u32,
-    new_width: u32,
-    new_height: u32,
-    method: u32,
-    premultiply_alpha: bool,
-) {
-    unsafe {
-        let origin_slice = slice::from_raw_parts(src, src_stride as usize * height as usize);
-        let dst_slice = slice::from_raw_parts_mut(dst, dst_stride as usize * new_height as usize);
-
-        let source_store = ImageStore::<u8, 4> {
-            buffer: std::borrow::Cow::Borrowed(origin_slice),
-            channels: 4,
-            width: width as usize,
-            height: height as usize,
-            stride: src_stride as usize,
-            bit_depth: 8,
-        };
-
-        let mut scaler = Scaler::new(if method == 3 {
-            ResamplingFunction::Lanczos3
-        } else if method == 1 {
-            ResamplingFunction::Nearest
-        } else {
-            ResamplingFunction::Bilinear
-        });
-
-        scaler.set_threading_policy(ThreadingPolicy::Single);
-        // scaler.set_workload_strategy(WorkloadStrategy::PreferQuality);
-
-        let mut dst_store = ImageStoreMut::<u8, 4> {
-            buffer: BufferStore::Borrowed(dst_slice),
-            channels: 4,
-            width: new_width as usize,
-            height: new_height as usize,
-            stride: dst_stride as usize,
-            bit_depth: 8,
-        };
-
-        scaler
-            .resize_rgba(&source_store, &mut dst_store, premultiply_alpha)
-            .unwrap();
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn weave_scale_u16(
-    src: *const u16,
-    src_stride: usize,
-    width: u32,
-    height: u32,
-    dst: *mut u16,
-    new_width: u32,
-    new_height: u32,
-    bit_depth: usize,
-    method: u32,
-    premultiply_alpha: bool,
-) {
-    unsafe {
-        let source_image: std::borrow::Cow<[u16]>;
-        let mut j_src_stride = src_stride / 2;
-
-        if src as usize % 2 != 0 || src_stride % 2 != 0 {
-            let mut _src_slice = vec![0u16; width as usize * height as usize * 4];
-            let j = slice::from_raw_parts(src as *const u8, src_stride * height as usize);
-
-            for (dst, src) in _src_slice
-                .chunks_exact_mut(width as usize * 4)
-                .zip(j.chunks_exact(src_stride))
-            {
-                for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
-                    let pixel = u16::from_ne_bytes([src[0], src[1]]);
-                    *dst = pixel;
-                }
-            }
-            source_image = std::borrow::Cow::Owned(_src_slice);
-            j_src_stride = width as usize * 4;
-        } else {
-            source_image = std::borrow::Cow::Borrowed(slice::from_raw_parts(
-                src,
-                src_stride / 2 * height as usize,
-            ));
-        }
-
-        let _source_store = ImageStore::<u16, 4> {
-            buffer: source_image,
-            channels: 4,
-            width: width as usize,
-            height: height as usize,
-            stride: j_src_stride,
-            bit_depth,
-        };
-
-        let mut scaler = Scaler::new(if method == 3 {
-            ResamplingFunction::Lanczos3
-        } else if method == 1 {
-            ResamplingFunction::Nearest
-        } else {
-            ResamplingFunction::Bilinear
-        });
-        scaler.set_threading_policy(ThreadingPolicy::Single);
-        scaler.set_workload_strategy(WorkloadStrategy::PreferQuality);
-
-        if dst as usize % 2 != 0 {
-            let mut dst_store =
-                ImageStoreMut::alloc_with_depth(new_width as usize, new_height as usize, bit_depth);
-
-            scaler
-                .resize_rgba_u16(&_source_store, &mut dst_store, premultiply_alpha)
-                .unwrap();
-
-            let dst_slice = slice::from_raw_parts_mut(
-                dst as *mut u8,
-                new_width as usize * 4 * new_height as usize,
-            );
-
-            for (src, dst) in dst_store
-                .as_bytes()
-                .chunks_exact(dst_store.stride())
-                .zip(dst_slice.chunks_exact_mut(new_width as usize * 4))
-            {
-                for (src, dst) in src.iter().zip(dst.chunks_exact_mut(4)) {
-                    let dst_ptr = dst.as_mut_ptr() as *mut u16;
-                    dst_ptr.write_unaligned(*src);
-                }
-            }
-        } else {
-            let dst_stride =
-                std::slice::from_raw_parts_mut(dst, new_height as usize * new_width as usize * 4);
-            let buffer = BufferStore::Borrowed(dst_stride);
-            let mut dst_store = ImageStoreMut::<u16, 4> {
-                buffer,
-                width: new_width as usize,
-                height: new_height as usize,
-                bit_depth,
-                channels: 4,
-                stride: new_width as usize * 4,
-            };
-
-            scaler
-                .resize_rgba_u16(&_source_store, &mut dst_store, premultiply_alpha)
-                .unwrap();
-        }
-    }
-}
-
-use core::f16;
-
-#[no_mangle]
-pub extern "C" fn weave_scale_f16(
-    src: *const u16,
-    src_stride: usize,
-    width: u32,
-    height: u32,
-    dst: *mut u16,
-    new_width: u32,
-    new_height: u32,
-    method: u32,
-    premultiply_alpha: bool,
-) {
-    unsafe {
-        let source_image: std::borrow::Cow<[f16]>;
-        let mut j_src_stride = src_stride / 2;
-
-        if src as usize % 2 != 0 || src_stride % 2 != 0 {
-            let mut _src_slice: Vec<f16> = vec![0.; width as usize * height as usize * 4];
-            let j = slice::from_raw_parts(src as *const u8, src_stride * height as usize);
-
-            for (dst, src) in _src_slice
-                .chunks_exact_mut(width as usize * 4)
-                .zip(j.chunks_exact(src_stride))
-            {
-                for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
-                    let pixel = f16::from_bits(u16::from_ne_bytes([src[0], src[1]]));
-                    *dst = pixel;
-                }
-            }
-            source_image = std::borrow::Cow::Owned(_src_slice);
-            j_src_stride = width as usize * 4;
-        } else {
-            source_image = std::borrow::Cow::Borrowed(slice::from_raw_parts(
-                src as *const _,
-                src_stride / 2 * height as usize,
-            ));
-        }
-
-        let _source_store = ImageStore::<f16, 4> {
-            buffer: source_image,
-            channels: 4,
-            width: width as usize,
-            height: height as usize,
-            stride: j_src_stride,
-            bit_depth: 10,
-        };
-
-        let mut scaler = Scaler::new(if method == 3 {
-            ResamplingFunction::Lanczos3
-        } else if method == 1 {
-            ResamplingFunction::Nearest
-        } else {
-            ResamplingFunction::Bilinear
-        });
-        scaler.set_threading_policy(ThreadingPolicy::Adaptive);
-        scaler.set_workload_strategy(WorkloadStrategy::PreferQuality);
-
-        if dst as usize % 2 != 0 {
-            let mut dst_store =
-                ImageStoreMut::alloc_with_depth(new_width as usize, new_height as usize, 10);
-
-            scaler
-                .resize_rgba_f16(&_source_store, &mut dst_store, premultiply_alpha)
-                .unwrap();
-
-            let dst_slice = slice::from_raw_parts_mut(
-                dst as *mut u8,
-                new_width as usize * 4 * new_height as usize,
-            );
-
-            for (src, dst) in dst_store
-                .as_bytes()
-                .chunks_exact(dst_store.stride())
-                .zip(dst_slice.chunks_exact_mut(new_width as usize * 4))
-            {
-                for (src, dst) in src.iter().zip(dst.chunks_exact_mut(4)) {
-                    let dst_ptr = dst.as_mut_ptr() as *mut f16;
-                    dst_ptr.write_unaligned(*src);
-                }
-            }
-        } else {
-            let dst_stride = std::slice::from_raw_parts_mut(
-                dst as *mut _,
-                new_height as usize * new_width as usize * 4,
-            );
-            let buffer = BufferStore::Borrowed(dst_stride);
-            let mut dst_store = ImageStoreMut::<f16, 4> {
-                buffer,
-                width: new_width as usize,
-                height: new_height as usize,
-                bit_depth: 10,
-                channels: 4,
-                stride: new_width as usize * 4,
-            };
-
-            scaler
-                .resize_rgba_f16(&_source_store, &mut dst_store, premultiply_alpha)
-                .unwrap();
         }
     }
 }

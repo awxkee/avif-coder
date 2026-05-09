@@ -46,7 +46,7 @@ pub unsafe extern "C" fn apply_icc_rgba8(
             std::slice::from_raw_parts(src_image, src_stride as usize * height as usize);
         let dst_image =
             std::slice::from_raw_parts_mut(dst_image, dst_stride as usize * height as usize);
-        match ColorProfile::new_from_slice(&icc_data) {
+        match ColorProfile::new_from_slice(icc_data) {
             Ok(icc_profile) => {
                 apply_icc_rgba8_impl(
                     src_image,
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn apply_icc_rgba16(
             return;
         }
         let icc_data = std::slice::from_raw_parts(icc_profile, icc_profile_stride as usize);
-        match ColorProfile::new_from_slice(&icc_data) {
+        match ColorProfile::new_from_slice(icc_data) {
             Ok(icc_profile) => {
                 let dst_profile = ColorProfile::new_srgb();
                 let transform = if bit_depth == 10 {

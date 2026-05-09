@@ -46,7 +46,7 @@ fn work_on_transmuted_ptr_f16<F>(
     let mut allocated = false;
     let mut dst_stride = rgba_stride as usize / 2;
     let mut working_slice: BufferStoreMut<'_, f16> = unsafe {
-        if rgba as usize % 2 == 0 && rgba_stride % 2 == 0 {
+        if (rgba as usize).is_multiple_of(2) && rgba_stride.is_multiple_of(2) {
             BufferStoreMut::Borrowed(std::slice::from_raw_parts_mut(
                 rgba as *mut f16,
                 rgba_stride as usize / 2 * height,
@@ -110,7 +110,7 @@ pub(crate) fn work_on_transmuted_ptr_u16<F>(
     let mut allocated = false;
     let mut dst_stride = rgba_stride as usize / 2;
     let mut working_slice: BufferStoreMut<'_, u16> = unsafe {
-        if rgba as usize % 2 == 0 && rgba_stride % 2 == 0 {
+        if (rgba as usize).is_multiple_of(2) && rgba_stride.is_multiple_of(2) {
             BufferStoreMut::Borrowed(std::slice::from_raw_parts_mut(
                 rgba as *mut u16,
                 rgba_stride as usize / 2 * height,
@@ -257,13 +257,13 @@ pub extern "C" fn weave_cvt_rgba8_to_ar30(
 ) {
     let src_slice =
         unsafe { std::slice::from_raw_parts(rgba8, rgba8_stride as usize * height as usize) };
-    let mut dst_slice =
+    let dst_slice =
         unsafe { std::slice::from_raw_parts_mut(ar30, ar30_stride as usize * height as usize) };
     rgba8_to_ar30(
-        &mut dst_slice,
+        dst_slice,
         ar30_stride,
         Rgb30ByteOrder::Host,
-        &src_slice,
+        src_slice,
         rgba8_stride,
         width,
         height,
@@ -288,7 +288,7 @@ pub extern "C" fn weave_cvt_rgba16_to_ar30(
         height as usize,
         true,
         |src: &mut [u16], src_stride: usize| {
-            let mut dst_slice = unsafe {
+            let dst_slice = unsafe {
                 std::slice::from_raw_parts_mut(ar30, ar30_stride as usize * height as usize)
             };
             let handle = if bit_depth == 10 {
@@ -297,10 +297,10 @@ pub extern "C" fn weave_cvt_rgba16_to_ar30(
                 rgba12_to_ar30
             };
             handle(
-                &mut dst_slice,
+                dst_slice,
                 ar30_stride,
                 Rgb30ByteOrder::Host,
-                &src,
+                src,
                 src_stride as u32,
                 width,
                 height,

@@ -55,26 +55,10 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *data,
                                         bool isImage64Bits,
                                         uint32_t *imageWidthPtr,
                                         uint32_t *imageHeightPtr,
-                                        uint32_t scaledWidth,
-                                        uint32_t scaledHeight,
+                                        int32_t scaledWidth,
+                                        int32_t scaledHeight,
                                         ScaleMode scaleMode,
                                         int scalingQuality,
                                         bool isRgba);
-
-std::pair<uint32_t, uint32_t>
-ResizeAspectFit(std::pair<uint32_t, uint32_t> sourceSize,
-                std::pair<uint32_t, uint32_t> dstSize,
-                float *scale);
-
-std::pair<uint32_t, uint32_t>
-ResizeAspectFill(std::pair<uint32_t, uint32_t> sourceSize,
-                 std::pair<uint32_t, uint32_t> dstSize,
-                 float *scale);
-
-std::pair<uint32_t, uint32_t>
-ResizeAspectHeight(std::pair<uint32_t, uint32_t> sourceSize, uint32_t maxHeight, bool multipleBy2);
-
-std::pair<uint32_t, uint32_t>
-ResizeAspectWidth(std::pair<uint32_t, uint32_t> sourceSize, uint32_t maxWidth, bool multipleBy2);
 
 #endif //AVIF_SIZESCALER_H

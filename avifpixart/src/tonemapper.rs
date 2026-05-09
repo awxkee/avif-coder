@@ -176,7 +176,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
                 apply_icc_rgba8_impl(&src_image, stride, dst_image, stride, width, new_profile);
             }
             ToneMapping::Rec2408 => {
-                match create_tone_mapper_rgba(
+                if let Ok(tone_mapper) = create_tone_mapper_rgba(
                     &new_profile,
                     &ColorProfile::new_srgb(),
                     ToneMappingMethod::TunedReinhard(GainHdrMetadata {
@@ -188,17 +188,14 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
                         exposure: 1.0,
                     }),
                 ) {
-                    Ok(tone_mapper) => {
-                        for (src_row, dst_row) in src_image
-                            .chunks_exact(stride as usize)
-                            .zip(dst_image.chunks_exact_mut(stride as usize))
-                        {
-                            let src = &src_row[..width as usize * 4];
-                            let dst = &mut dst_row[..width as usize * 4];
-                            tone_mapper.tonemap_lane(src, dst).unwrap();
-                        }
+                    for (src_row, dst_row) in src_image
+                        .chunks_exact(stride as usize)
+                        .zip(dst_image.chunks_exact_mut(stride as usize))
+                    {
+                        let src = &src_row[..width as usize * 4];
+                        let dst = &mut dst_row[..width as usize * 4];
+                        tone_mapper.tonemap_lane(src, dst).unwrap();
                     }
-                    Err(_) => {}
                 }
             }
         }
@@ -314,18 +311,15 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba16(
                                 }),
                             )
                         };
-                        match mapper {
-                            Ok(tone_mapper) => {
-                                for (src_row, dst_row) in src_image
-                                    .chunks_exact(d_dst_stride)
-                                    .zip(dst.chunks_exact_mut(d_dst_stride))
-                                {
-                                    let src = &src_row[..width as usize * 4];
-                                    let dst = &mut dst_row[..width as usize * 4];
-                                    tone_mapper.tonemap_lane(src, dst).unwrap();
-                                }
+                        if let Ok(tone_mapper) = mapper {
+                            for (src_row, dst_row) in src_image
+                                .chunks_exact(d_dst_stride)
+                                .zip(dst.chunks_exact_mut(d_dst_stride))
+                            {
+                                let src = &src_row[..width as usize * 4];
+                                let dst = &mut dst_row[..width as usize * 4];
+                                tone_mapper.tonemap_lane(src, dst).unwrap();
                             }
-                            Err(_) => {}
                         }
                     }
                 }
