@@ -1,9 +1,35 @@
 #pragma once
+
 #include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
 #include <ostream>
 #include <new>
+
+enum class YuvRange {
+  Tv,
+  Pc,
+};
+
+enum class YuvMatrix {
+  Bt601,
+  Bt709,
+  Bt2020,
+  Identity,
+  YCgCo,
+};
+
+enum class YuvType {
+  Yuv420,
+  Yuv422,
+  Yuv444,
+};
+
+enum class WeaveScaleMode {
+  JustResize,
+  ScaleToFill,
+  ScaleToFit,
+};
 
 enum class FfiTrc {
   /// For future use by ITU-T | ISO/IEC
@@ -61,28 +87,27 @@ enum class ToneMapping {
   Rec2408,
 };
 
-enum class YuvMatrix {
-  Bt601,
-  Bt709,
-  Bt2020,
-  Identity,
-  YCgCo,
-};
-
-enum class YuvRange {
-  Tv,
-  Pc,
-};
-
-enum class YuvType {
-  Yuv420,
-  Yuv422,
-  Yuv444,
-};
-
 struct FfiProfileData {
   uint8_t *data;
   uintptr_t size;
+  uintptr_t capacity;
+};
+
+struct ScalingResult {
+  uint8_t *data;
+  uintptr_t width;
+  uintptr_t height;
+  uintptr_t stride;
+  uintptr_t length;
+  uintptr_t capacity;
+};
+
+struct ScalingResultU16 {
+  uint16_t *data;
+  uintptr_t width;
+  uintptr_t height;
+  uintptr_t stride;
+  uintptr_t length;
   uintptr_t capacity;
 };
 
@@ -191,38 +216,6 @@ void weave_yuv16_with_alpha_to_rgba16(const uint16_t *y_plane,
                                       YuvRange range,
                                       YuvMatrix yuv_matrix,
                                       YuvType yuv_type);
-
-void weave_scale_u8(const uint8_t *src,
-                    uint32_t src_stride,
-                    uint32_t width,
-                    uint32_t height,
-                    uint8_t *dst,
-                    uint32_t dst_stride,
-                    uint32_t new_width,
-                    uint32_t new_height,
-                    uint32_t method,
-                    bool premultiply_alpha);
-
-void weave_scale_u16(const uint16_t *src,
-                     uintptr_t src_stride,
-                     uint32_t width,
-                     uint32_t height,
-                     uint16_t *dst,
-                     uint32_t new_width,
-                     uint32_t new_height,
-                     uintptr_t bit_depth,
-                     uint32_t method,
-                     bool premultiply_alpha);
-
-void weave_scale_f16(const uint16_t *src,
-                     uintptr_t src_stride,
-                     uint32_t width,
-                     uint32_t height,
-                     uint16_t *dst,
-                     uint32_t new_width,
-                     uint32_t new_height,
-                     uint32_t method,
-                     bool premultiply_alpha);
 
 void weave_rgba_to_yuv(const uint8_t *rgba,
                        uint32_t rgba_stride,
@@ -344,6 +337,41 @@ void weave_rgba8_to_y08(uint8_t *y_plane,
                         uint32_t height,
                         YuvRange range,
                         YuvMatrix yuv_matrix);
+
+void weave_scaling_result_free(ScalingResult result);
+
+void weave_scaling_result16_free(ScalingResultU16 result);
+
+ScalingResult weave_scale_u8(const uint8_t *src,
+                             uint32_t src_stride,
+                             uint32_t width,
+                             uint32_t height,
+                             int32_t new_width,
+                             int32_t new_height,
+                             uint32_t method,
+                             bool premultiply_alpha,
+                             WeaveScaleMode scale_mode);
+
+ScalingResultU16 weave_scale_u16(const uint16_t *src,
+                                 uintptr_t src_stride,
+                                 uint32_t width,
+                                 uint32_t height,
+                                 int32_t new_width,
+                                 int32_t new_height,
+                                 uintptr_t bit_depth,
+                                 uint32_t method,
+                                 bool premultiply_alpha,
+                                 WeaveScaleMode scale_mode);
+
+void weave_scale_f16(const uint16_t *src,
+                     uintptr_t src_stride,
+                     uint32_t width,
+                     uint32_t height,
+                     uint16_t *dst,
+                     uint32_t new_width,
+                     uint32_t new_height,
+                     uint32_t method,
+                     bool premultiply_alpha);
 
 void apply_tone_mapping_rgba8(uint8_t *image,
                               uint32_t stride,

@@ -38,8 +38,8 @@
 #include "avifweaver.h"
 
 AvifImageFrame HeifImageDecoder::getFrame(std::vector<uint8_t> &srcBuffer,
-                                          uint32_t scaledWidth,
-                                          uint32_t scaledHeight,
+                                          int32_t scaledWidth,
+                                          int32_t scaledHeight,
                                           PreferredColorConfig javaColorSpace,
                                           ScaleMode javaScaleMode,
                                           int scalingQuality) {

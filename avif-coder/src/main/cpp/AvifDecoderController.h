@@ -54,8 +54,8 @@ class AvifDecoderController {
   }
 
   AvifImageFrame getFrame(uint32_t frame,
-                          uint32_t scaledWidth,
-                          uint32_t scaledHeight,
+                          int32_t scaledWidth,
+                          int32_t scaledHeight,
                           PreferredColorConfig javaColorSpace,
                           ScaleMode javaScaleMode,
                           int scalingQuality);
