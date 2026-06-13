@@ -1,29 +1,42 @@
 [package]
 name = "avifweaver"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 num-traits = "0.2"
-pic-scale = { version = "0.7.6", default-features = false, features = ["nightly_f16"] }
-yuv = { version = "0.8.14", features = ["nightly_f16"], default-features = false }
-bytemuck = { version = "1.24", features = ["nightly_float"] }
-moxcms = { version = "0.8.0", default-features = false }
+pic-scale = { version = "0.7.9", default-features = false, features = ["nightly_f16"] }
+yuv = { version = "0.8.15", features = ["nightly_f16"], default-features = false }
+bytemuck = { version = "1.25", features = ["nightly_float"] }
+moxcms = { version = "0.8.1", default-features = false }
 gainforge = "0.5.0"
+hpvca = "0.1.8"
+hpvcd = "0.1.4"
+thiserror = "2.0.18"
+libc = "1.0.0-alpha.3"
+log = "0.4.32"
+maroontree = { git = "https://github.com/awxkee/maroontree", rev = "6c6beaf21afdd84c4d2effa1d5c6291cf97cc987" }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.22.4", default-features = false }
+ndk-sys = "0.6"
+android_logger = { version = "0.15", optional = true }   # pulled in only by `logging`
+anyhow = "1.0.102"
 
 [features]
 rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "moxcms/neon_shaper_optimized_paths"]
 i8mm = ["pic-scale/nightly_i8mm"]
 sve = ["pic-scale/sve"]
+logging = ["dep:android_logger"]
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
 [profile.release]
-strip = true  # Automatically strip symbols from the binary.
-opt-level = 3  # Optimize for size.
-lto = true  # Enable link time optimization
-codegen-units = 1  # Reduce parallel code generation units
+strip = true
+opt-level = 3
+lto = true
+codegen-units = 1
 
 [build-dependencies]
-cbindgen = "0.29.2"
+cbindgen = "0.29.4"

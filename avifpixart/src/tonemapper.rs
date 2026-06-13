@@ -27,11 +27,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cvt::work_on_transmuted_ptr_u16;
-use crate::icc::{apply_icc_rgba16_impl, apply_icc_rgba8_impl};
+use crate::icc::{apply_icc_rgba8_impl, apply_icc_rgba16_impl};
 use gainforge::{
-    create_tone_mapper_rgba, create_tone_mapper_rgba10, create_tone_mapper_rgba12,
-    create_tone_mapper_rgba16, CommonToneMapperParameters, GainHdrMetadata, GamutClipping,
-    MappingColorSpace, RgbToneMapperParameters, ToneMappingMethod,
+    CommonToneMapperParameters, GainHdrMetadata, GamutClipping, MappingColorSpace,
+    RgbToneMapperParameters, ToneMappingMethod, create_tone_mapper_rgba, create_tone_mapper_rgba10,
+    create_tone_mapper_rgba12, create_tone_mapper_rgba16,
 };
 use moxcms::{
     Chromaticity, CicpColorPrimaries, CicpProfile, ColorProfile, MatrixCoefficients,
@@ -121,7 +121,7 @@ pub enum ToneMapping {
     Rec2408,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn apply_tone_mapping_rgba8(
     image: *mut u8,
     stride: u32,
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn apply_tone_mapping_rgba8(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn apply_tone_mapping_rgba16(
     image: *mut u16,
     stride: u32,

@@ -26,10 +26,12 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::heic_decode::WeaverError;
+use crate::support::try_vec;
 use core::f16;
 use yuv::{
-    convert_rgba16_to_f16, convert_rgba_to_f16, rgba10_to_ar30, rgba12_to_ar30, rgba8_to_ar30,
-    BufferStoreMut, Rgb30ByteOrder,
+    BufferStoreMut, Rgb30ByteOrder, convert_rgba_f16_to_rgba16, convert_rgba_to_f16,
+    convert_rgba16_to_f16, rgba8_to_ar30, rgba10_to_ar30, rgba12_to_ar30,
 };
 
 #[inline(always)]
@@ -160,8 +162,8 @@ pub(crate) fn work_on_transmuted_ptr_u16<F>(
     }
 }
 
-#[no_mangle]
-pub extern "C" fn weave_cvt_rgba8_to_rgba_f16(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_cvt_rgba8_to_rgba_f16(
     rgba8: *const u8,
     rgba8_stride: u32,
     rgba_f16: *mut u16,
@@ -192,8 +194,8 @@ pub extern "C" fn weave_cvt_rgba8_to_rgba_f16(
     );
 }
 
-#[no_mangle]
-pub extern "C" fn weave_premultiply_rgba_f16(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_premultiply_rgba_f16(
     rgba_f16: *mut u16,
     rgba_f16_stride: u32,
     width: u32,
@@ -235,7 +237,7 @@ fn premultiply_default(x: &mut [f16], dst_stride: usize) {
 
 #[cfg(target_arch = "aarch64")]
 #[target_feature(enable = "fp16")]
-unsafe fn premultiply_default_aarch64_fp_16(x: &mut [f16], dst_stride: usize) {
+fn premultiply_default_aarch64_fp_16(x: &mut [f16], dst_stride: usize) {
     for lane in x.chunks_exact_mut(dst_stride) {
         for chunk in lane.chunks_exact_mut(4) {
             let a = chunk[3];
@@ -246,8 +248,8 @@ unsafe fn premultiply_default_aarch64_fp_16(x: &mut [f16], dst_stride: usize) {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn weave_cvt_rgba8_to_ar30(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_cvt_rgba8_to_ar30(
     rgba8: *const u8,
     rgba8_stride: u32,
     ar30: *mut u8,
@@ -271,8 +273,8 @@ pub extern "C" fn weave_cvt_rgba8_to_ar30(
     .unwrap();
 }
 
-#[no_mangle]
-pub extern "C" fn weave_cvt_rgba16_to_ar30(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_cvt_rgba16_to_ar30(
     rgba16: *const u16,
     rgba16_stride: u32,
     bit_depth: usize,
@@ -310,7 +312,7 @@ pub extern "C" fn weave_cvt_rgba16_to_ar30(
     );
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn weave_cvt_rgba16_to_rgba_f16(
     rgba16: *const u16,
     rgba16_stride: u32,
@@ -331,7 +333,7 @@ pub extern "C" fn weave_cvt_rgba16_to_rgba_f16(
         {
             let src = &src[0..width as usize * 4 * 2];
             let dst = &mut dst[0..width as usize * 4];
-            for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
+            for (dst, src) in dst.iter_mut().zip(src.as_chunks::<2>().0.iter()) {
                 *dst = u16::from_ne_bytes([src[0], src[1]]);
             }
         }
@@ -385,6 +387,322 @@ pub extern "C" fn weave_cvt_rgba16_to_rgba_f16(
             },
         );
     }
+}
+
+pub(crate) fn pack_10_or_12_to_ar30(
+    bytes: &[u16],
+    width: usize,
+    height: usize,
+    bit_depth: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    assert!(bit_depth == 10 || bit_depth == 12);
+    let mut ar30 = try_vec![0u8; width * height * 4];
+    match bit_depth {
+        10 => rgba10_to_ar30(
+            &mut ar30,
+            width as u32 * 4,
+            Rgb30ByteOrder::Host,
+            bytes,
+            width as u32 * 4,
+            width as u32,
+            height as u32,
+        )
+        .map_err(|x| anyhow::anyhow!(x))?,
+        12 => rgba12_to_ar30(
+            &mut ar30,
+            width as u32 * 4,
+            Rgb30ByteOrder::Host,
+            bytes,
+            width as u32 * 4,
+            width as u32,
+            height as u32,
+        )
+        .map_err(|x| anyhow::anyhow!(x))?,
+        _ => unreachable!(),
+    };
+    Ok(ar30
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .flat_map(|x| [x[0], x[1]])
+        .collect::<Vec<_>>())
+}
+
+pub(crate) fn pack_8_to_ar30(
+    bytes: &[u8],
+    width: usize,
+    height: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let mut ar30 = try_vec![0u8; width * height * 4];
+    rgba8_to_ar30(
+        &mut ar30,
+        width as u32 * 4,
+        Rgb30ByteOrder::Host,
+        bytes,
+        width as u32 * 4,
+        width as u32,
+        height as u32,
+    )
+    .map_err(|x| anyhow::anyhow!(x))?;
+    Ok(ar30
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .flat_map(|x| [x[0], x[1]])
+        .collect::<Vec<_>>())
+}
+
+pub(crate) fn pack_8_to_f16(
+    bytes: &[u8],
+    width: usize,
+    height: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let mut ar30 = try_vec![0_f16; width * height * 4];
+    convert_rgba_to_f16(bytes, width * 4, &mut ar30, width * 4, width, height)
+        .map_err(|x| anyhow::anyhow!(x))?;
+    Ok(ar30
+        .iter()
+        .flat_map(|a| {
+            let x = a.to_ne_bytes();
+            [x[0], x[1]]
+        })
+        .collect::<Vec<_>>())
+}
+
+pub(crate) fn pack_10_or_12_to_f16(
+    bytes: &[u16],
+    width: usize,
+    height: usize,
+    bit_depth: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    assert!(bit_depth == 10 || bit_depth == 12);
+    let mut ar30 = try_vec![0_f16; width * height * 4];
+    convert_rgba16_to_f16(
+        bytes,
+        width * 4,
+        &mut ar30,
+        width * 4,
+        bit_depth,
+        width,
+        height,
+    )
+    .map_err(|x| anyhow::anyhow!(x))?;
+    Ok(ar30
+        .iter()
+        .flat_map(|a| {
+            let x = a.to_ne_bytes();
+            [x[0], x[1]]
+        })
+        .collect::<Vec<_>>())
+}
+
+/// Converts 8-bit RGBA bytes → packed RGB565, 2 bytes per pixel (native-endian).
+/// Alpha is discarded — RGB565 carries no alpha channel.
+pub(crate) fn pack_8_to_565(
+    bytes: &[u8],
+    width: usize,
+    height: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let pixel_count = width * height;
+    if bytes.len() < pixel_count * 4 {
+        return Err(anyhow::anyhow!(
+            "8-bit RGBA buffer too small: need {} bytes, got {}",
+            pixel_count * 4,
+            bytes.len()
+        ));
+    }
+
+    let mut out = try_vec![0_u8; pixel_count * 2];
+
+    for (dst, src) in out
+        .as_chunks_mut::<2>()
+        .0
+        .iter_mut()
+        .zip(bytes.as_chunks::<4>().0.iter())
+    {
+        let r = src[0] as u16;
+        let g = src[1] as u16;
+        let b = src[2] as u16;
+
+        let r5 = (r >> 3).min(0x1F);
+        let g6 = (g >> 2).min(0x3F);
+        let b5 = (b >> 3).min(0x1F);
+
+        let px: u16 = (r5 << 11) | (g6 << 5) | b5;
+        let encoded = px.to_ne_bytes();
+        dst[0] = encoded[0];
+        dst[1] = encoded[1];
+    }
+
+    Ok(out)
+}
+
+pub(crate) fn pack_10_or_12_to_565(
+    bytes: &[u16],
+    width: usize,
+    height: usize,
+    bit_depth: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    assert!(bit_depth == 10 || bit_depth == 12);
+
+    let pixel_count = width * height;
+    if bytes.len() < pixel_count * 4 {
+        return Err(anyhow::anyhow!(
+            "{}-bit RGBA buffer too small: need {} u16 values, got {}",
+            bit_depth,
+            pixel_count * 4,
+            bytes.len()
+        ));
+    }
+
+    let shift_r = bit_depth - 5;
+    let shift_g = bit_depth - 6;
+    let shift_b = bit_depth - 5;
+
+    let mut out = try_vec![0_u8; pixel_count * 2];
+
+    for (dst, src) in out
+        .as_chunks_mut::<2>()
+        .0
+        .iter_mut()
+        .zip(bytes.as_chunks::<4>().0.iter())
+    {
+        let r = src[0] as u32;
+        let g = src[1] as u32;
+        let b = src[2] as u32;
+
+        let r5 = ((r >> shift_r) as u16).min(0x1F); // 5 bits → max 31
+        let g6 = ((g >> shift_g) as u16).min(0x3F); // 6 bits → max 63
+        let b5 = ((b >> shift_b) as u16).min(0x1F); // 5 bits → max 31
+
+        let px: u16 = (r5 << 11) | (g6 << 5) | b5;
+        let encoded = px.to_ne_bytes();
+        dst[0] = encoded[0];
+        dst[1] = encoded[1];
+    }
+
+    Ok(out)
+}
+
+#[inline(always)]
+pub fn rgb565_to_rgba8888(px: u16) -> [u8; 4] {
+    let r5 = ((px >> 11) & 0x1F) as u8;
+    let g6 = ((px >> 5) & 0x3F) as u8;
+    let b5 = (px & 0x1F) as u8;
+
+    [
+        (r5 << 3) | (r5 >> 2), // 5→8: replicate top bits into the gap
+        (g6 << 2) | (g6 >> 4), // 6→8
+        (b5 << 3) | (b5 >> 2), // 5→8
+        0xFF,                  // opaque — 565 has no alpha channel
+    ]
+}
+
+pub(crate) fn rgb565_bytes_to_rgba8888(src: &[u8]) -> Vec<u8> {
+    assert_eq!(src.len() % 2, 0, "rgb565 buffer must have even length");
+    let pixels: &[[u8; 2]] = src.as_chunks().0;
+    let mut dst = Vec::with_capacity(pixels.len() * 4);
+    dst.extend(
+        pixels
+            .iter()
+            .map(|&b| u16::from_le_bytes(b))
+            .flat_map(rgb565_to_rgba8888),
+    );
+    dst
+}
+
+#[inline(always)]
+pub fn ar30_to_rgba10_pixel(px: u32) -> [u16; 4] {
+    let r10 = (px & 0x3FF) as u16;
+    let g10 = ((px >> 10) & 0x3FF) as u16;
+    let b10 = ((px >> 20) & 0x3FF) as u16;
+    let a2 = ((px >> 30) & 0x003) as u16;
+
+    // 2→10 bit expansion via replication: identical to (a2 << 8)|(a2 << 6)|…
+    let a10 = a2 * 341;
+
+    [r10, g10, b10, a10]
+}
+
+/// Convert a slice of AR30 `u32` words into a tightly-packed RGBA u16 buffer
+/// (`width × height × 4` elements, each in `0..=1023`).
+pub(crate) fn ar30_to_rgba10(src: &[u32]) -> Vec<u16> {
+    let mut dst = Vec::with_capacity(src.len() * 4);
+    dst.extend(src.iter().flat_map(|&px| ar30_to_rgba10_pixel(px)));
+    dst
+}
+
+/// Convert a raw `&[u8]` (4 bytes per pixel, little-endian u32) produced by
+/// locking an Android `RGBA_1010102` Bitmap, into a RGBA u16 10-bit buffer.
+pub(crate) fn ar30_bytes_to_rgba10(src: &[u8]) -> Vec<u16> {
+    assert_eq!(
+        src.len() % 4,
+        0,
+        "AR30 buffer length must be a multiple of 4"
+    );
+    src.as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|b| ar30_to_rgba10_pixel(u32::from_le_bytes(*b)))
+        .collect()
+}
+
+/// In-place variant — writes into a pre-allocated `&mut [u16]`.
+/// Panics if `dst.len() < src.len() * 4`.
+pub(crate) fn ar30_to_rgba10_into(src: &[u32], dst: &mut [u16]) {
+    assert!(
+        dst.len() >= src.len() * 4,
+        "dst too small: need {} u16 elements, got {}",
+        src.len() * 4,
+        dst.len(),
+    );
+    for (&px, chunk) in src.iter().zip(dst.chunks_exact_mut(4)) {
+        let [r, g, b, a] = ar30_to_rgba10_pixel(px);
+        chunk[0] = r;
+        chunk[1] = g;
+        chunk[2] = b;
+        chunk[3] = a;
+    }
+}
+
+#[inline(always)]
+pub(crate) fn rgba10_to_ar30_pixel(rgba: [u16; 4]) -> u32 {
+    let [r, g, b, a] = rgba;
+    let a2 = (a >> 8) as u32; // 10→2: keep top 2 bits
+    ((a2 & 0x3) << 30)
+        | (((b & 0x3FF) as u32) << 20)
+        | (((g & 0x3FF) as u32) << 10)
+        | ((r & 0x3FF) as u32)
+}
+
+pub(crate) fn f16_bytes_to_rgba10(
+    src: &[u8],
+    width: usize,
+    height: usize,
+) -> Result<Vec<u16>, anyhow::Error> {
+    assert_eq!(
+        src.len() % 4,
+        0,
+        "F16 buffer length must be a multiple of 4"
+    );
+    let src_f16 = src
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| f16::from_ne_bytes(*b))
+        .collect::<Vec<f16>>();
+    let mut dst_u16 = try_vec![0u16; width * height * 4];
+    convert_rgba_f16_to_rgba16(
+        &src_f16,
+        width * 4,
+        &mut dst_u16,
+        width * 4,
+        10,
+        width,
+        height,
+    )
+    .map_err(|x| anyhow::anyhow!(x))?;
+    Ok(dst_u16)
 }
 
 #[cfg(test)]
@@ -465,5 +783,54 @@ mod tests {
             .map(|&x| f16::from_bits(x))
             .collect::<Vec<f16>>();
         assert_eq!(dst, v_src);
+    }
+
+    #[test]
+    fn alpha_2bit_expansion() {
+        assert_eq!(ar30_to_rgba10_pixel(0 << 30)[3], 0);
+        assert_eq!(ar30_to_rgba10_pixel(1 << 30)[3], 341);
+        assert_eq!(ar30_to_rgba10_pixel(2 << 30)[3], 682);
+        assert_eq!(ar30_to_rgba10_pixel(3 << 30)[3], 1023);
+    }
+
+    #[test]
+    fn rgb_channel_isolation() {
+        // R = 1023, G = 0, B = 0, A = 0
+        let px = 0x3FF_u32;
+        let [r, g, b, _] = ar30_to_rgba10_pixel(px);
+        assert_eq!((r, g, b), (1023, 0, 0));
+
+        // G = 512
+        let px = 512_u32 << 10;
+        let [r, g, b, _] = ar30_to_rgba10_pixel(px);
+        assert_eq!((r, g, b), (0, 512, 0));
+
+        // B = 1
+        let px = 1_u32 << 20;
+        let [r, g, b, _] = ar30_to_rgba10_pixel(px);
+        assert_eq!((r, g, b), (0, 0, 1));
+    }
+
+    #[test]
+    fn roundtrip_opaque() {
+        for r in [0u16, 128, 512, 1023] {
+            for b in [0u16, 255, 1023] {
+                let original = [r, 600, b, 1023];
+                let packed = rgba10_to_ar30_pixel(original);
+                let unpacked = ar30_to_rgba10_pixel(packed);
+                // RGB survives exactly; alpha loses bottom 8 bits (2-bit storage)
+                assert_eq!(unpacked[0], original[0], "R mismatch");
+                assert_eq!(unpacked[1], original[1], "G mismatch");
+                assert_eq!(unpacked[2], original[2], "B mismatch");
+            }
+        }
+    }
+
+    #[test]
+    fn byte_slice_entry_point() {
+        let px: u32 = (3 << 30) | (1023 << 20) | (512 << 10) | 0;
+        let bytes = px.to_le_bytes();
+        let result = ar30_bytes_to_rgba10(&bytes);
+        assert_eq!(result, &[0, 512, 1023, 1023]);
     }
 }

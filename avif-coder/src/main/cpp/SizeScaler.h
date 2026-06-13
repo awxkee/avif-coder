@@ -31,7 +31,6 @@
 
 #include <vector>
 #include <jni.h>
-#include "heif.h"
 #include "definitions.h"
 
 enum ScaleMode {
@@ -39,15 +38,6 @@ enum ScaleMode {
   Fill = 2,
   Resize = 3,
 };
-
-bool RescaleImage(aligned_uint8_vector &initialData,
-                  std::shared_ptr<heif_image_handle> &handle,
-                  std::shared_ptr<heif_image> &img,
-                  int *stride,
-                  bool useFloats,
-                  int *imageWidthPtr, int *imageHeightPtr,
-                  int scaledWidth, int scaledHeight, ScaleMode scaleMode, int scalingQuality,
-                  bool isRgba);
 
 aligned_uint8_vector RescaleSourceImage(uint8_t *data,
                                         uint32_t *stride,

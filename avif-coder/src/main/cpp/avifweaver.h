@@ -5,6 +5,22 @@
 #include <cstdlib>
 #include <ostream>
 #include <new>
+#include <jni.h>
+
+enum class WeaveScaleMode {
+  JustResize,
+  ScaleToFill,
+  ScaleToFit,
+};
+
+enum class WeaverPreferredColorConfig {
+  Default,
+  Rgba8888 = 2,
+  RgbaF16 = 3,
+  Rgb565 = 4,
+  Rgba1010102 = 5,
+  Hardware = 6,
+};
 
 enum class YuvRange {
   Tv,
@@ -23,12 +39,6 @@ enum class YuvType {
   Yuv420,
   Yuv422,
   Yuv444,
-};
-
-enum class WeaveScaleMode {
-  JustResize,
-  ScaleToFill,
-  ScaleToFit,
 };
 
 enum class FfiTrc {
@@ -87,6 +97,13 @@ enum class ToneMapping {
   Rec2408,
 };
 
+struct HeicInfo {
+  bool supported_image;
+  uint32_t width;
+  uint32_t height;
+  uint32_t bit_depth;
+};
+
 struct FfiProfileData {
   uint8_t *data;
   uintptr_t size;
@@ -112,6 +129,173 @@ struct ScalingResultU16 {
 };
 
 extern "C" {
+
+jbyteArray encode_avif_av1_file(JNIEnv *env,
+                                jobject image,
+                                jobject exif,
+                                int32_t color_space,
+                                int32_t quality,
+                                bool lossless,
+                                int32_t chroma_subsampling_code);
+
+bool is_heic_image(const uint8_t *data, uintptr_t len);
+
+bool is_avif_image(const uint8_t *data, uintptr_t len);
+
+void weave_cvt_rgba8_to_rgba_f16(const uint8_t *rgba8,
+                                 uint32_t rgba8_stride,
+                                 uint16_t *rgba_f16,
+                                 uint32_t rgba_f16_stride,
+                                 uint32_t width,
+                                 uint32_t height);
+
+void weave_premultiply_rgba_f16(uint16_t *rgba_f16,
+                                uint32_t rgba_f16_stride,
+                                uint32_t width,
+                                uint32_t height);
+
+void weave_cvt_rgba8_to_ar30(const uint8_t *rgba8,
+                             uint32_t rgba8_stride,
+                             uint8_t *ar30,
+                             uint32_t ar30_stride,
+                             uint32_t width,
+                             uint32_t height);
+
+void weave_cvt_rgba16_to_ar30(const uint16_t *rgba16,
+                              uint32_t rgba16_stride,
+                              uintptr_t bit_depth,
+                              uint8_t *ar30,
+                              uint32_t ar30_stride,
+                              uint32_t width,
+                              uint32_t height);
+
+void weave_cvt_rgba16_to_rgba_f16(const uint16_t *rgba16,
+                                  uint32_t rgba16_stride,
+                                  uintptr_t bit_depth,
+                                  uint16_t *rgba_f16,
+                                  uint32_t rgba_f16_stride,
+                                  uint32_t width,
+                                  uint32_t height);
+
+jobject decode_heic_file(JNIEnv *env,
+                         const uint8_t *data,
+                         uintptr_t length,
+                         int32_t scaled_width,
+                         int32_t scaled_height,
+                         WeaveScaleMode scale_mode,
+                         WeaverPreferredColorConfig preferred_color_config);
+
+HeicInfo read_heic_file_info(const uint8_t *data, uintptr_t length);
+
+jbyteArray encode_heic_file(JNIEnv *env,
+                            jobject image,
+                            jobject exif,
+                            int32_t color_space,
+                            int32_t quality,
+                            int32_t chroma_subsampling_code,
+                            bool lossless);
+
+void apply_icc_rgba8(const uint8_t *src_image,
+                     uint32_t src_stride,
+                     uint8_t *dst_image,
+                     uint32_t dst_stride,
+                     uint32_t width,
+                     uint32_t height,
+                     const uint8_t *icc_profile,
+                     uint32_t icc_profile_stride);
+
+void apply_icc_rgba16(const uint16_t *src_image,
+                      uint32_t src_stride,
+                      uint16_t *dst_image,
+                      uint32_t dst_stride,
+                      uint32_t bit_depth,
+                      uint32_t width,
+                      uint32_t height,
+                      const uint8_t *icc_profile,
+                      uint32_t icc_profile_stride);
+
+void free_profile(FfiProfileData wrapper);
+
+FfiProfileData new_dci_p3_profile();
+
+FfiProfileData new_adobe_rgb_profile();
+
+void weave_rgba8_to_yuv8(uint8_t *y_plane,
+                         uint32_t y_stride,
+                         uint8_t *u_plane,
+                         uint32_t u_stride,
+                         uint8_t *v_plane,
+                         uint32_t v_stride,
+                         const uint8_t *rgba,
+                         uint32_t rgba_stride,
+                         uint32_t width,
+                         uint32_t height,
+                         YuvRange range,
+                         YuvMatrix yuv_matrix,
+                         YuvType yuv_type);
+
+void weave_rgba8_to_y08(uint8_t *y_plane,
+                        uint32_t y_stride,
+                        const uint8_t *rgba,
+                        uint32_t rgba_stride,
+                        uint32_t width,
+                        uint32_t height,
+                        YuvRange range,
+                        YuvMatrix yuv_matrix);
+
+void weave_scaling_result_free(ScalingResult result);
+
+void weave_scaling_result16_free(ScalingResultU16 result);
+
+ScalingResult weave_scale_u8(const uint8_t *src,
+                             uint32_t src_stride,
+                             uint32_t width,
+                             uint32_t height,
+                             int32_t new_width,
+                             int32_t new_height,
+                             bool premultiply_alpha,
+                             WeaveScaleMode scale_mode);
+
+ScalingResultU16 weave_scale_u16(const uint16_t *src,
+                                 uintptr_t src_stride,
+                                 uint32_t width,
+                                 uint32_t height,
+                                 int32_t new_width,
+                                 int32_t new_height,
+                                 uintptr_t bit_depth,
+                                 bool premultiply_alpha,
+                                 WeaveScaleMode scale_mode);
+
+void weave_scale_f16(const uint16_t *src,
+                     uintptr_t src_stride,
+                     uint32_t width,
+                     uint32_t height,
+                     uint16_t *dst,
+                     uint32_t new_width,
+                     uint32_t new_height,
+                     uint32_t method,
+                     bool premultiply_alpha);
+
+void apply_tone_mapping_rgba8(uint8_t *image,
+                              uint32_t stride,
+                              uint32_t width,
+                              uint32_t height,
+                              const float *primaries,
+                              const float *white_point,
+                              FfiTrc trc,
+                              ToneMapping mapping,
+                              float brightness);
+
+void apply_tone_mapping_rgba16(uint16_t *image,
+                               uint32_t stride,
+                               uint32_t bit_depth,
+                               uint32_t width,
+                               uint32_t height,
+                               const float *primaries,
+                               const float *white_point,
+                               FfiTrc trc,
+                               ToneMapping mapping,
+                               float brightness);
 
 void weave_yuv8_to_rgba8(const uint8_t *y_plane,
                          uint32_t y_stride,
@@ -254,144 +438,5 @@ void weave_yuv16_to_rgba_f16(const uint16_t *y_plane,
                              YuvRange range,
                              YuvMatrix yuv_matrix,
                              YuvType yuv_type);
-
-void weave_cvt_rgba8_to_rgba_f16(const uint8_t *rgba8,
-                                 uint32_t rgba8_stride,
-                                 uint16_t *rgba_f16,
-                                 uint32_t rgba_f16_stride,
-                                 uint32_t width,
-                                 uint32_t height);
-
-void weave_premultiply_rgba_f16(uint16_t *rgba_f16,
-                                uint32_t rgba_f16_stride,
-                                uint32_t width,
-                                uint32_t height);
-
-void weave_cvt_rgba8_to_ar30(const uint8_t *rgba8,
-                             uint32_t rgba8_stride,
-                             uint8_t *ar30,
-                             uint32_t ar30_stride,
-                             uint32_t width,
-                             uint32_t height);
-
-void weave_cvt_rgba16_to_ar30(const uint16_t *rgba16,
-                              uint32_t rgba16_stride,
-                              uintptr_t bit_depth,
-                              uint8_t *ar30,
-                              uint32_t ar30_stride,
-                              uint32_t width,
-                              uint32_t height);
-
-void weave_cvt_rgba16_to_rgba_f16(const uint16_t *rgba16,
-                                  uint32_t rgba16_stride,
-                                  uintptr_t bit_depth,
-                                  uint16_t *rgba_f16,
-                                  uint32_t rgba_f16_stride,
-                                  uint32_t width,
-                                  uint32_t height);
-
-void apply_icc_rgba8(const uint8_t *src_image,
-                     uint32_t src_stride,
-                     uint8_t *dst_image,
-                     uint32_t dst_stride,
-                     uint32_t width,
-                     uint32_t height,
-                     const uint8_t *icc_profile,
-                     uint32_t icc_profile_stride);
-
-void apply_icc_rgba16(const uint16_t *src_image,
-                      uint32_t src_stride,
-                      uint16_t *dst_image,
-                      uint32_t dst_stride,
-                      uint32_t bit_depth,
-                      uint32_t width,
-                      uint32_t height,
-                      const uint8_t *icc_profile,
-                      uint32_t icc_profile_stride);
-
-void free_profile(FfiProfileData wrapper);
-
-FfiProfileData new_dci_p3_profile();
-
-FfiProfileData new_adobe_rgb_profile();
-
-void weave_rgba8_to_yuv8(uint8_t *y_plane,
-                         uint32_t y_stride,
-                         uint8_t *u_plane,
-                         uint32_t u_stride,
-                         uint8_t *v_plane,
-                         uint32_t v_stride,
-                         const uint8_t *rgba,
-                         uint32_t rgba_stride,
-                         uint32_t width,
-                         uint32_t height,
-                         YuvRange range,
-                         YuvMatrix yuv_matrix,
-                         YuvType yuv_type);
-
-void weave_rgba8_to_y08(uint8_t *y_plane,
-                        uint32_t y_stride,
-                        const uint8_t *rgba,
-                        uint32_t rgba_stride,
-                        uint32_t width,
-                        uint32_t height,
-                        YuvRange range,
-                        YuvMatrix yuv_matrix);
-
-void weave_scaling_result_free(ScalingResult result);
-
-void weave_scaling_result16_free(ScalingResultU16 result);
-
-ScalingResult weave_scale_u8(const uint8_t *src,
-                             uint32_t src_stride,
-                             uint32_t width,
-                             uint32_t height,
-                             int32_t new_width,
-                             int32_t new_height,
-                             uint32_t method,
-                             bool premultiply_alpha,
-                             WeaveScaleMode scale_mode);
-
-ScalingResultU16 weave_scale_u16(const uint16_t *src,
-                                 uintptr_t src_stride,
-                                 uint32_t width,
-                                 uint32_t height,
-                                 int32_t new_width,
-                                 int32_t new_height,
-                                 uintptr_t bit_depth,
-                                 uint32_t method,
-                                 bool premultiply_alpha,
-                                 WeaveScaleMode scale_mode);
-
-void weave_scale_f16(const uint16_t *src,
-                     uintptr_t src_stride,
-                     uint32_t width,
-                     uint32_t height,
-                     uint16_t *dst,
-                     uint32_t new_width,
-                     uint32_t new_height,
-                     uint32_t method,
-                     bool premultiply_alpha);
-
-void apply_tone_mapping_rgba8(uint8_t *image,
-                              uint32_t stride,
-                              uint32_t width,
-                              uint32_t height,
-                              const float *primaries,
-                              const float *white_point,
-                              FfiTrc trc,
-                              ToneMapping mapping,
-                              float brightness);
-
-void apply_tone_mapping_rgba16(uint16_t *image,
-                               uint32_t stride,
-                               uint32_t bit_depth,
-                               uint32_t width,
-                               uint32_t height,
-                               const float *primaries,
-                               const float *white_point,
-                               FfiTrc trc,
-                               ToneMapping mapping,
-                               float brightness);
 
 }  // extern "C"

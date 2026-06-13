@@ -14,22 +14,22 @@
 #include <android/asset_manager_jni.h>
 #include "definitions.h"
 #include <Support.h>
-#include "HeifImageDecoder.h"
 #include "AvifDecoderController.h"
 #include "ReformatBitmap.h"
 #include "JniBitmap.h"
 #include <dlfcn.h>
+#include "avifweaver.h"
 
 using namespace std;
 
 jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                    std::vector<uint8_t> &srcBuffer, jint scaledWidth,
-                                   jint scaledHeight, jint javaColorSpace, jint javaScaleMode,
+                                   jint scaledHeight, jint clrConfig, jint javaScaleMode,
                                    jint scalingQuality) {
   PreferredColorConfig preferredColorConfig;
   ScaleMode scaleMode;
 
-  if (!checkDecodePreconditions(env, javaColorSpace, &preferredColorConfig, javaScaleMode,
+  if (!checkDecodePreconditions(env, clrConfig, &preferredColorConfig, javaScaleMode,
                                 &scaleMode)) {
     string exception = "Can't retrieve basic values";
     throwException(env, exception);
@@ -38,10 +38,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
   try {
 
-    std::string mimeType = HeifImageDecoder::getImageType(srcBuffer);
     AvifImageFrame frame;
 
-    if (mimeType == "image/avif" || mimeType == "image/avif-sequence") {
+    if (is_avif_image(srcBuffer.data(), srcBuffer.size())) {
       AvifDecoderController avifController;
       avifController.attachBuffer(srcBuffer.data(), srcBuffer.size());
       frame = avifController.getFrame(0,
@@ -51,13 +50,31 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                       scaleMode,
                                       scalingQuality);
     } else {
-      HeifImageDecoder heifDecoder;
-      frame = heifDecoder.getFrame(srcBuffer,
-                                   scaledWidth,
-                                   scaledHeight,
-                                   preferredColorConfig,
-                                   scaleMode,
-                                   scalingQuality);
+      WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
+      if (scaleMode == 2) {
+        mScaleMode = WeaveScaleMode::ScaleToFit;
+      } else if (scaleMode == 3) {
+        mScaleMode = WeaveScaleMode::JustResize;
+      }
+      auto mConfig = WeaverPreferredColorConfig::Default;
+      if (clrConfig == 2) {
+        mConfig = WeaverPreferredColorConfig::Rgba8888;
+      } else if (clrConfig == 3) {
+        mConfig = WeaverPreferredColorConfig::RgbaF16;
+      } else if (clrConfig == 4) {
+        mConfig = WeaverPreferredColorConfig::Rgb565;
+      } else if (clrConfig == 5) {
+        mConfig = WeaverPreferredColorConfig::Rgba1010102;
+      } else if (clrConfig == 6) {
+        mConfig = WeaverPreferredColorConfig::Hardware;
+      }
+
+      return decode_heic_file(env,
+                              srcBuffer.data(),
+                              srcBuffer.size(),
+                              scaledWidth,
+                              scaledHeight,
+                              mScaleMode, mConfig);
     }
 
     int osVersion = androidOSVersion();
@@ -90,22 +107,49 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
 
 extern "C"
 JNIEXPORT jobject JNICALL
-Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
-                                                            jobject thiz,
-                                                            jbyteArray byte_array,
-                                                            jint scaledWidth,
-                                                            jint scaledHeight,
-                                                            jint javaColorspace,
-                                                            jint scaleMode,
-                                                            jint scaleQuality) {
+Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeImpl(JNIEnv *env,
+                                                        jobject thiz,
+                                                        jbyteArray byte_array,
+                                                        jint scaledWidth,
+                                                        jint scaledHeight,
+                                                        jint clrConfig,
+                                                        jint scaleMode,
+                                                        jint scaleQuality) {
   try {
     auto totalLength = env->GetArrayLength(byte_array);
     std::vector<uint8_t> srcBuffer(totalLength);
     env->GetByteArrayRegion(byte_array, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
+    if (is_heic_image(srcBuffer.data(), srcBuffer.size())) {
+      WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
+      if (scaleMode == 2) {
+        mScaleMode = WeaveScaleMode::ScaleToFit;
+      } else if (scaleMode == 3) {
+        mScaleMode = WeaveScaleMode::JustResize;
+      }
+      auto mConfig = WeaverPreferredColorConfig::Default;
+      if (clrConfig == 2) {
+        mConfig = WeaverPreferredColorConfig::Rgba8888;
+      } else if (clrConfig == 3) {
+        mConfig = WeaverPreferredColorConfig::RgbaF16;
+      } else if (clrConfig == 4) {
+        mConfig = WeaverPreferredColorConfig::Rgb565;
+      } else if (clrConfig == 5) {
+        mConfig = WeaverPreferredColorConfig::Rgba1010102;
+      } else if (clrConfig == 6) {
+        mConfig = WeaverPreferredColorConfig::Hardware;
+      }
+
+      return decode_heic_file(env,
+                              srcBuffer.data(),
+                              srcBuffer.size(),
+                              scaledWidth,
+                              scaledHeight,
+                              mScaleMode, mConfig);
+    }
     return decodeImplementationNative(env, thiz, srcBuffer,
                                       scaledWidth, scaledHeight,
-                                      javaColorspace, scaleMode,
+                                      clrConfig, scaleMode,
                                       scaleQuality);
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
@@ -115,14 +159,14 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeImpl(JNIEnv *env,
 }
 extern "C"
 JNIEXPORT jobject JNICALL
-Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *env,
-                                                                      jobject thiz,
-                                                                      jobject byteBuffer,
-                                                                      jint scaledWidth,
-                                                                      jint scaledHeight,
-                                                                      jint clrConfig,
-                                                                      jint scaleMode,
-                                                                      jint scalingQuality) {
+Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeByteBufferImpl(JNIEnv *env,
+                                                                  jobject thiz,
+                                                                  jobject byteBuffer,
+                                                                  jint scaledWidth,
+                                                                  jint scaledHeight,
+                                                                  jint clrConfig,
+                                                                  jint scaleMode,
+                                                                  jint scalingQuality) {
   try {
     auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
     int length = (int) env->GetDirectBufferCapacity(byteBuffer);
@@ -133,6 +177,33 @@ Java_com_radzivon_bartoshyk_avif_coder_HeifCoder_decodeByteBufferImpl(JNIEnv *en
     }
     std::vector<uint8_t> srcBuffer(length);
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
+    if (is_heic_image(srcBuffer.data(), srcBuffer.size())) {
+      WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
+      if (scaleMode == 2) {
+        mScaleMode = WeaveScaleMode::ScaleToFit;
+      } else if (scaleMode == 3) {
+        mScaleMode = WeaveScaleMode::JustResize;
+      }
+      auto mConfig = WeaverPreferredColorConfig::Default;
+      if (clrConfig == 2) {
+        mConfig = WeaverPreferredColorConfig::Rgba8888;
+      } else if (clrConfig == 3) {
+        mConfig = WeaverPreferredColorConfig::RgbaF16;
+      } else if (clrConfig == 4) {
+        mConfig = WeaverPreferredColorConfig::Rgb565;
+      } else if (clrConfig == 5) {
+        mConfig = WeaverPreferredColorConfig::Rgba1010102;
+      } else if (clrConfig == 6) {
+        mConfig = WeaverPreferredColorConfig::Hardware;
+      }
+
+      return decode_heic_file(env,
+                              srcBuffer.data(),
+                              srcBuffer.size(),
+                              scaledWidth,
+                              scaledHeight,
+                              mScaleMode, mConfig);
+    }
     return decodeImplementationNative(env, thiz, srcBuffer,
                                       scaledWidth, scaledHeight,
                                       clrConfig, scaleMode, scalingQuality);

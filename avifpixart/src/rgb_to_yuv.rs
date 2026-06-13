@@ -29,13 +29,13 @@
 use crate::{YuvMatrix, YuvRange, YuvType};
 use std::slice;
 use yuv::{
+    BufferStoreMut, YuvConversionMode, YuvGrayImageMut, YuvPlanarImageMut, YuvStandardMatrix,
     rgba_to_gbr, rgba_to_ycgco420, rgba_to_ycgco422, rgba_to_ycgco444, rgba_to_yuv400,
-    rgba_to_yuv420, rgba_to_yuv422, rgba_to_yuv444, BufferStoreMut, YuvConversionMode,
-    YuvGrayImageMut, YuvPlanarImageMut, YuvStandardMatrix,
+    rgba_to_yuv420, rgba_to_yuv422, rgba_to_yuv444,
 };
 
-#[no_mangle]
-pub extern "C" fn weave_rgba8_to_yuv8(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_rgba8_to_yuv8(
     y_plane: *mut u8,
     y_stride: u32,
     u_plane: *mut u8,
@@ -118,8 +118,8 @@ pub extern "C" fn weave_rgba8_to_yuv8(
     }
 }
 
-#[no_mangle]
-pub extern "C" fn weave_rgba8_to_y08(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_rgba8_to_y08(
     y_plane: *mut u8,
     y_stride: u32,
     rgba: *const u8,
@@ -174,20 +174,22 @@ mod tests {
         let mut u = vec![0u8; 275 * height.div_ceil(2)];
         let mut v = vec![0u8; 275 * height.div_ceil(2)];
         let rgba = vec![0u8; width * height * 4];
-        weave_rgba8_to_yuv8(
-            y_0.as_mut_ptr(),
-            width as u32,
-            u.as_mut_ptr(),
-            275,
-            v.as_mut_ptr(),
-            275,
-            rgba.as_ptr(),
-            width as u32 * 4,
-            width as u32,
-            height as u32,
-            YuvRange::Pc,
-            YuvMatrix::Bt601,
-            YuvType::Yuv422,
-        );
+        unsafe {
+            weave_rgba8_to_yuv8(
+                y_0.as_mut_ptr(),
+                width as u32,
+                u.as_mut_ptr(),
+                275,
+                v.as_mut_ptr(),
+                275,
+                rgba.as_ptr(),
+                width as u32 * 4,
+                width as u32,
+                height as u32,
+                YuvRange::Pc,
+                YuvMatrix::Bt601,
+                YuvType::Yuv422,
+            );
+        }
     }
 }

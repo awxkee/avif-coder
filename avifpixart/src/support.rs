@@ -26,8 +26,14 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use jni::objects::JObject;
+use jni::sys::jobject;
+use jni::{Env, JValue, jni_sig, jni_str};
+use num_traits::AsPrimitive;
 use std::fmt::Debug;
+use std::ops::{AddAssign, BitXor};
 use std::slice;
+use std::sync::OnceLock;
 
 #[inline]
 pub(crate) fn transmute_const_ptr16(
@@ -76,4 +82,155 @@ impl<T: Copy + Debug> SliceStoreMut<'_, T> {
             Self::Owned(vec) => vec,
         }
     }
+}
+
+macro_rules! try_vec {
+    () => {
+        Vec::new()
+    };
+    ($elem:expr; $n:expr) => {{
+        let mut v = Vec::new();
+        v.try_reserve_exact($n)
+            .map_err(|_| WeaverError::FailedToAllocateMemory($n as u64))?;
+        v.resize($n, $elem);
+        v
+    }};
+}
+
+use crate::WeaverPreferredColorConfig;
+pub(crate) use try_vec;
+
+pub(crate) const MIN_OS_F16: i32 = 26;
+pub(crate) const MIN_OS_AR30: i32 = 33;
+
+pub(crate) struct PackedImageBuffer {
+    pub(crate) data: Vec<u8>,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+    pub(crate) format: WeaverPreferredColorConfig,
+}
+
+pub(crate) enum PackedImageTransfer {
+    Image(PackedImageBuffer),
+    HardwareBuffer(jobject),
+}
+
+static SDK_VERSION: OnceLock<i32> = OnceLock::new();
+
+pub(crate) fn android_os_version() -> i32 {
+    *SDK_VERSION.get_or_init(|| {
+        let key = b"ro.build.version.sdk\0";
+        let mut buf = [0u8; 92]; // PROP_VALUE_MAX
+
+        unsafe extern "C" {
+            fn __system_property_get(
+                name: *const std::ffi::c_char,
+                value: *mut std::ffi::c_char,
+            ) -> std::ffi::c_int;
+        }
+
+        let len = unsafe { __system_property_get(key.as_ptr().cast(), buf.as_mut_ptr().cast()) };
+
+        if len <= 0 {
+            return 0;
+        }
+
+        std::ffi::CStr::from_bytes_until_nul(&buf)
+            .ok()
+            .and_then(|s| s.to_str().ok())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
+    })
+}
+
+macro_rules! dbg_log {
+    ($level:ident, $($arg:tt)*) => {
+        #[cfg(feature = "logging")]
+        log::$level!(target: "avifweaver", $($arg)*);
+    };
+}
+pub(crate) use dbg_log;
+
+#[cfg(feature = "logging")]
+static LOGGER: OnceLock<()> = OnceLock::new();
+
+pub(crate) fn init_logging() {
+    #[cfg(feature = "logging")]
+    LOGGER.get_or_init(|| {
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(log::LevelFilter::Debug)
+                .with_tag("avifweaver"),
+        );
+    });
+}
+
+pub(crate) fn optional_bytebuffer_to_vec(
+    env: &mut Env,
+    obj: jobject,
+) -> Result<Option<Vec<u8>>, jni::errors::Error> {
+    if obj.is_null() {
+        return Ok(None);
+    }
+
+    let buf = unsafe { JObject::from_raw(env, obj) };
+
+    let remaining = env
+        .call_method(&buf, jni_str!("remaining"), jni_sig!("()I"), &[])?
+        .i()? as usize;
+
+    if remaining == 0 {
+        return Ok(Some(Vec::new()));
+    }
+
+    let dup = env
+        .call_method(
+            &buf,
+            jni_str!("duplicate"),
+            jni_sig!("()Ljava/nio/ByteBuffer;"),
+            &[],
+        )?
+        .l()?;
+
+    let arr = env.new_byte_array(remaining)?;
+    env.call_method(
+        &dup,
+        jni_str!("get"),
+        jni_sig!("([B)Ljava/nio/ByteBuffer;"),
+        &[JValue::Object(&arr)],
+    )?;
+
+    Ok(Some(env.convert_byte_array(&arr)?))
+}
+
+pub(crate) fn has_non_constant_alpha<
+    V: Copy + PartialEq + BitXor<V, Output = V> + 'static + AsPrimitive<J> + 'static,
+    J: Copy + AddAssign + Default + 'static + Eq + Ord,
+    const ALPHA_CHANNEL_INDEX: usize,
+    const CHANNELS: usize,
+>(
+    store: &[V],
+    width: usize,
+) -> bool
+where
+    i32: AsPrimitive<V>,
+    u32: AsPrimitive<V> + AsPrimitive<J>,
+{
+    assert!(ALPHA_CHANNEL_INDEX < CHANNELS);
+    assert!(CHANNELS > 0 && CHANNELS <= 4);
+    if store.is_empty() {
+        return false;
+    }
+    let first = store[0];
+    let mut row_sums: J = 0u32.as_();
+    for row in store.chunks_exact(width * CHANNELS) {
+        for color in row.chunks_exact(CHANNELS) {
+            row_sums += color[ALPHA_CHANNEL_INDEX].bitxor(first).as_();
+        }
+        if row_sums != 0.as_() {
+            return true;
+        }
+    }
+    let zeros = 0.as_();
+    row_sums.ne(&zeros)
 }
