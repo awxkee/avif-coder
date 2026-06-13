@@ -27,7 +27,6 @@
  */
 
 #include "ReformatBitmap.h"
-#include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgba8ToF16.h"
 #include "imagebits/Rgb565.h"
 #include "imagebits/Rgb1010102.h"

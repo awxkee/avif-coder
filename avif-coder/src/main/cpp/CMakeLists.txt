@@ -4,17 +4,15 @@ project("coder")
 
 add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
         colorspace/colorspace.cpp
-        imagebits/RgbaF16bitToNBitU16.cpp imagebits/RgbaF16bitNBitU8.cpp imagebits/Rgb1010102.cpp
+        imagebits/RgbaF16bitToNBitU16.cpp imagebits/Rgb1010102.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
         imagebits/Rgb565.cpp JniBitmap.cpp ReformatBitmap.cpp Support.cpp
         HardwareBuffersCompat.cpp imagebits/half.cpp
         imagebits/half.hpp
         imagebits/RGBAlpha.cpp
-        colorspace/Trc.cpp
-        colorspace/Rec2408ToneMapper.cpp colorspace/LogarithmicToneMapper.cpp
-        colorspace/ColorMatrix.cpp imagebits/Rgba16.cpp
+        imagebits/Rgba16.cpp
         AvifDecoderController.cpp JniAnimatedController.cpp
-        colorspace/FilmicToneMapper.cpp colorspace/AcesToneMapper.cpp)
+)
 
 add_library(libyuv STATIC IMPORTED)
 add_library(libdav1d SHARED IMPORTED)

@@ -39,7 +39,6 @@
 #include <cmath>
 #include <limits>
 #include "imagebits/RgbaF16bitToNBitU16.h"
-#include "imagebits/RgbaF16bitNBitU8.h"
 #include "imagebits/Rgb1010102.h"
 #include "imagebits/RGBAlpha.h"
 #include "imagebits/Rgb565.h"

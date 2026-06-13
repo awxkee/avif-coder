@@ -32,11 +32,8 @@
 #include <thread>
 #include "imagebits/CopyUnalignedRGBA.h"
 #include "colorspace.h"
-#include <Trc.h>
 #include "Eigen/Eigen"
 #include "ColorSpaceProfile.h"
-#include <ITUR.h>
-#include "ColorMatrix.h"
 #include "avifweaver.h"
 #include <android/log.h>
 
