@@ -35,6 +35,7 @@ fn main() {
     cbindgen::Builder::new()
         .with_crate(crate_dir)
         .with_pragma_once(true)
+        .with_sys_include("jni.h")
         .generate()
         .expect("Unable to generate bindings")
         .write_to_file("include/avifweaver.h");

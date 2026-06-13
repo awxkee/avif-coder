@@ -29,7 +29,7 @@
 use crate::cvt::work_on_transmuted_ptr_u16;
 use moxcms::{ColorProfile, Layout, TransformOptions};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn apply_icc_rgba8(
     src_image: *const u8,
     src_stride: u32,
@@ -154,7 +154,7 @@ pub(crate) fn apply_icc_rgba16_impl(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn apply_icc_rgba16(
     src_image: *const u16,
     src_stride: u32,
@@ -309,7 +309,7 @@ fn wrap_profile(profile: &ColorProfile) -> FfiProfileData {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn free_profile(wrapper: FfiProfileData) {
     if wrapper.data.is_null() {
         return;
@@ -320,12 +320,12 @@ pub extern "C" fn free_profile(wrapper: FfiProfileData) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn new_dci_p3_profile() -> FfiProfileData {
     wrap_profile(&ColorProfile::new_dci_p3())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn new_adobe_rgb_profile() -> FfiProfileData {
     wrap_profile(&ColorProfile::new_adobe_rgb())
 }

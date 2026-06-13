@@ -29,8 +29,8 @@
 
 use core::f16;
 use pic_scale::{
-    BufferStore, ImageStore, ImageStoreMut, ResamplingFunction, Scaler, ThreadingPolicy,
-    WorkloadStrategy,
+    BufferStore, ImageStore, ImageStoreMut, PicScaleError, ResamplingFunction, Scaler,
+    ThreadingPolicy, WorkloadStrategy,
 };
 use std::slice;
 
@@ -55,13 +55,14 @@ pub struct ScalingResultU16 {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, Ord, PartialOrd, Eq)]
 pub enum WeaveScaleMode {
     JustResize,
     ScaleToFill,
     ScaleToFit,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn weave_scaling_result_free(result: ScalingResult) {
     if result.data.is_null() {
         return;
@@ -71,7 +72,7 @@ pub extern "C" fn weave_scaling_result_free(result: ScalingResult) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn weave_scaling_result16_free(result: ScalingResultU16) {
     if result.data.is_null() {
         return;
@@ -119,22 +120,110 @@ fn resolve_dimensions(
     }
 }
 
-#[no_mangle]
-pub extern "C" fn weave_scale_u8(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_scale_u8(
     src: *const u8,
     src_stride: u32,
     width: u32,
     height: u32,
     new_width: i32,
     new_height: i32,
-    method: u32,
     premultiply_alpha: bool,
     scale_mode: WeaveScaleMode,
 ) -> ScalingResult {
     let origin_slice = unsafe { slice::from_raw_parts(src, src_stride as usize * height as usize) };
 
+    let final_store = match internal_scale_u8(
+        std::borrow::Cow::Borrowed(origin_slice),
+        src_stride,
+        width,
+        height,
+        new_width,
+        new_height,
+        premultiply_alpha,
+        scale_mode,
+    ) {
+        Ok(v) => v,
+        Err(_) => {
+            return ScalingResult {
+                data: std::ptr::null_mut(),
+                width: 0,
+                height: 0,
+                stride: 0,
+                length: 0,
+                capacity: 0,
+            };
+        }
+    };
+
+    let final_width = final_store.width;
+    let final_height = final_store.height;
+
+    let stride = final_store.stride();
+
+    let mut final_buffer = match final_store.buffer {
+        BufferStore::Borrowed(v) => v.to_vec(),
+        BufferStore::Owned(v) => v,
+    };
+
+    let data = final_buffer.as_mut_ptr();
+    let capacity = final_buffer.capacity();
+    let length = final_buffer.len();
+    std::mem::forget(final_buffer);
+
+    ScalingResult {
+        data,
+        capacity,
+        length,
+        stride,
+        width: final_width,
+        height: final_height,
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub enum ScalingFunction {
+    Lanczos3,
+    Nearest,
+    Bilinear,
+}
+
+impl From<u32> for ScalingFunction {
+    fn from(value: u32) -> Self {
+        if value == 3 {
+            ScalingFunction::Lanczos3
+        } else if value == 1 {
+            ScalingFunction::Nearest
+        } else {
+            ScalingFunction::Bilinear
+        }
+    }
+}
+
+impl ScalingFunction {
+    pub(crate) fn to_ps(self) -> ResamplingFunction {
+        match self {
+            ScalingFunction::Lanczos3 => ResamplingFunction::Lanczos3,
+            ScalingFunction::Nearest => ResamplingFunction::Nearest,
+            ScalingFunction::Bilinear => ResamplingFunction::Bilinear,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn internal_scale_u8(
+    src: std::borrow::Cow<[u8]>,
+    src_stride: u32,
+    width: u32,
+    height: u32,
+    new_width: i32,
+    new_height: i32,
+    premultiply_alpha: bool,
+    scale_mode: WeaveScaleMode,
+) -> Result<ImageStoreMut<'static, u8, 4>, PicScaleError> {
     let source_store = ImageStore::<u8, 4> {
-        buffer: std::borrow::Cow::Borrowed(origin_slice),
+        buffer: src,
         channels: 4,
         width: width as usize,
         height: height as usize,
@@ -142,14 +231,8 @@ pub extern "C" fn weave_scale_u8(
         bit_depth: 8,
     };
 
-    let scaler = Scaler::new(if method == 3 {
-        ResamplingFunction::Lanczos3
-    } else if method == 1 {
-        ResamplingFunction::Nearest
-    } else {
-        ResamplingFunction::Bilinear
-    })
-    .set_threading_policy(ThreadingPolicy::Single);
+    let scaler = Scaler::new(ResamplingFunction::MitchellNetravalli)
+        .set_threading_policy(ThreadingPolicy::Single);
 
     let (new_width, new_height) = resolve_dimensions(width, height, new_width, new_height);
 
@@ -187,81 +270,22 @@ pub extern "C" fn weave_scale_u8(
         }
     };
 
-    let Ok(mut scaled_store) = ImageStoreMut::try_alloc(scale_w, scale_h) else {
-        return ScalingResult {
-            data: std::ptr::null_mut(),
-            width: 0,
-            height: 0,
-            stride: 0,
-            capacity: 0,
-            length: 0,
-        };
-    };
+    let mut scaled_store = ImageStoreMut::try_alloc(scale_w, scale_h)?;
 
-    let plan = match scaler.plan_rgba_resampling(
-        source_store.size(),
-        scaled_store.size(),
-        premultiply_alpha,
-    ) {
-        Ok(v) => v,
-        Err(_) => {
-            return ScalingResult {
-                data: std::ptr::null_mut(),
-                width: 0,
-                height: 0,
-                stride: 0,
-                capacity: 0,
-                length: 0,
-            }
-        }
-    };
-    _ = plan.resample(&source_store, &mut scaled_store);
+    let plan =
+        scaler.plan_rgba_resampling(source_store.size(), scaled_store.size(), premultiply_alpha)?;
+    plan.resample(&source_store, &mut scaled_store)?;
 
     let final_store = if crop_x > 0 || crop_y > 0 || crop_w != scale_w || crop_h != scale_h {
-        match scaled_store.crop_with_copy(crop_x, crop_y, crop_w, crop_h) {
-            Ok(v) => v,
-            Err(_) => {
-                return ScalingResult {
-                    data: std::ptr::null_mut(),
-                    width: 0,
-                    stride: 0,
-                    height: 0,
-                    capacity: 0,
-                    length: 0,
-                }
-            }
-        }
+        scaled_store.crop_with_copy(crop_x, crop_y, crop_w, crop_h)?
     } else {
         scaled_store
     };
-
-    let final_width = final_store.width;
-    let final_height = final_store.height;
-
-    let stride = final_store.stride();
-
-    let mut final_buffer = match final_store.buffer {
-        BufferStore::Borrowed(v) => v.to_vec(),
-        BufferStore::Owned(v) => v,
-    };
-
-    let data = final_buffer.as_mut_ptr();
-    let capacity = final_buffer.capacity();
-    let length = final_buffer.len();
-    std::mem::forget(final_buffer);
-
-    ScalingResult {
-        data,
-        capacity,
-        length,
-        stride,
-        width: final_width,
-        height: final_height,
-    }
+    Ok(final_store)
 }
 
-#[no_mangle]
-pub extern "C" fn weave_scale_u16(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn weave_scale_u16(
     src: *const u16,
     src_stride: usize,
     width: u32,
@@ -269,7 +293,6 @@ pub extern "C" fn weave_scale_u16(
     new_width: i32,
     new_height: i32,
     bit_depth: usize,
-    method: u32,
     premultiply_alpha: bool,
     scale_mode: WeaveScaleMode,
 ) -> ScalingResultU16 {
@@ -300,24 +323,79 @@ pub extern "C" fn weave_scale_u16(
         }
     }
 
+    let final_store = match internal_scale_u16(
+        source_image,
+        j_src_stride,
+        width,
+        height,
+        new_width,
+        new_height,
+        bit_depth,
+        premultiply_alpha,
+        scale_mode,
+    ) {
+        Ok(v) => v,
+        Err(_) => {
+            return ScalingResultU16 {
+                data: std::ptr::null_mut(),
+                width: 0,
+                height: 0,
+                stride: 0,
+                capacity: 0,
+                length: 0,
+            };
+        }
+    };
+
+    let final_width = final_store.width;
+    let final_height = final_store.height;
+
+    let stride = final_store.stride();
+
+    let mut final_buffer = match final_store.buffer {
+        BufferStore::Borrowed(v) => v.to_vec(),
+        BufferStore::Owned(v) => v,
+    };
+
+    let data = final_buffer.as_mut_ptr();
+    let capacity = final_buffer.capacity();
+    let length = final_buffer.len();
+    std::mem::forget(final_buffer);
+
+    ScalingResultU16 {
+        data,
+        capacity,
+        length,
+        stride,
+        width: final_width,
+        height: final_height,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn internal_scale_u16(
+    src: std::borrow::Cow<'_, [u16]>,
+    src_stride: usize,
+    width: u32,
+    height: u32,
+    new_width: i32,
+    new_height: i32,
+    bit_depth: usize,
+    premultiply_alpha: bool,
+    scale_mode: WeaveScaleMode,
+) -> Result<ImageStoreMut<'static, u16, 4>, PicScaleError> {
     let source_store = ImageStore::<u16, 4> {
-        buffer: source_image,
+        buffer: src,
         channels: 4,
         width: width as usize,
         height: height as usize,
-        stride: j_src_stride,
+        stride: src_stride,
         bit_depth,
     };
 
-    let scaler = Scaler::new(if method == 3 {
-        ResamplingFunction::Lanczos3
-    } else if method == 1 {
-        ResamplingFunction::Nearest
-    } else {
-        ResamplingFunction::Bilinear
-    })
-    .set_threading_policy(ThreadingPolicy::Single)
-    .set_workload_strategy(WorkloadStrategy::PreferQuality);
+    let scaler = Scaler::new(ResamplingFunction::MitchellNetravalli)
+        .set_threading_policy(ThreadingPolicy::Single)
+        .set_workload_strategy(WorkloadStrategy::PreferQuality);
 
     let (new_width, new_height) = resolve_dimensions(width, height, new_width, new_height);
 
@@ -357,80 +435,28 @@ pub extern "C" fn weave_scale_u16(
 
     let Ok(mut scaled_store) = ImageStoreMut::try_alloc_with_depth(scale_w, scale_h, bit_depth)
     else {
-        return ScalingResultU16 {
-            data: std::ptr::null_mut(),
-            width: 0,
-            height: 0,
-            stride: 0,
-            capacity: 0,
-            length: 0,
-        };
+        return Err(PicScaleError::Generic(
+            "Can't allocate required buffer".to_string(),
+        ));
     };
 
-    let plan = match scaler.plan_rgba_resampling16(
+    let plan = scaler.plan_rgba_resampling16(
         source_store.size(),
         scaled_store.size(),
         premultiply_alpha,
         bit_depth,
-    ) {
-        Ok(v) => v,
-        Err(_) => {
-            return ScalingResultU16 {
-                data: std::ptr::null_mut(),
-                width: 0,
-                height: 0,
-                stride: 0,
-                capacity: 0,
-                length: 0,
-            }
-        }
-    };
-    _ = plan.resample(&source_store, &mut scaled_store);
+    )?;
+    plan.resample(&source_store, &mut scaled_store)?;
 
     let final_store = if crop_x > 0 || crop_y > 0 || crop_w != scale_w || crop_h != scale_h {
-        match scaled_store.crop_with_copy(crop_x, crop_y, crop_w, crop_h) {
-            Ok(v) => v,
-            Err(_) => {
-                return ScalingResultU16 {
-                    data: std::ptr::null_mut(),
-                    width: 0,
-                    stride: 0,
-                    height: 0,
-                    capacity: 0,
-                    length: 0,
-                }
-            }
-        }
+        scaled_store.crop_with_copy(crop_x, crop_y, crop_w, crop_h)?
     } else {
         scaled_store
     };
-
-    let final_width = final_store.width;
-    let final_height = final_store.height;
-
-    let stride = final_store.stride();
-
-    let mut final_buffer = match final_store.buffer {
-        BufferStore::Borrowed(v) => v.to_vec(),
-        BufferStore::Owned(v) => v,
-    };
-
-    let data = final_buffer.as_mut_ptr();
-    let capacity = final_buffer.capacity();
-    let length = final_buffer.len();
-    std::mem::forget(final_buffer);
-
-    ScalingResultU16 {
-        data,
-        capacity,
-        length,
-        stride,
-        width: final_width,
-        height: final_height,
-    }
+    Ok(final_store)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn weave_scale_f16(
     src: *const u16,
     src_stride: usize,

@@ -26,6 +26,9 @@
 @file:Suppress("UnstableApiUsage")
 
 import com.vanniktech.maven.publish.AndroidMultiVariantLibrary
+import com.vanniktech.maven.publish.DeploymentValidation
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.SourcesJar
 
 plugins {
     id("com.android.library")
@@ -37,7 +40,10 @@ plugins {
 
 mavenPublishing {
     if (System.getenv("PUBLISH_STATE") == "Release") {
-        publishToMavenCentral()
+        publishToMavenCentral(
+            automaticRelease = true,
+            validateDeployment = DeploymentValidation.PUBLISHED
+        )
         signAllPublications()
     }
 }
@@ -45,8 +51,8 @@ mavenPublishing {
 mavenPublishing {
     configure(
         AndroidMultiVariantLibrary(
-            sourcesJar = true,
-            publishJavadocJar = true,
+            JavadocJar.Javadoc(),
+            SourcesJar.Sources(),
         )
     )
 
@@ -157,5 +163,5 @@ android {
 }
 
 dependencies {
-    implementation("androidx.annotation:annotation-jvm:1.9.1")
+    implementation("androidx.annotation:annotation-jvm:1.10.0")
 }

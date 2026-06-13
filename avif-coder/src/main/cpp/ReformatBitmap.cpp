@@ -33,7 +33,6 @@
 #include "imagebits/Rgb1010102.h"
 #include "imagebits/CopyUnalignedRGBA.h"
 #include "imagebits/Rgba16.h"
-#include "imagebits/RgbaU16toHF.h"
 #include <string>
 #include "Support.h"
 #include <android/bitmap.h>

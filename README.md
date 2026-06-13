@@ -1,7 +1,10 @@
 # AVIF/HEIF Coder for Android 24+
 
-This library provides a simple interface to decode or encode (create) AVIF and HEIF images for Android.
-Very fast and convenient to use AVIF in Android apps with API version 24+. Based on libheif, libde265, libx265, libyuv, libaom and libdav1d.
+This library provides a simple interface to decode or encode (create) AVIF and HEIF images for
+Android.
+Very fast and convenient to use AVIF in Android apps with API version 24+. Based
+on [maroontree](https://github.com/awxkee/maroontree), [hpvca](https://github.com/awxkee/hpvca), [hpvcd](https://github.com/awxkee/hpvcd),
+libavif and libdav1d.
 
 Correctly handles ICC, color profiles, and HDR images.
 Fully supports HDR images, 10, 12 bit. Preprocesses images in tiles to increase speed.
@@ -15,7 +18,8 @@ Supports decoding to all necessary pixel formats in Android and avoids Android d
 // May decode AVIF(AV1) and HEIC (HEVC) images, HDR images supported
 val bitmap: Bitmap = HeifCoder().decode(buffer) // Decode avif from ByteArray
 val bytes: ByteArray = HeifCoder().encodeAvif(decodedBitmap) // Encode Bitmap to AVIF
-val bytes = HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports HDR in RGBA_F16, RGBA_1010102, HARDWARE
+val bytes =
+    HeifCoder().encodeHeic(bitmap) // Encode Bitmap to HEIC / Supports HDR in RGBA_F16, RGBA_1010102, HARDWARE
 // Check if image is valid AVIF(AV1) image
 val isAvif = HeifCoder().isAvif(byteArray)
 // Check if image is valid HEIF(HEVC) image
@@ -30,16 +34,20 @@ val bitmap: Bitmap = decodeSampled(byteArray, scaledWidth, scaledHeight)
 
 ### How to add
 
-Note versions prior 2.2.0 were published to jitpack, but this way is outdated and no longer supported.
+Note versions prior 2.2.0 were published to jitpack, but this way is outdated and no longer
+supported.
 
 ```kotlin
 implementation("io.github.awxkee:avif-coder:2.2.0") // or any version above picker from release tags
 
-// Glide avif plugin if you need one
-implementation("io.github.awxkee:avif-coder-glide:2.2.0") // or any version above picker from release tags
-
 // Coil avif plugin if you need one
 implementation("io.github.awxkee:avif-coder-coil:2.2.0") // or any version above picker from release tags
+
+// Sketch plugin if you need one 
+implementation("io.github.panpf.sketch4:sketch-avif-awxkee:${SKETCH_LAST_VERSION}")
+
+// Glide avif plugin if you need one
+implementation("io.github.awxkee:avif-coder-glide:2.2.0") // or any version above picker from release tags
 ```
 
 # Also supports coil integration
@@ -66,7 +74,7 @@ libdav1d:
 - cmake
 - nasm
 
-libyuv, de265, x265, aom, sharpyuv(webp):
+libyuv:
 
 - ndk
 - ninja
@@ -74,24 +82,8 @@ libyuv, de265, x265, aom, sharpyuv(webp):
 - nasm
 - yasm
 
-libheif:
-- ndk
-- ninja
-- cmake
-- and all built libraries above
-
 If you wish to build by yourself you may use ready `build_aom.sh`
-script, `build_dav1d.sh`, `build_x265.sh`, `build_de265.sh`, `build_yuv.sh`, `build_heif.sh` or you
-may use `build_all.sh`
-
-**All commands require the NDK path set by NDK_PATH environment variable**
-
-* If you wish to build for **x86** you have to add a **$INCLUDE_X86** environment variable for
-  example:*
-
-```shell
-NDK_PATH=/path/to/ndk INCLUDE_X86=yes bash build_aom.sh
-```
+script, `build_heif.sh`
 
 # Disclaimer
 
