@@ -39,7 +39,7 @@ jobs:
         uses: nttld/setup-ndk@v1
         id: setup-ndk
         with:
-          ndk-version: r29c
+          ndk-version: r27d
           add-to-path: true
 
       - name: Configure NDK linkers for Cargo
