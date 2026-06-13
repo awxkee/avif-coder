@@ -27,10 +27,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::missing_safety_doc, clippy::map_identity)]
 #![feature(f16)]
 
 mod av1_encode_android;
+mod av2_encode_android;
 mod box_walker;
 mod cvt;
 mod ffi;
@@ -48,9 +49,9 @@ mod tonemapper;
 mod yuv_ffi;
 
 use std::fmt::Debug;
-use std::slice;
 
 pub use av1_encode_android::encode_avif_av1_file;
+pub use av2_encode_android::encode_avif_av2_file;
 pub use box_walker::{is_avif_image, is_heic_image};
 pub use cvt::{
     weave_cvt_rgba8_to_ar30, weave_cvt_rgba8_to_rgba_f16, weave_cvt_rgba16_to_ar30,

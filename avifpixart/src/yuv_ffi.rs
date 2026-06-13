@@ -893,83 +893,75 @@ pub unsafe extern "C" fn weave_rgba_to_yuv(
     matrix: YuvMatrix,
     yuv_type: YuvType,
 ) {
-    unsafe {
-        let rgba_slice =
-            unsafe { std::slice::from_raw_parts(rgba, rgba_stride as usize * height as usize) };
-        let y_slice =
-            unsafe { std::slice::from_raw_parts_mut(y_plane, y_stride as usize * height as usize) };
-        let u_slice = unsafe {
-            if yuv_type == YuvType::Yuv420 {
-                slice::from_raw_parts_mut(
-                    u_plane,
-                    u_stride as usize * (height as usize).div_ceil(2),
-                )
-            } else {
-                slice::from_raw_parts_mut(u_plane, u_stride as usize * height as usize)
-            }
-        };
-        let v_slice = unsafe {
-            if yuv_type == YuvType::Yuv420 {
-                slice::from_raw_parts_mut(
-                    v_plane,
-                    v_stride as usize * (height as usize).div_ceil(2),
-                )
-            } else {
-                slice::from_raw_parts_mut(v_plane, v_stride as usize * height as usize)
-            }
-        };
-
-        let mut planar_image = YuvPlanarImageMut {
-            y_plane: BufferStoreMut::Borrowed(y_slice),
-            y_stride,
-            u_plane: BufferStoreMut::Borrowed(u_slice),
-            u_stride,
-            v_plane: BufferStoreMut::Borrowed(v_slice),
-            v_stride,
-            width,
-            height,
-        };
-
-        let yuv_range = match range {
-            YuvRange::Tv => yuv::YuvRange::Limited,
-            YuvRange::Pc => yuv::YuvRange::Full,
-        };
-
-        if matrix == YuvMatrix::Identity {
-            rgba_to_gbr(&mut planar_image, rgba_slice, rgba_stride, yuv_range).unwrap();
-        } else if matrix == YuvMatrix::YCgCo {
-            let worker = match yuv_type {
-                YuvType::Yuv420 => rgba_to_ycgco420,
-                YuvType::Yuv422 => rgba_to_ycgco422,
-                YuvType::Yuv444 => rgba_to_ycgco444,
-            };
-
-            worker(&mut planar_image, rgba_slice, rgba_stride, yuv_range).unwrap();
+    let rgba_slice =
+        unsafe { std::slice::from_raw_parts(rgba, rgba_stride as usize * height as usize) };
+    let y_slice =
+        unsafe { std::slice::from_raw_parts_mut(y_plane, y_stride as usize * height as usize) };
+    let u_slice = unsafe {
+        if yuv_type == YuvType::Yuv420 {
+            slice::from_raw_parts_mut(u_plane, u_stride as usize * (height as usize).div_ceil(2))
         } else {
-            let matrix = match matrix {
-                YuvMatrix::Bt601 => YuvStandardMatrix::Bt601,
-                YuvMatrix::Bt709 => YuvStandardMatrix::Bt709,
-                YuvMatrix::Bt2020 => YuvStandardMatrix::Bt2020,
-                YuvMatrix::Identity => unreachable!("Should be handled in another place"),
-                YuvMatrix::YCgCo => unreachable!("Should be handled in another place"),
-            };
-
-            let worker = match yuv_type {
-                YuvType::Yuv420 => rgba_to_yuv420,
-                YuvType::Yuv422 => rgba_to_yuv422,
-                YuvType::Yuv444 => rgba_to_yuv444,
-            };
-
-            worker(
-                &mut planar_image,
-                rgba_slice,
-                rgba_stride,
-                yuv_range,
-                matrix,
-                YuvConversionMode::Balanced,
-            )
-            .unwrap();
+            slice::from_raw_parts_mut(u_plane, u_stride as usize * height as usize)
         }
+    };
+    let v_slice = unsafe {
+        if yuv_type == YuvType::Yuv420 {
+            slice::from_raw_parts_mut(v_plane, v_stride as usize * (height as usize).div_ceil(2))
+        } else {
+            slice::from_raw_parts_mut(v_plane, v_stride as usize * height as usize)
+        }
+    };
+
+    let mut planar_image = YuvPlanarImageMut {
+        y_plane: BufferStoreMut::Borrowed(y_slice),
+        y_stride,
+        u_plane: BufferStoreMut::Borrowed(u_slice),
+        u_stride,
+        v_plane: BufferStoreMut::Borrowed(v_slice),
+        v_stride,
+        width,
+        height,
+    };
+
+    let yuv_range = match range {
+        YuvRange::Tv => yuv::YuvRange::Limited,
+        YuvRange::Pc => yuv::YuvRange::Full,
+    };
+
+    if matrix == YuvMatrix::Identity {
+        rgba_to_gbr(&mut planar_image, rgba_slice, rgba_stride, yuv_range).unwrap();
+    } else if matrix == YuvMatrix::YCgCo {
+        let worker = match yuv_type {
+            YuvType::Yuv420 => rgba_to_ycgco420,
+            YuvType::Yuv422 => rgba_to_ycgco422,
+            YuvType::Yuv444 => rgba_to_ycgco444,
+        };
+
+        worker(&mut planar_image, rgba_slice, rgba_stride, yuv_range).unwrap();
+    } else {
+        let matrix = match matrix {
+            YuvMatrix::Bt601 => YuvStandardMatrix::Bt601,
+            YuvMatrix::Bt709 => YuvStandardMatrix::Bt709,
+            YuvMatrix::Bt2020 => YuvStandardMatrix::Bt2020,
+            YuvMatrix::Identity => unreachable!("Should be handled in another place"),
+            YuvMatrix::YCgCo => unreachable!("Should be handled in another place"),
+        };
+
+        let worker = match yuv_type {
+            YuvType::Yuv420 => rgba_to_yuv420,
+            YuvType::Yuv422 => rgba_to_yuv422,
+            YuvType::Yuv444 => rgba_to_yuv444,
+        };
+
+        worker(
+            &mut planar_image,
+            rgba_slice,
+            rgba_stride,
+            yuv_range,
+            matrix,
+            YuvConversionMode::Balanced,
+        )
+        .unwrap();
     }
 }
 

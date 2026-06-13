@@ -56,7 +56,6 @@ enum AvifQualityMode {
   AVIF_LOSELESS_MODE = 2
 };
 
-
 enum AvifChromaSubsampling {
   AVIF_CHROMA_AUTO,
   AVIF_CHROMA_YUV_420,
@@ -76,11 +75,18 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_encodeAvifImpl(JNIEnv *env,
                                                             jint quality,
                                                             jint dataSpace,
                                                             jboolean lossless,
-                                                            jint chromaSubsampling) {
+                                                            jint chromaSubsampling,
+                                                            jboolean useAV2) {
   try {
-    return encode_avif_av1_file(
-        env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling
-    );
+    if (useAV2) {
+      return encode_avif_av2_file(
+          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling
+      );
+    } else {
+      return encode_avif_av1_file(
+          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling
+      );
+    }
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to encode this image";
     throwException(env, exception);

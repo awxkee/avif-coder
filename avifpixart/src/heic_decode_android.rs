@@ -50,13 +50,6 @@ use ndk_sys::{AHardwareBuffer_Desc, AHardwareBuffer_Format, AHardwareBuffer_Usag
 use std::ptr::null_mut;
 use std::slice;
 
-macro_rules! throw {
-    ($env:expr, $cls:expr, $msg:expr) => {{
-        let _ = $env.throw_new($cls, $msg.to_string());
-        JObject::null().into_raw()
-    }};
-}
-
 fn resolve_cicp_profile(colors: Cicp) -> Option<ColorProfile> {
     match colors.primaries {
         Primaries::Bt709 | Primaries::Bt601 => {

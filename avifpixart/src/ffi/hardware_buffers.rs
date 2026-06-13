@@ -26,16 +26,13 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-// hardware_buffer_compat.rs
+#![allow(unused)]
 
 use jni::Env;
 use jni::sys::{JNIEnv, jobject};
 use ndk_sys::{AHardwareBuffer, AHardwareBuffer_Desc, ARect};
 use std::marker::PhantomData;
 use std::sync::OnceLock;
-
-// ── Function pointer types (mirror the C++ typedefs) ─────────────────────────
 
 pub type AllocateFn = unsafe extern "C" fn(
     desc: *const AHardwareBuffer_Desc,

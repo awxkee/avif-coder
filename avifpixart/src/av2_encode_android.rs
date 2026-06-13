@@ -26,6 +26,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::av1_encode_android::resolve_cicp_maroontree;
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
 use crate::heic_decode::WeaverError;
@@ -34,11 +35,7 @@ use jni::objects::JObject;
 use jni::strings::JNIString;
 use jni::sys::{jbyteArray, jobject};
 use jni::{EnvUnowned, Outcome, jni_str};
-use maroontree::{
-    BitDepth, ChromaFormat, ChromaSamplePosition, Cicp, MatrixCoefficients, PlanarImage, Primaries,
-    TransferFunction,
-};
-use ndk_sys::ADataSpace;
+use maroontree::{BitDepth, ChromaFormat, Cicp, MatrixCoefficients, PlanarImage};
 use std::num::NonZero;
 use std::ptr::null_mut;
 use std::thread::available_parallelism;
@@ -49,151 +46,7 @@ use yuv::{
     rgba10_to_icgc010, rgba10_to_icgc210, rgba10_to_icgc410,
 };
 
-pub(crate) fn resolve_cicp_maroontree(color_space: i32) -> Cicp {
-    let ds = ADataSpace(color_space);
-
-    if ds == ADataSpace::ADATASPACE_UNKNOWN {
-        return Cicp {
-            primaries: Primaries::Bt601,
-            transfer: TransferFunction::Srgb,
-            matrix: MatrixCoefficients::Smpte170m,
-            full_range: false,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    if ds == ADataSpace::ADATASPACE_SCRGB {
-        return Cicp {
-            primaries: Primaries::Bt601,
-            transfer: TransferFunction::Srgb,
-            matrix: MatrixCoefficients::Smpte170m,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    if ds == ADataSpace::ADATASPACE_BT601_525 || ds == ADataSpace::ADATASPACE_BT601_625 {
-        return Cicp {
-            primaries: Primaries::Bt601,
-            transfer: TransferFunction::Bt601,
-            matrix: MatrixCoefficients::Smpte170m,
-            full_range: false,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // BT.709 video (limited range)
-    if ds == ADataSpace::ADATASPACE_BT709 {
-        return Cicp {
-            primaries: Primaries::Bt709,
-            transfer: TransferFunction::Bt709,
-            matrix: MatrixCoefficients::Bt709,
-            full_range: false,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // sRGB — BT.709 primaries + matrix, sRGB transfer, full range
-    if ds == ADataSpace::ADATASPACE_SRGB {
-        return Cicp {
-            primaries: Primaries::Bt709,
-            transfer: TransferFunction::Srgb,
-            matrix: MatrixCoefficients::Bt709,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // Linear sRGB (scRGB linear) — BT.709 primaries + matrix, linear transfer
-    if ds == ADataSpace::ADATASPACE_SCRGB_LINEAR {
-        return Cicp {
-            primaries: Primaries::Bt709,
-            transfer: TransferFunction::Linear,
-            matrix: MatrixCoefficients::Bt709,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    if ds == ADataSpace::ADATASPACE_DISPLAY_P3 {
-        return Cicp {
-            primaries: Primaries::Smpte432,
-            transfer: TransferFunction::Srgb,
-            matrix: MatrixCoefficients::Smpte170m,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    if ds == ADataSpace::ADATASPACE_DCI_P3 {
-        return Cicp {
-            primaries: Primaries::Smpte431,
-            transfer: TransferFunction::Smpte428,
-            matrix: MatrixCoefficients::Bt709,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // BT.2020 SDR
-    if ds == ADataSpace::ADATASPACE_BT2020 {
-        return Cicp {
-            primaries: Primaries::Bt2020,
-            transfer: TransferFunction::Bt202010bit,
-            matrix: MatrixCoefficients::Bt2020Ncl,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // BT.2020 PQ — full-range variant
-    if ds == ADataSpace::ADATASPACE_BT2020_PQ {
-        return Cicp {
-            primaries: Primaries::Bt2020,
-            transfer: TransferFunction::Smpte2084,
-            matrix: MatrixCoefficients::Bt2020Ncl,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // BT.2020 PQ — ITU limited-range variant
-    if ds == ADataSpace::ADATASPACE_BT2020_ITU_PQ {
-        return Cicp {
-            primaries: Primaries::Bt2020,
-            transfer: TransferFunction::Smpte2084,
-            matrix: MatrixCoefficients::Bt2020Ncl,
-            full_range: false,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // BT.2020 HLG — full-range variant
-    if ds == ADataSpace::ADATASPACE_BT2020_HLG {
-        return Cicp {
-            primaries: Primaries::Bt2020,
-            transfer: TransferFunction::Hlg,
-            matrix: MatrixCoefficients::Bt2020Ncl,
-            full_range: true,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    // BT.2020 HLG — ITU limited-range variant
-    if ds == ADataSpace::ADATASPACE_BT2020_ITU_HLG {
-        return Cicp {
-            primaries: Primaries::Bt2020,
-            transfer: TransferFunction::Hlg,
-            matrix: MatrixCoefficients::Bt2020Ncl,
-            full_range: false,
-            chroma_sample_position: ChromaSamplePosition::Unknown,
-        };
-    }
-
-    Cicp::unspecified()
-}
-
-fn encode_avif_inner_mono_u8(
+fn encode_av2_inner_mono_u8(
     bitmap_data: &BitmapData,
     cicp: Cicp,
     quality: u32,
@@ -203,7 +56,7 @@ fn encode_avif_inner_mono_u8(
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
-        "encode_avif_inner_mono_u8: {}x{} pixels={} quality={} lossless={} exif={}",
+        "encode_av2_inner_mono_u8: {}x{} pixels={} quality={} lossless={} exif={}",
         bitmap_data.width,
         bitmap_data.height,
         bitmap_data.data.len(),
@@ -236,7 +89,7 @@ fn encode_avif_inner_mono_u8(
         _other => {
             dbg_log!(
                 warn,
-                "encode_avif_inner_mono_u8: unhandled matrix={:?} — falling back to Bt601",
+                "encode_av2_inner_mono_u8: unhandled matrix={:?} — falling back to Bt601",
                 _other
             );
             YuvStandardMatrix::Bt601
@@ -293,7 +146,7 @@ fn encode_avif_inner_mono_u8(
             .collect::<Vec<_>>();
         dbg_log!(debug, "alpha plane: {} samples", alpha.len());
 
-        let av1_planar_image = PlanarImage {
+        let av2_planar_image = PlanarImage {
             width: bitmap_data.width,
             height: bitmap_data.height,
             planes: [
@@ -304,22 +157,16 @@ fn encode_avif_inner_mono_u8(
             ],
             bit_depth: BitDepth::Eight,
         };
-        let result = if lossless {
-            maroontree::encode_lossless_gray_alpha(&av1_planar_image, &config).map_err(|x| {
+        let result = maroontree::av2_image::encode_gray_alpha8(&av2_planar_image, &config)
+            .map_err(|x| {
                 dbg_log!(error, "encode_gray_alpha8 failed: {x}");
                 anyhow::anyhow!(x)
-            })?
-        } else {
-            maroontree::encode_gray_alpha8(&av1_planar_image, &config).map_err(|x| {
-                dbg_log!(error, "encode_gray_alpha8 failed: {x}");
-                anyhow::anyhow!(x)
-            })?
-        };
+            })?;
         dbg_log!(debug, "encoded monochrome+alpha: {} bytes", result.len());
         return Ok(result);
     }
 
-    let av1_planar_image = PlanarImage {
+    let av2_planar_image = PlanarImage {
         width: bitmap_data.width,
         height: bitmap_data.height,
         planes: [
@@ -330,17 +177,10 @@ fn encode_avif_inner_mono_u8(
         ],
         bit_depth: BitDepth::Eight,
     };
-    let result = if lossless {
-        maroontree::encode_lossless_gray(&av1_planar_image, &config).map_err(|x| {
-            dbg_log!(error, "encode_gray8 failed: {x}");
-            anyhow::anyhow!(x)
-        })?
-    } else {
-        maroontree::encode_gray8(&av1_planar_image, &config).map_err(|x| {
-            dbg_log!(error, "encode_gray8 failed: {x}");
-            anyhow::anyhow!(x)
-        })?
-    };
+    let result = maroontree::av2_image::encode_gray8(&av2_planar_image, &config).map_err(|x| {
+        dbg_log!(error, "encode_gray8 failed: {x}");
+        anyhow::anyhow!(x)
+    })?;
     dbg_log!(
         debug,
         "encoded monochrome: {} bytes ({:.2} bpp)",
@@ -350,7 +190,7 @@ fn encode_avif_inner_mono_u8(
     Ok(result)
 }
 
-fn encode_av1_inner_u8(
+fn encode_av2_inner_u8(
     bitmap_data: &BitmapData,
     cicp: Cicp,
     quality: u32,
@@ -361,7 +201,7 @@ fn encode_av1_inner_u8(
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
-        "encode_av1_inner_u8: {}x{} pixels={} quality={} lossless={} \
+        "encode_av2_inner_u8: {}x{} pixels={} quality={} lossless={} \
          chroma={:?} exif={}",
         bitmap_data.width,
         bitmap_data.height,
@@ -385,7 +225,7 @@ fn encode_av1_inner_u8(
 
     if chroma_subsampling == ChromaFormat::Monochrome {
         dbg_log!(debug, "delegating to monochrome path");
-        return encode_avif_inner_mono_u8(
+        return encode_av2_inner_mono_u8(
             bitmap_data,
             cicp,
             quality,
@@ -408,7 +248,7 @@ fn encode_av1_inner_u8(
         _other => {
             dbg_log!(
                 warn,
-                "encode_av1_inner_u8: unhandled matrix={:?} — falling back to Bt601",
+                "encode_av2_inner_u8: unhandled matrix={:?} — falling back to Bt601",
                 _other
             );
             YuvStandardMatrix::Bt601
@@ -529,7 +369,7 @@ fn encode_av1_inner_u8(
             .collect::<Vec<_>>();
         dbg_log!(debug, "alpha plane: {} samples", alpha.len());
 
-        let av1_planar_image = PlanarImage {
+        let av2_planar_image = PlanarImage {
             width: bitmap_data.width,
             height: bitmap_data.height,
             planes: [
@@ -540,8 +380,8 @@ fn encode_av1_inner_u8(
             ],
             bit_depth: BitDepth::Eight,
         };
-        let result =
-            maroontree::encode_yuva8_with_alpha(&av1_planar_image, &config).map_err(|x| {
+        let result = maroontree::av2_image::encode_yuva8_with_alpha(&av2_planar_image, &config)
+            .map_err(|x| {
                 dbg_log!(error, "encode_yuva8_with_alpha failed: {x}");
                 anyhow::anyhow!(x)
             })?;
@@ -554,7 +394,7 @@ fn encode_av1_inner_u8(
         return Ok(result);
     }
 
-    let av1_planar_image = PlanarImage {
+    let av2_planar_image = PlanarImage {
         width: bitmap_data.width,
         height: bitmap_data.height,
         planes: [
@@ -565,7 +405,7 @@ fn encode_av1_inner_u8(
         ],
         bit_depth: BitDepth::Eight,
     };
-    let result = maroontree::encode_yuv8(&av1_planar_image, &config).map_err(|x| {
+    let result = maroontree::av2_image::encode_yuv8(&av2_planar_image, &config).map_err(|x| {
         dbg_log!(error, "encode_yuv8 failed: {x}");
         anyhow::anyhow!(x)
     })?;
@@ -579,7 +419,7 @@ fn encode_av1_inner_u8(
     Ok(result)
 }
 
-fn encode_av1_inner_u16_10_bit(
+fn encode_av2_inner_u16_10_bit(
     hd_plane: &[u16],
     bitmap_data: &BitmapData,
     cicp: Cicp,
@@ -758,7 +598,7 @@ fn encode_av1_inner_u16_10_bit(
             .collect::<Vec<_>>();
         dbg_log!(debug, "alpha plane: {} samples", alpha.len());
 
-        let av1_planar_image = PlanarImage {
+        let av2_planar_image = PlanarImage {
             width: bitmap_data.width,
             height: bitmap_data.height,
             planes: [
@@ -769,8 +609,8 @@ fn encode_av1_inner_u16_10_bit(
             ],
             bit_depth: BitDepth::Ten,
         };
-        let result =
-            maroontree::encode_yuva10_with_alpha(&av1_planar_image, &config).map_err(|x| {
+        let result = maroontree::av2_image::encode_yuva10_with_alpha(&av2_planar_image, &config)
+            .map_err(|x| {
                 dbg_log!(error, "encode_yuva10_with_alpha failed: {x}");
                 anyhow::anyhow!(x)
             })?;
@@ -783,7 +623,7 @@ fn encode_av1_inner_u16_10_bit(
         return Ok(result);
     }
 
-    let av1_planar_image = PlanarImage {
+    let av2_planar_image = PlanarImage {
         width: bitmap_data.width,
         height: bitmap_data.height,
         planes: [
@@ -794,7 +634,7 @@ fn encode_av1_inner_u16_10_bit(
         ],
         bit_depth: BitDepth::Ten,
     };
-    let result = maroontree::encode_yuv10(&av1_planar_image, &config).map_err(|x| {
+    let result = maroontree::av2_image::encode_yuv10(&av2_planar_image, &config).map_err(|x| {
         dbg_log!(error, "encode_yuv10 failed: {x}");
         anyhow::anyhow!(x)
     })?;
@@ -808,7 +648,7 @@ fn encode_av1_inner_u16_10_bit(
     Ok(result)
 }
 
-fn encode_av1_inner(
+fn encode_av2_inner(
     bitmap_data: &mut BitmapData,
     cicp: Cicp,
     quality: u32,
@@ -818,7 +658,7 @@ fn encode_av1_inner(
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
-        "encode_av1_inner: format={:?} chroma={:?}",
+        "encode_av2_inner: format={:?} chroma={:?}",
         bitmap_data.format,
         chroma_subsampling
     );
@@ -826,7 +666,7 @@ fn encode_av1_inner(
         BitmapPixelFormat::Rgba8888 => {
             let has_real_alpha =
                 has_non_constant_alpha::<u8, u32, 3, 4>(&bitmap_data.data, bitmap_data.width);
-            encode_av1_inner_u8(
+            encode_av2_inner_u8(
                 bitmap_data,
                 cicp,
                 quality,
@@ -839,11 +679,11 @@ fn encode_av1_inner(
         BitmapPixelFormat::Rgb565 => {
             dbg_log!(
                 debug,
-                "encode_av1_inner: converting Rgb565 → Rgba8888 before encode"
+                "encode_av2_inner: converting Rgb565 → Rgba8888 before encode"
             );
             let rgba8888 = rgb565_bytes_to_rgba8888(&bitmap_data.data);
             bitmap_data.data = rgba8888;
-            encode_av1_inner_u8(
+            encode_av2_inner_u8(
                 bitmap_data,
                 cicp,
                 quality,
@@ -856,11 +696,11 @@ fn encode_av1_inner(
         BitmapPixelFormat::RgbaF16 => {
             dbg_log!(
                 debug,
-                "encode_av1_inner: converting RgbaF16 → RGBA10 before encode"
+                "encode_av2_inner: converting RgbaF16 → RGBA10 before encode"
             );
             let hd_plane =
                 f16_bytes_to_rgba10(&bitmap_data.data, bitmap_data.width, bitmap_data.height)?;
-            encode_av1_inner_u16_10_bit(
+            encode_av2_inner_u16_10_bit(
                 &hd_plane,
                 bitmap_data,
                 cicp,
@@ -874,10 +714,10 @@ fn encode_av1_inner(
         BitmapPixelFormat::Rgba1010102 => {
             dbg_log!(
                 debug,
-                "encode_av1_inner: unpacking AR30 → RGBA10 before encode"
+                "encode_av2_inner: unpacking AR30 → RGBA10 before encode"
             );
             let hd_plane = ar30_bytes_to_rgba10(&bitmap_data.data);
-            encode_av1_inner_u16_10_bit(
+            encode_av2_inner_u16_10_bit(
                 &hd_plane,
                 bitmap_data,
                 cicp,
@@ -889,7 +729,7 @@ fn encode_av1_inner(
             )
         }
         BitmapPixelFormat::A8 => {
-            dbg_log!(error, "encode_av1_inner: A8 format is not supported");
+            dbg_log!(error, "encode_av2_inner: A8 format is not supported");
             Err(anyhow::anyhow!(WeaverError::PixelFormatIsNotSupported(
                 "BitmapPixelFormat::A8".to_string()
             )))
@@ -898,7 +738,7 @@ fn encode_av1_inner(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_avif_av1_file(
+pub unsafe extern "C" fn encode_avif_av2_file(
     env: *mut jni::sys::JNIEnv,
     image: jobject,
     exif: jobject,
@@ -918,7 +758,7 @@ pub unsafe extern "C" fn encode_avif_av1_file(
 
     dbg_log!(
         debug,
-        "encode_avif_file: color_space={color_space} quality={quality} lossless={lossless} chroma={} ({chroma_subsampling_code}) \
+        "encode_avif_av2_file: color_space={color_space} quality={quality} lossless={lossless} chroma={} ({chroma_subsampling_code}) \
          image_null={} exif_null={}",
         match chroma_subsampling {
             ChromaFormat::Yuv420 => "4:2:0",
@@ -974,7 +814,7 @@ pub unsafe extern "C" fn encode_avif_av1_file(
                     .map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
             );
 
-            let encoded_data = encode_av1_inner(
+            let encoded_data = encode_av2_inner(
                 &mut bitmap_data,
                 cicp,
                 quality,
@@ -983,7 +823,7 @@ pub unsafe extern "C" fn encode_avif_av1_file(
                 chroma_subsampling,
             )
             .map_err(|x| {
-                dbg_log!(error, "encode_av1_inner failed: {x:#}");
+                dbg_log!(error, "encode_av2_inner failed: {x:#}");
                 x
             })?;
             dbg_log!(
@@ -1002,11 +842,11 @@ pub unsafe extern "C" fn encode_avif_av1_file(
 
         match result {
             Ok(obj) => {
-                dbg_log!(debug, "encode_avif_file: success");
+                dbg_log!(debug, "encode_avif_av2_file: success");
                 Ok(obj)
             }
             Err(e) => {
-                dbg_log!(error, "encode_avif_file failed: {e:#}");
+                dbg_log!(error, "encode_avif_av2_file failed: {e:#}");
                 let _ = env.throw_new(
                     jni_str!("java/lang/RuntimeException"),
                     JNIString::from(e.to_string()),
@@ -1019,7 +859,7 @@ pub unsafe extern "C" fn encode_avif_av1_file(
     let o = outcome.into_outcome();
     match o {
         Outcome::Ok(v) => {
-            dbg_log!(debug, "encode_avif_file: success");
+            dbg_log!(debug, "encode_avif_av2_file: success");
             v
         }
         Outcome::Err(_e) => {
