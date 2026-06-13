@@ -177,7 +177,7 @@ class MainActivity : AppCompatActivity() {
                             null,
                             60,
                             PreciseMode.LOSSY,
-                            AvifChromaSubsampling.YUV420
+                            AvifChromaSubsampling.YUV420,
                         )
 
                         val bitmap2 = coder.decodeSampled(

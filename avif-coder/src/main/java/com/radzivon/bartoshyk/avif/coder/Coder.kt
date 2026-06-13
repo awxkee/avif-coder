@@ -126,6 +126,7 @@ class Coder {
         quality: Int = 80,
         preciseMode: PreciseMode = PreciseMode.LOSSY,
         avifChromaSubsampling: AvifChromaSubsampling = AvifChromaSubsampling.AUTO,
+        avType: AvType = AvType.AV1,
     ): ByteArray {
         require(quality in 0..100) {
             throw IllegalStateException("Quality should be in 0..100 range")
@@ -140,7 +141,11 @@ class Coder {
                     PreciseMode.LOSSY -> false
                     PreciseMode.LOSSLESS -> true
                 },
-                avifChromaSubsampling.value
+                avifChromaSubsampling.value,
+                when (avType) {
+                    AvType.AV1 -> false
+                    AvType.AV2 -> true
+                }
             )
         } else {
             encodeAvifImpl(
@@ -152,7 +157,11 @@ class Coder {
                     PreciseMode.LOSSY -> false
                     PreciseMode.LOSSLESS -> true
                 },
-                avifChromaSubsampling.value
+                avifChromaSubsampling.value,
+                when (avType) {
+                    AvType.AV1 -> false
+                    AvType.AV2 -> true
+                }
             )
         }
     }
@@ -221,6 +230,7 @@ class Coder {
         dataSpace: Int,
         qualityMode: Boolean,
         chromaSubsampling: Int,
+        useAV2: Boolean,
     ): ByteArray
 
     private external fun encodeHeicImpl(

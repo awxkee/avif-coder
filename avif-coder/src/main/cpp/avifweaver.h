@@ -138,6 +138,14 @@ jbyteArray encode_avif_av1_file(JNIEnv *env,
                                 bool lossless,
                                 int32_t chroma_subsampling_code);
 
+jbyteArray encode_avif_av2_file(JNIEnv *env,
+                                jobject image,
+                                jobject exif,
+                                int32_t color_space,
+                                int32_t quality,
+                                bool lossless,
+                                int32_t chroma_subsampling_code);
+
 bool is_heic_image(const uint8_t *data, uintptr_t len);
 
 bool is_avif_image(const uint8_t *data, uintptr_t len);
