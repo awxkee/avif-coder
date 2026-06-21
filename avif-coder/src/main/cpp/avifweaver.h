@@ -7,6 +7,12 @@
 #include <new>
 #include <jni.h>
 
+enum class AvEncodingSpeed {
+  Slow,
+  Medium,
+  Fast,
+};
+
 enum class WeaveScaleMode {
   JustResize,
   ScaleToFill,
@@ -20,6 +26,14 @@ enum class WeaverPreferredColorConfig {
   Rgb565 = 4,
   Rgba1010102 = 5,
   Hardware = 6,
+};
+
+enum class ImageContainer {
+  Unknown = 0,
+  Heic = 1,
+  Avif = 2,
+  Av2 = 3,
+  Vvc = 4,
 };
 
 enum class YuvRange {
@@ -136,7 +150,18 @@ jbyteArray encode_avif_av1_file(JNIEnv *env,
                                 int32_t color_space,
                                 int32_t quality,
                                 bool lossless,
-                                int32_t chroma_subsampling_code);
+                                int32_t chroma_subsampling_code,
+                                AvEncodingSpeed speed);
+
+jobject decode_av2_file(JNIEnv *env,
+                        const uint8_t *data,
+                        uintptr_t length,
+                        int32_t scaled_width,
+                        int32_t scaled_height,
+                        WeaveScaleMode scale_mode,
+                        WeaverPreferredColorConfig preferred_color_config);
+
+HeicInfo read_av2_file_info(const uint8_t *data, uintptr_t length);
 
 jbyteArray encode_avif_av2_file(JNIEnv *env,
                                 jobject image,
@@ -144,11 +169,18 @@ jbyteArray encode_avif_av2_file(JNIEnv *env,
                                 int32_t color_space,
                                 int32_t quality,
                                 bool lossless,
-                                int32_t chroma_subsampling_code);
+                                int32_t chroma_subsampling_code,
+                                AvEncodingSpeed speed);
 
 bool is_heic_image(const uint8_t *data, uintptr_t len);
 
 bool is_avif_image(const uint8_t *data, uintptr_t len);
+
+bool is_vvc_image(const uint8_t *data, uintptr_t len);
+
+bool is_av2_image(const uint8_t *data, uintptr_t len);
+
+ImageContainer container_recognisance(const uint8_t *data, uintptr_t len);
 
 void weave_cvt_rgba8_to_rgba_f16(const uint8_t *rgba8,
                                  uint32_t rgba8_stride,

@@ -120,32 +120,42 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeImpl(JNIEnv *env,
     std::vector<uint8_t> srcBuffer(totalLength);
     env->GetByteArrayRegion(byte_array, 0, totalLength,
                             reinterpret_cast<jbyte *>(srcBuffer.data()));
-    if (is_heic_image(srcBuffer.data(), srcBuffer.size())) {
-      WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
-      if (scaleMode == 2) {
-        mScaleMode = WeaveScaleMode::ScaleToFit;
-      } else if (scaleMode == 3) {
-        mScaleMode = WeaveScaleMode::JustResize;
-      }
-      auto mConfig = WeaverPreferredColorConfig::Default;
-      if (clrConfig == 2) {
-        mConfig = WeaverPreferredColorConfig::Rgba8888;
-      } else if (clrConfig == 3) {
-        mConfig = WeaverPreferredColorConfig::RgbaF16;
-      } else if (clrConfig == 4) {
-        mConfig = WeaverPreferredColorConfig::Rgb565;
-      } else if (clrConfig == 5) {
-        mConfig = WeaverPreferredColorConfig::Rgba1010102;
-      } else if (clrConfig == 6) {
-        mConfig = WeaverPreferredColorConfig::Hardware;
-      }
 
+    auto containerType = container_recognisance(srcBuffer.data(), srcBuffer.size());
+
+    WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
+    if (scaleMode == 2) {
+      mScaleMode = WeaveScaleMode::ScaleToFit;
+    } else if (scaleMode == 3) {
+      mScaleMode = WeaveScaleMode::JustResize;
+    }
+    auto mConfig = WeaverPreferredColorConfig::Default;
+    if (clrConfig == 2) {
+      mConfig = WeaverPreferredColorConfig::Rgba8888;
+    } else if (clrConfig == 3) {
+      mConfig = WeaverPreferredColorConfig::RgbaF16;
+    } else if (clrConfig == 4) {
+      mConfig = WeaverPreferredColorConfig::Rgb565;
+    } else if (clrConfig == 5) {
+      mConfig = WeaverPreferredColorConfig::Rgba1010102;
+    } else if (clrConfig == 6) {
+      mConfig = WeaverPreferredColorConfig::Hardware;
+    }
+
+    if (containerType == ImageContainer::Heic) {
       return decode_heic_file(env,
                               srcBuffer.data(),
                               srcBuffer.size(),
                               scaledWidth,
                               scaledHeight,
                               mScaleMode, mConfig);
+    } else if (containerType == ImageContainer::Av2) {
+      return decode_av2_file(env,
+                             srcBuffer.data(),
+                             srcBuffer.size(),
+                             scaledWidth,
+                             scaledHeight,
+                             mScaleMode, mConfig);
     }
     return decodeImplementationNative(env, thiz, srcBuffer,
                                       scaledWidth, scaledHeight,
@@ -177,32 +187,41 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeByteBufferImpl(JNIEnv *env,
     }
     std::vector<uint8_t> srcBuffer(length);
     std::copy(bufferAddress, bufferAddress + length, srcBuffer.begin());
-    if (is_heic_image(srcBuffer.data(), srcBuffer.size())) {
-      WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
-      if (scaleMode == 2) {
-        mScaleMode = WeaveScaleMode::ScaleToFit;
-      } else if (scaleMode == 3) {
-        mScaleMode = WeaveScaleMode::JustResize;
-      }
-      auto mConfig = WeaverPreferredColorConfig::Default;
-      if (clrConfig == 2) {
-        mConfig = WeaverPreferredColorConfig::Rgba8888;
-      } else if (clrConfig == 3) {
-        mConfig = WeaverPreferredColorConfig::RgbaF16;
-      } else if (clrConfig == 4) {
-        mConfig = WeaverPreferredColorConfig::Rgb565;
-      } else if (clrConfig == 5) {
-        mConfig = WeaverPreferredColorConfig::Rgba1010102;
-      } else if (clrConfig == 6) {
-        mConfig = WeaverPreferredColorConfig::Hardware;
-      }
+    auto containerType = container_recognisance(srcBuffer.data(), srcBuffer.size());
 
+    WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
+    if (scaleMode == 2) {
+      mScaleMode = WeaveScaleMode::ScaleToFit;
+    } else if (scaleMode == 3) {
+      mScaleMode = WeaveScaleMode::JustResize;
+    }
+    auto mConfig = WeaverPreferredColorConfig::Default;
+    if (clrConfig == 2) {
+      mConfig = WeaverPreferredColorConfig::Rgba8888;
+    } else if (clrConfig == 3) {
+      mConfig = WeaverPreferredColorConfig::RgbaF16;
+    } else if (clrConfig == 4) {
+      mConfig = WeaverPreferredColorConfig::Rgb565;
+    } else if (clrConfig == 5) {
+      mConfig = WeaverPreferredColorConfig::Rgba1010102;
+    } else if (clrConfig == 6) {
+      mConfig = WeaverPreferredColorConfig::Hardware;
+    }
+
+    if (containerType == ImageContainer::Heic) {
       return decode_heic_file(env,
                               srcBuffer.data(),
                               srcBuffer.size(),
                               scaledWidth,
                               scaledHeight,
                               mScaleMode, mConfig);
+    } else if (containerType == ImageContainer::Av2) {
+      return decode_av2_file(env,
+                             srcBuffer.data(),
+                             srcBuffer.size(),
+                             scaledWidth,
+                             scaledHeight,
+                             mScaleMode, mConfig);
     }
     return decodeImplementationNative(env, thiz, srcBuffer,
                                       scaledWidth, scaledHeight,

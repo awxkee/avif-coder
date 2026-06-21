@@ -200,11 +200,35 @@ class Coder {
         }
     }
 
+    fun detectContainer(byteBuffer: ByteBuffer): HeifContainerInnerType? {
+        val value = detectContainerImpl(byteBuffer)
+        return when (value) {
+            1 -> {
+                HeifContainerInnerType.HEVC
+            }
+
+            2 -> {
+                HeifContainerInnerType.AV1
+            }
+
+            3 -> {
+                HeifContainerInnerType.AV2
+            }
+
+            4 -> {
+                HeifContainerInnerType.VVC
+            }
+
+            else -> null
+        }
+    }
+
     private external fun getSizeImpl(byteArray: ByteArray): Size
     private external fun isHeifImageImpl(byteArray: ByteArray): Boolean
     private external fun isAvifImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImpl(byteArray: ByteArray): Boolean
     private external fun isSupportedImageImplBB(byteBuffer: ByteBuffer): Boolean
+    private external fun detectContainerImpl(byteBuffer: ByteBuffer): Int
     private external fun decodeImpl(
         byteArray: ByteArray,
         scaledWidth: Int,

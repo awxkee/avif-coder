@@ -98,3 +98,79 @@ fn rotate_buf<T: Copy + Default>(w: usize, h: usize, px: &[T], o: Orientation) -
             .collect(),
     }
 }
+
+/// Generic pixel-buffer rotation; works for both `u8` and `u16` samples.
+pub(crate) fn apply_orientation_av2<T: Copy + Default>(
+    rgba: &[T],
+    w: usize,
+    h: usize,
+    o: tealdust::Orientation,
+) -> (Vec<T>, usize, usize) {
+    let (nw, nh) = match o {
+        tealdust::Orientation::Rotate90
+        | tealdust::Orientation::Rotate270
+        | tealdust::Orientation::Transpose
+        | tealdust::Orientation::Transverse => (h, w),
+        _ => (w, h),
+    };
+    (rotate_buf_av2(w, h, rgba, o), nw, nh)
+}
+
+fn rotate_buf_av2<T: Copy + Default>(
+    w: usize,
+    h: usize,
+    px: &[T],
+    o: tealdust::Orientation,
+) -> Vec<T> {
+    let pixels = px.as_chunks::<3>().0;
+
+    match o {
+        tealdust::Orientation::Normal => px.to_vec(),
+
+        // Reverse every pixel
+        tealdust::Orientation::Rotate180 => pixels
+            .iter()
+            .rev()
+            .flat_map(|p| p.iter().copied())
+            .collect(),
+
+        // Mirror each row left↔right
+        tealdust::Orientation::FlipH => pixels
+            .chunks(w)
+            .flat_map(|row| row.iter().rev())
+            .flat_map(|p| p.iter().copied())
+            .collect(),
+
+        // Reverse row order top↔bottom
+        tealdust::Orientation::FlipV => pixels
+            .chunks(w)
+            .rev()
+            .flat_map(|row| row.iter())
+            .flat_map(|p| p.iter().copied())
+            .collect(),
+
+        // 90° CW:  dest(dr, dc) = source(h-1-dc, dr);  dims: w×h → h×w
+        tealdust::Orientation::Rotate90 => (0..w)
+            .flat_map(|dr| (0..h).map(move |dc| (h - 1 - dc) * w + dr))
+            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .collect(),
+
+        // 90° CCW: dest(dr, dc) = source(dc, w-1-dr);  dims: w×h → h×w
+        tealdust::Orientation::Rotate270 => (0..w)
+            .flat_map(|dr| (0..h).map(move |dc| dc * w + (w - 1 - dr)))
+            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .collect(),
+
+        // Main-diagonal reflection: dest(dr, dc) = source(dc, dr);  dims: w×h → h×w
+        tealdust::Orientation::Transpose => (0..w)
+            .flat_map(|dr| (0..h).map(move |dc| dc * w + dr))
+            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .collect(),
+
+        // Anti-diagonal reflection: dest(dr, dc) = source(h-1-dc, w-1-dr);  dims: w×h → h×w
+        tealdust::Orientation::Transverse => (0..w)
+            .flat_map(|dr| (0..h).map(move |dc| (h - 1 - dc) * w + (w - 1 - dr)))
+            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .collect(),
+    }
+}

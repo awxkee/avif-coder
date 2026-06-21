@@ -26,21 +26,22 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::av2_decode::{PackedAv2, decode_packed_av2};
 use crate::cvt::{
     pack_8_to_565, pack_8_to_ar30, pack_8_to_f16, pack_10_or_12_to_565, pack_10_or_12_to_ar30,
     pack_10_or_12_to_f16,
 };
 use crate::ffi::{MIN_HARDWARE_BUFFER_OS, load_hardware_buffer_api};
 use crate::ffi::{MIN_OS_BITMAP_COLOR_SPACE, software_bitmap, wrap_hardware_buffer};
-use crate::heic_decode::{PackedHeic, WeaverError, decode_packed_heic};
+use crate::heic_decode::WeaverError;
 use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
 use crate::support::{
     MIN_OS_AR30, MIN_OS_F16, PackedImageBuffer, PackedImageTransfer, android_os_version, dbg_log,
     init_logging, try_vec,
 };
-use crate::{WeaveScaleMode, WeaverPreferredColorConfig, is_heic_image};
-use hpvcd::{BitDepth, Cicp, Orientation, Primaries, TransferFunction};
+use crate::{HeicInfo, WeaveScaleMode, WeaverPreferredColorConfig, is_av2_image};
+use hpvcd::BitDepth;
 use jni::objects::JObject;
 use jni::strings::JNIString;
 use jni::sys::jobject;
@@ -49,79 +50,84 @@ use moxcms::{ColorProfile, Layout, TransformOptions};
 use ndk_sys::{AHardwareBuffer_Desc, AHardwareBuffer_Format, AHardwareBuffer_UsageFlags, ARect};
 use std::ptr::null_mut;
 use std::slice;
+use tealdust::{AvifDecoder, ColorInfo};
 
-fn resolve_cicp_profile(colors: Cicp) -> Option<ColorProfile> {
-    match colors.primaries {
-        Primaries::Bt709 | Primaries::Bt601 => {
-            if colors.transfer == TransferFunction::Srgb {
+fn resolve_cicp_profile(colors: ColorInfo) -> Option<ColorProfile> {
+    match colors.color_primaries {
+        tealdust::ColorPrimaries::Bt709 | tealdust::ColorPrimaries::Bt601 => {
+            if colors.transfer_characteristics == tealdust::TransferCharacteristics::Srgb {
                 Some(ColorProfile::new_srgb())
             } else {
                 None
             }
         }
-        Primaries::Bt2020 => {
-            if colors.transfer == TransferFunction::Srgb {
+        tealdust::ColorPrimaries::Bt2020 => {
+            if colors.transfer_characteristics == tealdust::TransferCharacteristics::Srgb {
                 Some(ColorProfile::new_bt2020())
             } else {
                 None
             }
         }
-        Primaries::Smpte432 => {
+        tealdust::ColorPrimaries::Smpte432 => {
             // Display P3, P3 primaries on a D65 white point with sRGB transfer
-            if colors.transfer == TransferFunction::Srgb {
+            if colors.transfer_characteristics == tealdust::TransferCharacteristics::Srgb {
                 Some(ColorProfile::new_display_p3())
             } else {
                 None
             }
         }
-        Primaries::Smpte431 => {
+        tealdust::ColorPrimaries::Smpte431 => {
             // DCI-P3, P3 primaries on DCI white point with 2.6γ (SMPTE ST 428-1)
-            if colors.transfer == TransferFunction::Smpte428 {
+            if colors.transfer_characteristics == tealdust::TransferCharacteristics::Smpte428 {
                 Some(ColorProfile::new_dci_p3())
             } else {
                 None
             }
         }
-        Primaries::Unspecified
-        | Primaries::Bt470M
-        | Primaries::Bt470Bg
-        | Primaries::Smpte240
-        | Primaries::GenericFilm
-        | Primaries::Xyz
-        | Primaries::Ebu3213 => None,
+        tealdust::ColorPrimaries::Unknown
+        | tealdust::ColorPrimaries::Bt470M
+        | tealdust::ColorPrimaries::Bt470Bg
+        | tealdust::ColorPrimaries::Smpte240
+        | tealdust::ColorPrimaries::Film
+        | tealdust::ColorPrimaries::Xyz
+        | tealdust::ColorPrimaries::Ebu3213
+        | tealdust::ColorPrimaries::Reserved => None,
     }
 }
 
-fn resolve_native_profile(colors: Cicp) -> Option<NativeColorSpace> {
-    match colors.primaries {
-        Primaries::Bt709 | Primaries::Bt601 => match colors.transfer {
-            TransferFunction::Srgb => Some(NativeColorSpace::DefaultSrgb),
-            TransferFunction::Linear => Some(NativeColorSpace::LinearSrgb),
-            TransferFunction::Bt709 => Some(NativeColorSpace::Bt709),
+fn resolve_native_profile(colors: ColorInfo) -> Option<NativeColorSpace> {
+    match colors.color_primaries {
+        tealdust::ColorPrimaries::Bt709 | tealdust::ColorPrimaries::Bt601 => {
+            match colors.transfer_characteristics {
+                tealdust::TransferCharacteristics::Srgb => Some(NativeColorSpace::DefaultSrgb),
+                tealdust::TransferCharacteristics::Linear => Some(NativeColorSpace::LinearSrgb),
+                tealdust::TransferCharacteristics::Bt709 => Some(NativeColorSpace::Bt709),
+                _ => None,
+            }
+        }
+        tealdust::ColorPrimaries::Bt2020 => match colors.transfer_characteristics {
+            tealdust::TransferCharacteristics::Smpte2084 => Some(NativeColorSpace::Pq2100),
+            tealdust::TransferCharacteristics::Hlg => Some(NativeColorSpace::Hlg2100),
             _ => None,
         },
-        Primaries::Bt2020 => match colors.transfer {
-            TransferFunction::Pq => Some(NativeColorSpace::Pq2100),
-            TransferFunction::Hlg => Some(NativeColorSpace::Hlg2100),
-            _ => None,
-        },
-        Primaries::Smpte432 => match colors.transfer {
+        tealdust::ColorPrimaries::Smpte432 => match colors.transfer_characteristics {
             // Display P3 — P3 primaries, D65 white point, sRGB transfer
-            TransferFunction::Srgb => Some(NativeColorSpace::DisplayP3),
+            tealdust::TransferCharacteristics::Srgb => Some(NativeColorSpace::DisplayP3),
             _ => None,
         },
-        Primaries::Smpte431 => match colors.transfer {
+        tealdust::ColorPrimaries::Smpte431 => match colors.transfer_characteristics {
             // DCI-P3 — P3 primaries, DCI white point, 2.6γ (SMPTE ST 428-1)
-            TransferFunction::Smpte428 => Some(NativeColorSpace::DciP3),
+            tealdust::TransferCharacteristics::Smpte428 => Some(NativeColorSpace::DciP3),
             _ => None,
         },
-        Primaries::Unspecified
-        | Primaries::Bt470M
-        | Primaries::Bt470Bg
-        | Primaries::Smpte240
-        | Primaries::GenericFilm
-        | Primaries::Xyz
-        | Primaries::Ebu3213 => None,
+        tealdust::ColorPrimaries::Unknown
+        | tealdust::ColorPrimaries::Bt470M
+        | tealdust::ColorPrimaries::Bt470Bg
+        | tealdust::ColorPrimaries::Smpte240
+        | tealdust::ColorPrimaries::Film
+        | tealdust::ColorPrimaries::Xyz
+        | tealdust::ColorPrimaries::Ebu3213
+        | tealdust::ColorPrimaries::Reserved => None,
     }
 }
 
@@ -361,10 +367,10 @@ fn decode_pipeline<'local>(
     scale_mode: WeaveScaleMode,
     preferred_color: WeaverPreferredColorConfig,
 ) -> Result<JObject<'local>, anyhow::Error> {
-    let decode = decode_packed_heic(data).map_err(|x| anyhow::anyhow!(x))?;
+    let decode = decode_packed_av2(data).map_err(|x| anyhow::anyhow!(x))?;
     let mut color_transform_done = false;
     match decode {
-        PackedHeic::Regular(regular_image) => {
+        PackedAv2::Regular(regular_image) => {
             dbg_log!(
                 debug,
                 "Regular 8-bit image: {}x{}, has_alpha={}, colors={:?}",
@@ -494,7 +500,7 @@ fn decode_pipeline<'local>(
             dbg_log!(debug, "8-bit: decode_pipeline complete");
             result
         }
-        PackedHeic::HighBitDepth(hd_image) => {
+        PackedAv2::HighBitDepth(hd_image) => {
             let mut scaled_data = internal_scale_u16(
                 std::borrow::Cow::Borrowed(&hd_image.data),
                 hd_image.width * 4,
@@ -610,7 +616,7 @@ fn decode_pipeline<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn decode_heic_file(
+pub unsafe extern "C" fn decode_av2_file(
     env: *mut jni::sys::JNIEnv,
     data: *const u8,
     length: usize,
@@ -690,51 +696,34 @@ pub unsafe extern "C" fn decode_heic_file(
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct HeicInfo {
-    pub supported_image: bool,
-    pub width: u32,
-    pub height: u32,
-    pub bit_depth: u32,
-}
-
-impl HeicInfo {
-    pub(crate) fn not_a_heic() -> HeicInfo {
-        HeicInfo {
-            supported_image: false,
-            width: 0,
-            height: 0,
-            bit_depth: 0,
-        }
-    }
-}
-
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn read_heic_file_info(data: *const u8, length: usize) -> HeicInfo {
-    if unsafe { !is_heic_image(data, length) } {
+pub unsafe extern "C" fn read_av2_file_info(data: *const u8, length: usize) -> HeicInfo {
+    if unsafe { !is_av2_image(data, length) } {
         return HeicInfo::not_a_heic();
     }
     let bytes = unsafe { slice::from_raw_parts(data, length) };
-    match hpvcd::read_heic_info(bytes) {
-        Ok(i) => {
-            let (width, height) = match i.orientation {
-                Orientation::Rotate90
-                | Orientation::Rotate270
-                | Orientation::Transpose
-                | Orientation::Transverse => (i.height, i.width),
-                _ => (i.width, i.height),
-            };
-            HeicInfo {
-                width,
-                height,
-                supported_image: true,
-                bit_depth: i.bit_depth.bits() as u32,
-            }
-        }
+    let image_info = match AvifDecoder::new(bytes).and_then(|x| x.image_info()) {
+        Ok(v) => v,
         Err(_v) => {
-            dbg_log!(error, "Failed to read HEIC info: {_v:?}");
-            HeicInfo::not_a_heic()
+            dbg_log!(error, "Failed to read AV2 info: {_v:?}");
+            return HeicInfo::not_a_heic();
         }
+    };
+
+    let (width, height) = match image_info
+        .orientation
+        .unwrap_or(tealdust::Orientation::Normal)
+    {
+        tealdust::Orientation::Rotate90
+        | tealdust::Orientation::Rotate270
+        | tealdust::Orientation::Transpose
+        | tealdust::Orientation::Transverse => (image_info.height, image_info.width),
+        _ => (image_info.width, image_info.height),
+    };
+    HeicInfo {
+        width,
+        height,
+        supported_image: true,
+        bit_depth: image_info.bits_per_component as u32,
     }
 }

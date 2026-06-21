@@ -109,6 +109,7 @@ dependencies = [
  "ndk-sys",
  "num-traits",
  "pic-scale",
+ "tealdust",
  "thiserror",
  "yuv",
 ]
@@ -284,9 +285,9 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hpvca"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b17415a3595ada5c73d8906c720fdea67c1734ca3d50a5d512df6ef384840675"
+checksum = "69745e50d90013442e6b1961cca7bc39d211186406a49a3f3b813913360082e7"
 
 [[package]]
 name = "hpvcd"
@@ -415,7 +416,7 @@ checksum = "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
 [[package]]
 name = "maroontree"
 version = "0.1.0"
-source = "git+https://github.com/awxkee/maroontree?rev=6c6beaf21afdd84c4d2effa1d5c6291cf97cc987#6c6beaf21afdd84c4d2effa1d5c6291cf97cc987"
+source = "git+https://github.com/awxkee/maroontree?rev=3aee0551d0a7035ea63c55ab80842970d68a3718#3aee0551d0a7035ea63c55ab80842970d68a3718"
 
 [[package]]
 name = "memchr"
@@ -663,6 +664,11 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "tealdust"
+version = "0.1.0"
+source = "git+https://github.com/awxkee/tealdust#bc499d64b6b17e5884d4785b9bddbf599f4712ca"
 
 [[package]]
 name = "tempfile"
@@ -942,9 +948,9 @@ dependencies = [
 
 [[package]]
 name = "yuv"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dba772cc0fb636dfce23c6907e7ca49c35a4b2ac687ea5df86a1a8879e8ea219"
+checksum = "5d85a782d94ee43f078bcfd6fa82d4e6a5b2d1cfbbad168e4df5a9f7b39ef48c"
 dependencies = [
  "num-traits",
 ]

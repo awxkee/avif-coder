@@ -31,6 +31,8 @@
 #![feature(f16)]
 
 mod av1_encode_android;
+mod av2_decode;
+mod av2_decode_android;
 mod av2_encode_android;
 mod box_walker;
 mod cvt;
@@ -50,9 +52,13 @@ mod yuv_ffi;
 
 use std::fmt::Debug;
 
-pub use av1_encode_android::encode_avif_av1_file;
+pub use av1_encode_android::{AvEncodingSpeed, encode_avif_av1_file};
+pub use av2_decode_android::{decode_av2_file, read_av2_file_info};
 pub use av2_encode_android::encode_avif_av2_file;
-pub use box_walker::{is_avif_image, is_heic_image};
+pub use box_walker::{
+    ImageContainer, container_recognisance, is_av2_image, is_avif_image, is_heic_image,
+    is_vvc_image,
+};
 pub use cvt::{
     weave_cvt_rgba8_to_ar30, weave_cvt_rgba8_to_rgba_f16, weave_cvt_rgba16_to_ar30,
     weave_cvt_rgba16_to_rgba_f16, weave_premultiply_rgba_f16,

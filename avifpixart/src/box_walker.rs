@@ -45,12 +45,14 @@ fn ftyp_box_size(bytes: &[u8]) -> Option<usize> {
     }
 }
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ImageContainer {
+pub enum ImageContainer {
     Unknown = 0,
     Heic = 1, // HEVC codec (hvcC box)
     Avif = 2, // AV1  codec (av1C box)
     Av2 = 3,  // AV2  codec (av2C box, future)
+    Vvc = 4,  // VVC/H.266 codec (vvcC box)
 }
 
 static HEVC_MAJOR_BRANDS: &[&[u8; 4]] = &[b"heic", b"heix", b"hevc", b"hevx", b"MiHE"];
@@ -118,12 +120,16 @@ fn walk_boxes(data: &[u8], depth: u8) -> ImageContainer {
             b"hvcC" => return ImageContainer::Heic,
             b"av1C" => return ImageContainer::Avif,
             b"av2C" => return ImageContainer::Av2,
+            b"vvcC" => return ImageContainer::Vvc,
 
             b"infe" if b.payload.len() >= 16 => {
                 let item_type = &b.payload[12..16];
                 match item_type {
                     b"hvc1" | b"hev1" => return ImageContainer::Heic,
                     b"av01" => return ImageContainer::Avif,
+                    // VVC image item: `vvc1` (parameter sets out-of-band) or
+                    // `vvi1` (parameter sets may be carried in-band).
+                    b"vvc1" | b"vvi1" => return ImageContainer::Vvc,
                     _ => {}
                 }
             }
@@ -198,4 +204,19 @@ pub unsafe extern "C" fn is_heic_image(data: *const u8, len: usize) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_avif_image(data: *const u8, len: usize) -> bool {
     detect_image_container(data, len) == ImageContainer::Avif
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn is_vvc_image(data: *const u8, len: usize) -> bool {
+    detect_image_container(data, len) == ImageContainer::Vvc
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn is_av2_image(data: *const u8, len: usize) -> bool {
+    detect_image_container(data, len) == ImageContainer::Avif
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn container_recognisance(data: *const u8, len: usize) -> ImageContainer {
+    detect_image_container(data, len)
 }
