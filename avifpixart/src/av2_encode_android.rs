@@ -26,7 +26,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::av1_encode_android::resolve_cicp_maroontree;
+use crate::av1_encode_android::{AvEncodingConfig, AvEncodingSpeed, resolve_cicp_maroontree};
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
 use crate::heic_decode::WeaverError;
@@ -43,17 +43,18 @@ use yuv::{
     YuvChromaSubsampling, YuvConversionMode, YuvGrayImageMut, YuvPlanarImageMut, YuvRange,
     YuvStandardMatrix, rgba_to_ycgco420, rgba_to_ycgco422, rgba_to_ycgco444, rgba_to_yuv400,
     rgba_to_yuv420, rgba_to_yuv422, rgba_to_yuv444, rgba10_to_i010, rgba10_to_i210, rgba10_to_i410,
-    rgba10_to_icgc010, rgba10_to_icgc210, rgba10_to_icgc410,
+    rgba10_to_icgc010, rgba10_to_icgc210, rgba10_to_icgc410, rgba10_to_y010,
 };
 
 fn encode_av2_inner_mono_u8(
     bitmap_data: &BitmapData,
-    cicp: Cicp,
-    quality: u32,
-    lossless: bool,
-    exif: Option<&[u8]>,
+    config: &AvEncodingConfig,
     has_real_alpha: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
+    let cicp = config.cicp;
+    let quality = config.quality;
+    let lossless = config.lossless;
+    let exif = config.exif.as_ref();
     dbg_log!(
         debug,
         "encode_av2_inner_mono_u8: {}x{} pixels={} quality={} lossless={} exif={}",
@@ -128,7 +129,8 @@ fn encode_av2_inner_mono_u8(
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
         .with_threads(threads)
-        .with_chroma(ChromaFormat::Monochrome);
+        .with_chroma(ChromaFormat::Monochrome)
+        .with_speed(config.speed.to_maroontree());
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -190,15 +192,162 @@ fn encode_av2_inner_mono_u8(
     Ok(result)
 }
 
+fn encode_av2_inner_mono_u16(
+    hd_data: &[u16],
+    bitmap_data: &BitmapData,
+    config: &AvEncodingConfig,
+    has_real_alpha: bool,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let cicp = config.cicp;
+    let quality = config.quality;
+    let lossless = config.lossless;
+    let exif = config.exif.as_ref();
+    dbg_log!(
+        debug,
+        "encode_av2_inner_mono_u8: {}x{} pixels={} quality={} lossless={} exif={}",
+        bitmap_data.width,
+        bitmap_data.height,
+        bitmap_data.data.len(),
+        quality,
+        lossless,
+        exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
+    );
+
+    let local_cicp = cicp;
+    dbg_log!(
+        debug,
+        "cicp: primaries={:?} transfer={:?} matrix={:?} full_range={}",
+        cicp.primaries,
+        cicp.transfer,
+        cicp.matrix,
+        cicp.full_range
+    );
+    dbg_log!(debug, "has_real_alpha={has_real_alpha}");
+
+    let yuv_range = match cicp.full_range {
+        true => YuvRange::Full,
+        false => YuvRange::Limited,
+    };
+    let yuv_matrix = match cicp.matrix {
+        MatrixCoefficients::Bt709 => YuvStandardMatrix::Bt709,
+        MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt601,
+        MatrixCoefficients::Fcc => YuvStandardMatrix::Fcc,
+        MatrixCoefficients::Smpte170m => YuvStandardMatrix::Bt601,
+        MatrixCoefficients::Bt2020Ncl => YuvStandardMatrix::Bt2020,
+        _other => {
+            dbg_log!(
+                warn,
+                "encode_av2_inner_mono_u8: unhandled matrix={:?} — falling back to Bt601",
+                _other
+            );
+            YuvStandardMatrix::Bt601
+        }
+    };
+    dbg_log!(debug, "yuv_range={yuv_range:?} yuv_matrix={yuv_matrix:?}");
+
+    let mut planar_image =
+        YuvGrayImageMut::alloc(bitmap_data.width as u32, bitmap_data.height as u32);
+    dbg_log!(
+        debug,
+        "allocated monochrome plane: {}x{} y={} samples",
+        planar_image.width,
+        planar_image.height,
+        planar_image.y_plane.borrow().len()
+    );
+
+    rgba10_to_y010(
+        &mut planar_image,
+        hd_data,
+        bitmap_data.width as u32 * 4,
+        yuv_range,
+        yuv_matrix,
+    )
+    .map_err(|x| {
+        dbg_log!(error, "rgba_to_yuv400 failed: {x}");
+        anyhow::anyhow!(x)
+    })?;
+
+    let threads = available_parallelism()
+        .unwrap_or(NonZero::new(1).unwrap())
+        .get();
+    dbg_log!(debug, "encoder threads={threads}");
+
+    let mut config = maroontree::EncodeConfig::new()
+        .with_cicp(local_cicp)
+        .with_quality(quality as u8)
+        .with_threads(threads)
+        .with_chroma(ChromaFormat::Monochrome)
+        .with_speed(config.speed.to_maroontree());
+
+    if let Some(exif) = exif {
+        dbg_log!(debug, "attaching exif: {} bytes", exif.len());
+        config = config.with_exif(exif.to_vec());
+    }
+
+    if has_real_alpha {
+        dbg_log!(debug, "monochrome+alpha: extracting alpha plane");
+        let alpha = hd_data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|x| x[3])
+            .collect::<Vec<_>>();
+        dbg_log!(debug, "alpha plane: {} samples", alpha.len());
+
+        let av2_planar_image = PlanarImage {
+            width: bitmap_data.width,
+            height: bitmap_data.height,
+            planes: [
+                planar_image.y_plane.borrow().to_vec(),
+                alpha,
+                vec![],
+                vec![],
+            ],
+            bit_depth: BitDepth::Ten,
+        };
+        let result = maroontree::av2_image::encode_gray_alpha10(&av2_planar_image, &config)
+            .map_err(|x| {
+                dbg_log!(error, "encode_gray_alpha8 failed: {x}");
+                anyhow::anyhow!(x)
+            })?;
+        dbg_log!(debug, "encoded monochrome+alpha: {} bytes", result.len());
+        return Ok(result);
+    }
+
+    let av2_planar_image = PlanarImage {
+        width: bitmap_data.width,
+        height: bitmap_data.height,
+        planes: [
+            planar_image.y_plane.borrow().to_vec(),
+            vec![],
+            vec![],
+            vec![],
+        ],
+        bit_depth: BitDepth::Ten,
+    };
+    let result = maroontree::av2_image::encode_gray10(&av2_planar_image, &config).map_err(|x| {
+        dbg_log!(error, "encode_gray8 failed: {x}");
+        anyhow::anyhow!(x)
+    })?;
+    dbg_log!(
+        debug,
+        "encoded monochrome: {} bytes ({:.2} bpp)",
+        result.len(),
+        (result.len() * 8) as f64 / (bitmap_data.width * bitmap_data.height) as f64
+    );
+    Ok(result)
+}
+
 fn encode_av2_inner_u8(
     bitmap_data: &BitmapData,
-    cicp: Cicp,
-    quality: u32,
-    lossless: bool,
-    exif: Option<&[u8]>,
+    config: &AvEncodingConfig,
     has_real_alpha: bool,
-    chroma_subsampling: ChromaFormat,
 ) -> Result<Vec<u8>, anyhow::Error> {
+    let cicp = config.cicp;
+    let quality = config.quality;
+    let lossless = config.lossless;
+    let chroma_subsampling = config.chroma;
+    let exif = config.exif.as_ref();
     dbg_log!(
         debug,
         "encode_av2_inner_u8: {}x{} pixels={} quality={} lossless={} \
@@ -225,14 +374,7 @@ fn encode_av2_inner_u8(
 
     if chroma_subsampling == ChromaFormat::Monochrome {
         dbg_log!(debug, "delegating to monochrome path");
-        return encode_av2_inner_mono_u8(
-            bitmap_data,
-            cicp,
-            quality,
-            lossless,
-            exif,
-            has_real_alpha,
-        );
+        return encode_av2_inner_mono_u8(bitmap_data, config, has_real_alpha);
     }
 
     let yuv_range = match cicp.full_range {
@@ -351,7 +493,8 @@ fn encode_av2_inner_u8(
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
         .with_threads(threads)
-        .with_chroma(chroma_subsampling);
+        .with_chroma(chroma_subsampling)
+        .with_speed(config.speed.to_maroontree());
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -422,17 +565,16 @@ fn encode_av2_inner_u8(
 fn encode_av2_inner_u16_10_bit(
     hd_plane: &[u16],
     bitmap_data: &BitmapData,
-    cicp: Cicp,
-    quality: u32,
-    lossless: bool,
-    exif: Option<&[u8]>,
+    config: &AvEncodingConfig,
     has_real_alpha: bool,
-    chroma_format: ChromaFormat,
 ) -> Result<Vec<u8>, anyhow::Error> {
+    let cicp = config.cicp;
+    let quality = config.quality;
+    let lossless = config.lossless;
+    let chroma_format = config.chroma;
+    let exif = config.exif.as_ref();
     if chroma_format == ChromaFormat::Monochrome {
-        return Err(anyhow::anyhow!(
-            "10-bit monochrome is not currently supported"
-        ));
+        return encode_av2_inner_mono_u16(hd_plane, bitmap_data, config, has_real_alpha);
     }
     dbg_log!(
         debug,
@@ -577,7 +719,8 @@ fn encode_av2_inner_u16_10_bit(
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
         .with_threads(threads)
-        .with_chroma(chroma_format);
+        .with_chroma(chroma_format)
+        .with_speed(config.speed.to_maroontree());
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -650,31 +793,19 @@ fn encode_av2_inner_u16_10_bit(
 
 fn encode_av2_inner(
     bitmap_data: &mut BitmapData,
-    cicp: Cicp,
-    quality: u32,
-    lossless: bool,
-    exif: Option<&[u8]>,
-    chroma_subsampling: ChromaFormat,
+    config: &AvEncodingConfig,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
         "encode_av2_inner: format={:?} chroma={:?}",
         bitmap_data.format,
-        chroma_subsampling
+        config.chroma
     );
     match bitmap_data.format {
         BitmapPixelFormat::Rgba8888 => {
             let has_real_alpha =
                 has_non_constant_alpha::<u8, u32, 3, 4>(&bitmap_data.data, bitmap_data.width);
-            encode_av2_inner_u8(
-                bitmap_data,
-                cicp,
-                quality,
-                lossless,
-                exif,
-                has_real_alpha,
-                chroma_subsampling,
-            )
+            encode_av2_inner_u8(bitmap_data, config, has_real_alpha)
         }
         BitmapPixelFormat::Rgb565 => {
             dbg_log!(
@@ -683,15 +814,7 @@ fn encode_av2_inner(
             );
             let rgba8888 = rgb565_bytes_to_rgba8888(&bitmap_data.data);
             bitmap_data.data = rgba8888;
-            encode_av2_inner_u8(
-                bitmap_data,
-                cicp,
-                quality,
-                lossless,
-                exif,
-                false,
-                chroma_subsampling,
-            )
+            encode_av2_inner_u8(bitmap_data, config, false)
         }
         BitmapPixelFormat::RgbaF16 => {
             dbg_log!(
@@ -700,16 +823,7 @@ fn encode_av2_inner(
             );
             let hd_plane =
                 f16_bytes_to_rgba10(&bitmap_data.data, bitmap_data.width, bitmap_data.height)?;
-            encode_av2_inner_u16_10_bit(
-                &hd_plane,
-                bitmap_data,
-                cicp,
-                quality,
-                lossless,
-                exif,
-                false,
-                chroma_subsampling,
-            )
+            encode_av2_inner_u16_10_bit(&hd_plane, bitmap_data, config, false)
         }
         BitmapPixelFormat::Rgba1010102 => {
             dbg_log!(
@@ -717,16 +831,7 @@ fn encode_av2_inner(
                 "encode_av2_inner: unpacking AR30 → RGBA10 before encode"
             );
             let hd_plane = ar30_bytes_to_rgba10(&bitmap_data.data);
-            encode_av2_inner_u16_10_bit(
-                &hd_plane,
-                bitmap_data,
-                cicp,
-                quality,
-                lossless,
-                exif,
-                false,
-                chroma_subsampling,
-            )
+            encode_av2_inner_u16_10_bit(&hd_plane, bitmap_data, config, false)
         }
         BitmapPixelFormat::A8 => {
             dbg_log!(error, "encode_av2_inner: A8 format is not supported");
@@ -746,6 +851,7 @@ pub unsafe extern "C" fn encode_avif_av2_file(
     quality: i32,
     lossless: bool,
     chroma_subsampling_code: i32,
+    speed: AvEncodingSpeed,
 ) -> jbyteArray {
     init_logging();
 
@@ -816,11 +922,14 @@ pub unsafe extern "C" fn encode_avif_av2_file(
 
             let encoded_data = encode_av2_inner(
                 &mut bitmap_data,
-                cicp,
-                quality,
-                lossless,
-                exif_data.as_deref(),
-                chroma_subsampling,
+                &AvEncodingConfig {
+                    cicp,
+                    quality,
+                    lossless,
+                    exif: exif_data.map(|x| x.to_vec()),
+                    chroma: chroma_subsampling,
+                    speed,
+                },
             )
             .map_err(|x| {
                 dbg_log!(error, "encode_av2_inner failed: {x:#}");

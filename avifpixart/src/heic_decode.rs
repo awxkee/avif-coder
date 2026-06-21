@@ -66,8 +66,12 @@ pub enum WeaverError {
     InvalidHeic,
     #[error("HEIC decoder failed with an errror {0}")]
     FailedToDecodeHeic(String),
+    #[error("AVIF AV2 decoder failed with an errror {0}")]
+    FailedToDecodeAv2(String),
     #[error("Unsupported matrix coefficients {0:?}")]
     UnsupportedMatrix(MatrixCoefficients),
+    #[error("Unsupported AV2 matrix coefficients {0:?}")]
+    UnsupportedMatrixAv2(tealdust::MatrixCoefficients),
     #[error("Depth signalled for encoded plane doesn't match the container")]
     MismatchedBitDepth,
     #[error("Failed to allocate memory with size {0}")]
@@ -88,6 +92,86 @@ pub(crate) struct DecodedHeicPacket<T> {
     pub(crate) icc: Option<Vec<u8>>,
     pub(crate) bit_depth: BitDepth,
     pub(crate) has_real_alpha: bool,
+}
+
+fn clap_rect(
+    width: usize,
+    height: usize,
+    clap: &hpvcd::CleanAperture,
+) -> Option<(usize, usize, usize, usize)> {
+    if clap.width_d == 0 || clap.height_d == 0 || clap.horiz_off_d == 0 || clap.vert_off_d == 0 {
+        return None;
+    }
+    let (img_w, img_h) = (width as i64, height as i64);
+
+    let crop_w = ((clap.width_n as i64) / (clap.width_d as i64)).min(img_w);
+    let crop_h = ((clap.height_n as i64) / (clap.height_d as i64)).min(img_h);
+    if crop_w <= 0 || crop_h <= 0 {
+        return None;
+    }
+
+    // ISO 14496-12: offsets locate the aperture *center* relative to image center.
+    //   left = horizOff + (W-1)/2 - (cropW-1)/2   (evaluated over denom 2*off_d)
+    let hd = clap.horiz_off_d as i64;
+    let vd = clap.vert_off_d as i64;
+    let left = (2 * (clap.horiz_off_n as i64) + hd * (img_w - 1) - hd * (crop_w - 1))
+        .div_euclid(2 * hd)
+        .clamp(0, img_w - crop_w);
+    let top = (2 * (clap.vert_off_n as i64) + vd * (img_h - 1) - vd * (crop_h - 1))
+        .div_euclid(2 * vd)
+        .clamp(0, img_h - crop_h);
+
+    Some((
+        left as usize,
+        top as usize,
+        crop_w as usize,
+        crop_h as usize,
+    ))
+}
+
+fn finalize<T: Copy + Default>(
+    mut data: Vec<T>,
+    decoded_yuv: &DecodedYuv,
+    cicp: Cicp,
+) -> Result<DecodedHeicPacket<T>, WeaverError> {
+    const CH: usize = 4; // RGBA
+    let mut width = decoded_yuv.width as usize;
+    let mut height = decoded_yuv.height as usize;
+
+    // clap is defined in coded space, so crop BEFORE orientation (clap → irot → imir).
+    if let Some(clap) = decoded_yuv.clean_aperture.as_ref() {
+        if let Some((left, top, cw, ch)) = clap_rect(width, height, clap) {
+            if cw != width || ch != height {
+                let (src_stride, dst_stride) = (width * CH, cw * CH);
+                let mut cropped = try_vec![T::default(); cw * ch * CH];
+                for row in 0..ch {
+                    let s = (top + row) * src_stride + left * CH;
+                    let d = row * dst_stride;
+                    cropped[d..d + dst_stride].copy_from_slice(&data[s..s + dst_stride]);
+                }
+                data = cropped;
+                width = cw;
+                height = ch;
+            }
+        }
+    }
+
+    if decoded_yuv.orientation != Orientation::Normal {
+        let (nd, nw, nh) = apply_orientation(&data, width, height, decoded_yuv.orientation);
+        data = nd;
+        width = nw;
+        height = nh;
+    }
+
+    Ok(DecodedHeicPacket {
+        data,
+        width,
+        height,
+        colors: cicp,
+        icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
+        bit_depth: decoded_yuv.bit_depth,
+        has_real_alpha: decoded_yuv.alpha.is_some(),
+    })
 }
 
 pub(crate) enum PackedHeic {
@@ -155,8 +239,6 @@ fn decode_inner_low_bit_depth(
         return Err(WeaverError::FailedToAllocateMemory(isize::MAX as u64));
     }
 
-    let (mut width, mut height) = (decoded_yuv.width as usize, decoded_yuv.height as usize);
-
     let mut target_data =
         try_vec![0u8; decoded_yuv.width as usize * decoded_yuv.height as usize * 4];
 
@@ -192,27 +274,7 @@ fn decode_inner_low_bit_depth(
             )
             .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
 
-            if decoded_yuv.orientation != Orientation::Normal {
-                let (new_data, new_width, new_height) = apply_orientation(
-                    &target_data,
-                    decoded_yuv.width as usize,
-                    decoded_yuv.height as usize,
-                    decoded_yuv.orientation,
-                );
-                width = new_width;
-                height = new_height;
-                target_data = new_data;
-            }
-
-            return Ok(DecodedHeicPacket {
-                data: target_data,
-                width,
-                height,
-                colors: colors.cicp,
-                icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-                bit_depth: decoded_yuv.bit_depth,
-                has_real_alpha: decoded_yuv.alpha.is_some(),
-            });
+            return finalize(target_data, decoded_yuv, colors.cicp);
         }
 
         let gray_img = YuvGrayImage {
@@ -230,27 +292,7 @@ fn decode_inner_low_bit_depth(
         )
         .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
 
-        if decoded_yuv.orientation != Orientation::Normal {
-            let (new_data, new_width, new_height) = apply_orientation(
-                &target_data,
-                decoded_yuv.width as usize,
-                decoded_yuv.height as usize,
-                decoded_yuv.orientation,
-            );
-            width = new_width;
-            height = new_height;
-            target_data = new_data;
-        }
-
-        return Ok(DecodedHeicPacket {
-            data: target_data,
-            width,
-            height,
-            colors: colors.cicp,
-            icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-            bit_depth: decoded_yuv.bit_depth,
-            has_real_alpha: decoded_yuv.alpha.is_some(),
-        });
+        return finalize(target_data, decoded_yuv, colors.cicp);
     }
 
     let probably_u8_luma = decoded_yuv.y.as_u8();
@@ -427,27 +469,7 @@ fn decode_inner_low_bit_depth(
         }
     }
 
-    if decoded_yuv.orientation != Orientation::Normal {
-        let (new_data, new_width, new_height) = apply_orientation(
-            &target_data,
-            decoded_yuv.width as usize,
-            decoded_yuv.height as usize,
-            decoded_yuv.orientation,
-        );
-        width = new_width;
-        height = new_height;
-        target_data = new_data;
-    }
-
-    Ok(DecodedHeicPacket {
-        data: target_data,
-        width,
-        height,
-        colors: colors.cicp,
-        icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-        bit_depth: decoded_yuv.bit_depth,
-        has_real_alpha: decoded_yuv.alpha.is_some(),
-    })
+    finalize(target_data, decoded_yuv, colors.cicp)
 }
 
 fn decode_heic_inner_10bit(
@@ -464,8 +486,6 @@ fn decode_heic_inner_10bit(
 
     let mut target_data =
         try_vec![0u16; decoded_yuv.width as usize * decoded_yuv.height as usize * 4];
-
-    let (mut width, mut height) = (decoded_yuv.width as usize, decoded_yuv.height as usize);
 
     let colors = solve_heic_colors(decoded_yuv)?;
     let is_ycgco = is_metadata_ycgco(decoded_yuv);
@@ -499,27 +519,7 @@ fn decode_heic_inner_10bit(
             )
             .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
 
-            if decoded_yuv.orientation != Orientation::Normal {
-                let (new_data, new_width, new_height) = apply_orientation(
-                    &target_data,
-                    decoded_yuv.width as usize,
-                    decoded_yuv.height as usize,
-                    decoded_yuv.orientation,
-                );
-                width = new_width;
-                height = new_height;
-                target_data = new_data;
-            }
-
-            return Ok(DecodedHeicPacket {
-                data: target_data,
-                width,
-                height,
-                colors: colors.cicp,
-                icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-                bit_depth: decoded_yuv.bit_depth,
-                has_real_alpha: decoded_yuv.alpha.is_some(),
-            });
+            return finalize(target_data, decoded_yuv, colors.cicp);
         }
 
         let gray_img = YuvGrayImage {
@@ -537,27 +537,7 @@ fn decode_heic_inner_10bit(
         )
         .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
 
-        if decoded_yuv.orientation != Orientation::Normal {
-            let (new_data, new_width, new_height) = apply_orientation(
-                &target_data,
-                decoded_yuv.width as usize,
-                decoded_yuv.height as usize,
-                decoded_yuv.orientation,
-            );
-            width = new_width;
-            height = new_height;
-            target_data = new_data;
-        }
-
-        return Ok(DecodedHeicPacket {
-            data: target_data,
-            width,
-            height,
-            colors: colors.cicp,
-            icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-            bit_depth: decoded_yuv.bit_depth,
-            has_real_alpha: decoded_yuv.alpha.is_some(),
-        });
+        return finalize(target_data, decoded_yuv, colors.cicp);
     }
 
     let probably_u16_luma = decoded_yuv.y.as_u16();
@@ -734,27 +714,7 @@ fn decode_heic_inner_10bit(
         }
     }
 
-    if decoded_yuv.orientation != Orientation::Normal {
-        let (new_data, new_width, new_height) = apply_orientation(
-            &target_data,
-            decoded_yuv.width as usize,
-            decoded_yuv.height as usize,
-            decoded_yuv.orientation,
-        );
-        width = new_width;
-        height = new_height;
-        target_data = new_data;
-    }
-
-    Ok(DecodedHeicPacket {
-        data: target_data,
-        width,
-        height,
-        colors: colors.cicp,
-        icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-        bit_depth: decoded_yuv.bit_depth,
-        has_real_alpha: decoded_yuv.alpha.is_some(),
-    })
+    finalize(target_data, decoded_yuv, colors.cicp)
 }
 
 fn decode_heic_inner_12bit(
@@ -768,8 +728,6 @@ fn decode_heic_inner_12bit(
     ) {
         return Err(WeaverError::FailedToAllocateMemory(isize::MAX as u64));
     }
-
-    let (mut width, mut height) = (decoded_yuv.width as usize, decoded_yuv.height as usize);
 
     let mut target_data =
         try_vec![0u16; decoded_yuv.width as usize * decoded_yuv.height as usize * 4];
@@ -806,27 +764,7 @@ fn decode_heic_inner_12bit(
             )
             .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
 
-            if decoded_yuv.orientation != Orientation::Normal {
-                let (new_data, new_width, new_height) = apply_orientation(
-                    &target_data,
-                    decoded_yuv.width as usize,
-                    decoded_yuv.height as usize,
-                    decoded_yuv.orientation,
-                );
-                width = new_width;
-                height = new_height;
-                target_data = new_data;
-            }
-
-            return Ok(DecodedHeicPacket {
-                data: target_data,
-                width,
-                height,
-                colors: colors.cicp,
-                icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-                bit_depth: decoded_yuv.bit_depth,
-                has_real_alpha: decoded_yuv.alpha.is_some(),
-            });
+            return finalize(target_data, decoded_yuv, colors.cicp);
         }
 
         let gray_img = YuvGrayImage {
@@ -844,27 +782,7 @@ fn decode_heic_inner_12bit(
         )
         .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
 
-        if decoded_yuv.orientation != Orientation::Normal {
-            let (new_data, new_width, new_height) = apply_orientation(
-                &target_data,
-                decoded_yuv.width as usize,
-                decoded_yuv.height as usize,
-                decoded_yuv.orientation,
-            );
-            width = new_width;
-            height = new_height;
-            target_data = new_data;
-        }
-
-        return Ok(DecodedHeicPacket {
-            data: target_data,
-            width,
-            height,
-            colors: colors.cicp,
-            icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-            bit_depth: decoded_yuv.bit_depth,
-            has_real_alpha: decoded_yuv.alpha.is_some(),
-        });
+        return finalize(target_data, decoded_yuv, colors.cicp);
     }
 
     let probably_u16_luma = decoded_yuv.y.as_u16();
@@ -1041,27 +959,7 @@ fn decode_heic_inner_12bit(
         }
     }
 
-    if decoded_yuv.orientation != Orientation::Normal {
-        let (new_data, new_width, new_height) = apply_orientation(
-            &target_data,
-            decoded_yuv.width as usize,
-            decoded_yuv.height as usize,
-            decoded_yuv.orientation,
-        );
-        width = new_width;
-        height = new_height;
-        target_data = new_data;
-    }
-
-    Ok(DecodedHeicPacket {
-        data: target_data,
-        width,
-        height,
-        colors: colors.cicp,
-        icc: decoded_yuv.color.icc.as_ref().map(|x| x.to_vec()),
-        bit_depth: decoded_yuv.bit_depth,
-        has_real_alpha: decoded_yuv.alpha.is_some(),
-    })
+    finalize(target_data, decoded_yuv, colors.cicp)
 }
 
 pub(crate) fn decode_packed_heic(data: &[u8]) -> Result<PackedHeic, WeaverError> {

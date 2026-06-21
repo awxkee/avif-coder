@@ -6,16 +6,17 @@ edition = "2024"
 [dependencies]
 num-traits = "0.2"
 pic-scale = { version = "0.7.9", default-features = false, features = ["nightly_f16"] }
-yuv = { version = "0.8.15", features = ["nightly_f16"], default-features = false }
+yuv = { version = "0.8.16", features = ["nightly_f16"], default-features = false }
 bytemuck = { version = "1.25", features = ["nightly_float"] }
 moxcms = { version = "0.8.1", default-features = false }
 gainforge = "0.5.0"
-hpvca = "0.1.8"
+hpvca = "0.1.9"
 hpvcd = "0.1.4"
 thiserror = "2.0.18"
 libc = "1.0.0-alpha.3"
 log = "0.4.32"
-maroontree = { git = "https://github.com/awxkee/maroontree", rev = "6c6beaf21afdd84c4d2effa1d5c6291cf97cc987" }
+maroontree = { git = "https://github.com/awxkee/maroontree", rev = "3aee0551d0a7035ea63c55ab80842970d68a3718" }
+tealdust = { git = "https://github.com/awxkee/tealdust" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { version = "0.22.4", default-features = false }
