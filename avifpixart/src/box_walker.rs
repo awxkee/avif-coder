@@ -45,13 +45,13 @@ fn ftyp_box_size(bytes: &[u8]) -> Option<usize> {
     }
 }
 
-#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
 pub enum ImageContainer {
     Unknown = 0,
     Heic = 1, // HEVC codec (hvcC box)
     Avif = 2, // AV1  codec (av1C box)
-    Av2 = 3,  // AV2  codec (av2C box, future)
+    Av2 = 3,  // AV2  codec (av2C box)
     Vvc = 4,  // VVC/H.266 codec (vvcC box)
 }
 
@@ -60,14 +60,14 @@ static AV1_MAJOR_BRANDS: &[&[u8; 4]] = &[b"avif", b"avis", b"MA1A", b"MA1B"];
 static UMBRELLA_BRANDS: &[&[u8; 4]] = &[b"mif1", b"msf1", b"miaf"];
 
 /// A single parsed box header — points into the original slice.
-struct Box<'a> {
+struct HeifBox<'a> {
     kind: [u8; 4],
     payload: &'a [u8],
 }
 
 /// Parse the next box at `data[0..]`.
 /// Returns `(box, bytes_consumed)` or `None` on a malformed box.
-fn parse_box(data: &[u8]) -> Option<(Box<'_>, usize)> {
+fn parse_box(data: &[u8]) -> Option<(HeifBox<'_>, usize)> {
     if data.len() < 8 {
         return None;
     }
@@ -96,7 +96,7 @@ fn parse_box(data: &[u8]) -> Option<(Box<'_>, usize)> {
     }
 
     Some((
-        Box {
+        HeifBox {
             kind,
             payload: &data[header..total],
         },
@@ -120,6 +120,7 @@ fn walk_boxes(data: &[u8], depth: u8) -> ImageContainer {
             b"hvcC" => return ImageContainer::Heic,
             b"av1C" => return ImageContainer::Avif,
             b"av2C" => return ImageContainer::Av2,
+            // VVC decoder-configuration box (VvcConfigurationBox, ISO/IEC 14496-15).
             b"vvcC" => return ImageContainer::Vvc,
 
             b"infe" if b.payload.len() >= 16 => {
@@ -169,20 +170,21 @@ fn detect_container(bytes: &[u8]) -> ImageContainer {
         if brand_matches(major, HEVC_MAJOR_BRANDS) {
             return ImageContainer::Heic;
         }
-        if brand_matches(major, AV1_MAJOR_BRANDS) {
-            return ImageContainer::Avif;
-        }
 
         if brand_matches(major, UMBRELLA_BRANDS) {
             let box_end = ftyp_box_size(bytes).unwrap_or(bytes.len().min(512));
-            for chunk in bytes[16..box_end].chunks_exact(4) {
+            for chunk in bytes[16..box_end].as_chunks::<4>().0.iter() {
                 if brand_matches(chunk, HEVC_MAJOR_BRANDS) {
                     return ImageContainer::Heic;
                 }
                 if brand_matches(chunk, AV1_MAJOR_BRANDS) {
-                    return ImageContainer::Avif;
+                    return walk_boxes(bytes, 0);
                 }
             }
+            // VVC has no dedicated major/compatible brand of its own: VVC stills
+            // ride the codec-agnostic `mif1`/`miaf` umbrella and are identified by
+            // their `vvcC` config box / `vvc1`|`vvi1` item type, found in the walk
+            // below. So we deliberately do not brand-match VVC here.
         }
     }
 

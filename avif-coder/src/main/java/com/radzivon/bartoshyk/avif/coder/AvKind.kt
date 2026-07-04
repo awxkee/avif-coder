@@ -31,6 +31,6 @@ package com.radzivon.bartoshyk.avif.coder
 import androidx.annotation.Keep
 
 @Keep
-enum class AvType {
+enum class AvKind {
     AV1, AV2
 }

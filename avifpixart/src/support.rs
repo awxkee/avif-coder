@@ -53,7 +53,11 @@ pub(crate) fn transmute_const_ptr16(
         .chunks_exact_mut(new_stride)
         .zip(slice.chunks_exact(stride))
     {
-        for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)).take(width * chans) {
+        for (dst, src) in dst
+            .iter_mut()
+            .zip(src.as_chunks::<2>().0.iter())
+            .take(width * chans)
+        {
             *dst = u16::from_ne_bytes([src[0], src[1]]);
         }
     }
@@ -224,7 +228,7 @@ where
     let first = store[0];
     let mut row_sums: J = 0u32.as_();
     for row in store.chunks_exact(width * CHANNELS) {
-        for color in row.chunks_exact(CHANNELS) {
+        for color in row.as_chunks::<CHANNELS>().0.iter() {
             row_sums += color[ALPHA_CHANNEL_INDEX].bitxor(first).as_();
         }
         if row_sums != 0.as_() {

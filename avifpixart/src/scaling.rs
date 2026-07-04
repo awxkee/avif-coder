@@ -201,16 +201,6 @@ impl From<u32> for ScalingFunction {
     }
 }
 
-impl ScalingFunction {
-    pub(crate) fn to_ps(self) -> ResamplingFunction {
-        match self {
-            ScalingFunction::Lanczos3 => ResamplingFunction::Lanczos3,
-            ScalingFunction::Nearest => ResamplingFunction::Nearest,
-            ScalingFunction::Bilinear => ResamplingFunction::Bilinear,
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn internal_scale_u8(
     src: std::borrow::Cow<[u8]>,
@@ -307,7 +297,7 @@ pub unsafe extern "C" fn weave_scale_u16(
             .chunks_exact_mut(width as usize * 4)
             .zip(j.chunks_exact(src_stride))
         {
-            for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
+            for (dst, src) in dst.iter_mut().zip(src.as_chunks::<2>().0.iter()) {
                 let pixel = u16::from_ne_bytes([src[0], src[1]]);
                 *dst = pixel;
             }
@@ -480,7 +470,7 @@ pub extern "C" fn weave_scale_f16(
                 .chunks_exact_mut(width as usize * 4)
                 .zip(j.chunks_exact(src_stride))
             {
-                for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
+                for (dst, src) in dst.iter_mut().zip(src.as_chunks::<2>().0.iter()) {
                     let pixel = f16::from_bits(u16::from_ne_bytes([src[0], src[1]]));
                     *dst = pixel;
                 }
@@ -537,7 +527,7 @@ pub extern "C" fn weave_scale_f16(
                 .chunks_exact(dst_store.stride())
                 .zip(dst_slice.chunks_exact_mut(new_width as usize * 4))
             {
-                for (src, dst) in src.iter().zip(dst.chunks_exact_mut(2)) {
+                for (src, dst) in src.iter().zip(dst.as_chunks_mut::<2>().0.iter_mut()) {
                     let dst_ptr = dst.as_mut_ptr() as *mut f16;
                     dst_ptr.write_unaligned(*src);
                 }

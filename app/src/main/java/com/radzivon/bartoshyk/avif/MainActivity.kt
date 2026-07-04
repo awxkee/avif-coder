@@ -33,6 +33,7 @@ import android.util.Log
 import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.radzivon.bartoshyk.avif.coder.AvKind
 import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.Coder
 import com.radzivon.bartoshyk.avif.coder.HeicChromaSubsampling
@@ -177,7 +178,8 @@ class MainActivity : AppCompatActivity() {
                             null,
                             60,
                             PreciseMode.LOSSY,
-                            AvifChromaSubsampling.YUV420,
+                            AvifChromaSubsampling.YUV400,
+                            AvKind.AV2,
                         )
 
                         val bitmap2 = coder.decodeSampled(

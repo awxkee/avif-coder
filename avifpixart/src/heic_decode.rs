@@ -139,21 +139,20 @@ fn finalize<T: Copy + Default>(
     let mut height = decoded_yuv.height as usize;
 
     // clap is defined in coded space, so crop BEFORE orientation (clap → irot → imir).
-    if let Some(clap) = decoded_yuv.clean_aperture.as_ref() {
-        if let Some((left, top, cw, ch)) = clap_rect(width, height, clap) {
-            if cw != width || ch != height {
-                let (src_stride, dst_stride) = (width * CH, cw * CH);
-                let mut cropped = try_vec![T::default(); cw * ch * CH];
-                for row in 0..ch {
-                    let s = (top + row) * src_stride + left * CH;
-                    let d = row * dst_stride;
-                    cropped[d..d + dst_stride].copy_from_slice(&data[s..s + dst_stride]);
-                }
-                data = cropped;
-                width = cw;
-                height = ch;
-            }
+    if let Some(clap) = decoded_yuv.clean_aperture.as_ref()
+        && let Some((left, top, cw, ch)) = clap_rect(width, height, clap)
+        && (cw != width || ch != height)
+    {
+        let (src_stride, dst_stride) = (width * CH, cw * CH);
+        let mut cropped = try_vec![T::default(); cw * ch * CH];
+        for row in 0..ch {
+            let s = (top + row) * src_stride + left * CH;
+            let d = row * dst_stride;
+            cropped[d..d + dst_stride].copy_from_slice(&data[s..s + dst_stride]);
         }
+        data = cropped;
+        width = cw;
+        height = ch;
     }
 
     if decoded_yuv.orientation != Orientation::Normal {

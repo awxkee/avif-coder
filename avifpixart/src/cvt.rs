@@ -65,9 +65,9 @@ fn work_on_transmuted_ptr_f16<F>(
                     .chunks_exact_mut(dst_stride)
                     .zip(src_slice.chunks_exact(rgba_stride as usize))
                 {
-                    let src = &src[0..width * 4 * 2];
-                    let dst = &mut dst[0..width * 4];
-                    for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
+                    let src = &src[..width * 4 * 2];
+                    let dst = &mut dst[..width * 4];
+                    for (dst, src) in dst.iter_mut().zip(src.as_chunks::<2>().0.iter()) {
                         *dst = f16::from_bits(u16::from_ne_bytes([src[0], src[1]]));
                     }
                 }
@@ -87,9 +87,9 @@ fn work_on_transmuted_ptr_f16<F>(
             .chunks_exact(dst_stride)
             .zip(dst_slice.chunks_exact_mut(rgba_stride as usize))
         {
-            let src = &src[0..width * 4];
-            let dst = &mut dst[0..width * 4 * 2];
-            for (src, dst) in src.iter().zip(dst.chunks_exact_mut(2)) {
+            let src = &src[..width * 4];
+            let dst = &mut dst[..width * 4 * 2];
+            for (src, dst) in src.iter().zip(dst.as_chunks_mut::<2>().0.iter_mut()) {
                 let bytes = src.to_ne_bytes();
                 dst[0] = bytes[0];
                 dst[1] = bytes[1];
@@ -129,9 +129,9 @@ pub(crate) fn work_on_transmuted_ptr_u16<F>(
                     .chunks_exact_mut(dst_stride)
                     .zip(src_slice.chunks_exact(rgba_stride as usize))
                 {
-                    let src = &src[0..width * 4 * 2];
-                    let dst = &mut dst[0..width * 4];
-                    for (dst, src) in dst.iter_mut().zip(src.chunks_exact(2)) {
+                    let src = &src[..width * 4 * 2];
+                    let dst = &mut dst[..width * 4];
+                    for (dst, src) in dst.iter_mut().zip(src.as_chunks::<2>().0.iter()) {
                         *dst = u16::from_ne_bytes([src[0], src[1]]);
                     }
                 }
@@ -151,9 +151,9 @@ pub(crate) fn work_on_transmuted_ptr_u16<F>(
             .chunks_exact(dst_stride)
             .zip(dst_slice.chunks_exact_mut(rgba_stride as usize))
         {
-            let src = &src[0..width * 4];
-            let dst = &mut dst[0..width * 4 * 2];
-            for (src, dst) in src.iter().zip(dst.chunks_exact_mut(2)) {
+            let src = &src[..width * 4];
+            let dst = &mut dst[..width * 4 * 2];
+            for (src, dst) in src.iter().zip(dst.as_chunks_mut::<2>().0.iter_mut()) {
                 let bytes = src.to_ne_bytes();
                 dst[0] = bytes[0];
                 dst[1] = bytes[1];
@@ -226,7 +226,7 @@ pub unsafe extern "C" fn weave_premultiply_rgba_f16(
 
 fn premultiply_default(x: &mut [f16], dst_stride: usize) {
     for lane in x.chunks_exact_mut(dst_stride) {
-        for chunk in lane.chunks_exact_mut(4) {
+        for chunk in lane.as_chunks_mut::<4>().0 {
             let a = chunk[3];
             chunk[0] *= a;
             chunk[1] *= a;
@@ -239,7 +239,7 @@ fn premultiply_default(x: &mut [f16], dst_stride: usize) {
 #[target_feature(enable = "fp16")]
 fn premultiply_default_aarch64_fp_16(x: &mut [f16], dst_stride: usize) {
     for lane in x.chunks_exact_mut(dst_stride) {
-        for chunk in lane.chunks_exact_mut(4) {
+        for chunk in lane.as_chunks_mut::<4>().0 {
             let a = chunk[3];
             chunk[0] *= a;
             chunk[1] *= a;
@@ -331,8 +331,8 @@ pub extern "C" fn weave_cvt_rgba16_to_rgba_f16(
             .chunks_exact_mut(width as usize * 4)
             .zip(src_slice.chunks_exact(rgba16_stride as usize))
         {
-            let src = &src[0..width as usize * 4 * 2];
-            let dst = &mut dst[0..width as usize * 4];
+            let src = &src[..width as usize * 4 * 2];
+            let dst = &mut dst[..width as usize * 4];
             for (dst, src) in dst.iter_mut().zip(src.as_chunks::<2>().0.iter()) {
                 *dst = u16::from_ne_bytes([src[0], src[1]]);
             }
@@ -624,14 +624,6 @@ pub fn ar30_to_rgba10_pixel(px: u32) -> [u16; 4] {
     [r10, g10, b10, a10]
 }
 
-/// Convert a slice of AR30 `u32` words into a tightly-packed RGBA u16 buffer
-/// (`width × height × 4` elements, each in `0..=1023`).
-pub(crate) fn ar30_to_rgba10(src: &[u32]) -> Vec<u16> {
-    let mut dst = Vec::with_capacity(src.len() * 4);
-    dst.extend(src.iter().flat_map(|&px| ar30_to_rgba10_pixel(px)));
-    dst
-}
-
 /// Convert a raw `&[u8]` (4 bytes per pixel, little-endian u32) produced by
 /// locking an Android `RGBA_1010102` Bitmap, into a RGBA u16 10-bit buffer.
 pub(crate) fn ar30_bytes_to_rgba10(src: &[u8]) -> Vec<u16> {
@@ -645,34 +637,6 @@ pub(crate) fn ar30_bytes_to_rgba10(src: &[u8]) -> Vec<u16> {
         .iter()
         .flat_map(|b| ar30_to_rgba10_pixel(u32::from_le_bytes(*b)))
         .collect()
-}
-
-/// In-place variant — writes into a pre-allocated `&mut [u16]`.
-/// Panics if `dst.len() < src.len() * 4`.
-pub(crate) fn ar30_to_rgba10_into(src: &[u32], dst: &mut [u16]) {
-    assert!(
-        dst.len() >= src.len() * 4,
-        "dst too small: need {} u16 elements, got {}",
-        src.len() * 4,
-        dst.len(),
-    );
-    for (&px, chunk) in src.iter().zip(dst.chunks_exact_mut(4)) {
-        let [r, g, b, a] = ar30_to_rgba10_pixel(px);
-        chunk[0] = r;
-        chunk[1] = g;
-        chunk[2] = b;
-        chunk[3] = a;
-    }
-}
-
-#[inline(always)]
-pub(crate) fn rgba10_to_ar30_pixel(rgba: [u16; 4]) -> u32 {
-    let [r, g, b, a] = rgba;
-    let a2 = (a >> 8) as u32; // 10→2: keep top 2 bits
-    ((a2 & 0x3) << 30)
-        | (((b & 0x3FF) as u32) << 20)
-        | (((g & 0x3FF) as u32) << 10)
-        | ((r & 0x3FF) as u32)
 }
 
 pub(crate) fn f16_bytes_to_rgba10(

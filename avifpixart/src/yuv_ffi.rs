@@ -309,7 +309,7 @@ pub unsafe extern "C" fn weave_yuv400_p16_to_rgba16(
                     .borrow()
                     .chunks_exact(rgba_stride_u16 as usize),
             ) {
-                for (dst, src) in dst.chunks_exact_mut(2).zip(src.iter()) {
+                for (dst, src) in dst.as_chunks_mut::<2>().0.iter_mut().zip(src.iter()) {
                     let bytes = src.to_ne_bytes();
                     dst[0] = bytes[0];
                     dst[1] = bytes[1];
@@ -409,7 +409,7 @@ pub unsafe extern "C" fn weave_yuv400_p16_with_alpha_to_rgba16(
                     .borrow()
                     .chunks_exact(rgba_stride_u16 as usize),
             ) {
-                for (dst, src) in dst.chunks_exact_mut(2).zip(src.iter()) {
+                for (dst, src) in dst.as_chunks_mut::<2>().0.iter_mut().zip(src.iter()) {
                     let bytes = src.to_ne_bytes();
                     dst[0] = bytes[0];
                     dst[1] = bytes[1];
@@ -675,7 +675,7 @@ pub unsafe extern "C" fn weave_yuv16_to_rgba16(
                     .borrow()
                     .chunks_exact(rgba_stride_u16 as usize),
             ) {
-                for (dst, src) in dst.chunks_exact_mut(2).zip(src.iter()) {
+                for (dst, src) in dst.as_chunks_mut::<2>().0.iter_mut().zip(src.iter()) {
                     let bytes = src.to_ne_bytes();
                     dst[0] = bytes[0];
                     dst[1] = bytes[1];
@@ -1190,7 +1190,7 @@ pub unsafe extern "C" fn weave_yuv16_to_rgba_f16(
                     .borrow()
                     .chunks_exact(rgba_stride_u16 as usize),
             ) {
-                for (dst, src) in dst.chunks_exact_mut(2).zip(src.iter()) {
+                for (dst, src) in dst.as_chunks_mut::<2>().0.iter_mut().zip(src.iter()) {
                     let bytes = src.to_bits().to_ne_bytes();
                     dst[0] = bytes[0];
                     dst[1] = bytes[1];
