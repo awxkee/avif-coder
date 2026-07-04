@@ -291,9 +291,9 @@ checksum = "69745e50d90013442e6b1961cca7bc39d211186406a49a3f3b813913360082e7"
 
 [[package]]
 name = "hpvcd"
-version = "0.1.4"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "241f39c068364929fc3ada54e4cfe80c8a47f2f0d0d06c2442e3536959667209"
+checksum = "c44957464c9e385976e1559472c07bb06b2853ee054fb3a3155c8552bf65c1d4"
 
 [[package]]
 name = "id-arena"
@@ -415,8 +415,8 @@ checksum = "953f07c43838f8e6f9758cab68bf5bed85465e7587ebe0b823f1bcd81978ad3a"
 
 [[package]]
 name = "maroontree"
-version = "0.1.0"
-source = "git+https://github.com/awxkee/maroontree?rev=3aee0551d0a7035ea63c55ab80842970d68a3718#3aee0551d0a7035ea63c55ab80842970d68a3718"
+version = "0.1.1"
+source = "git+https://github.com/awxkee/maroontree?rev=0f64ae4e79511fe4abe44aa01784c2132f5be34f#0f64ae4e79511fe4abe44aa01784c2132f5be34f"
 
 [[package]]
 name = "memchr"
@@ -667,8 +667,9 @@ dependencies = [
 
 [[package]]
 name = "tealdust"
-version = "0.1.0"
-source = "git+https://github.com/awxkee/tealdust#bc499d64b6b17e5884d4785b9bddbf599f4712ca"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19964f091a971899bcea9ed627c30bb66b022c3619e95963af3915a007221786"
 
 [[package]]
 name = "tempfile"

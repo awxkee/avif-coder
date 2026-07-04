@@ -35,7 +35,7 @@ use jni::objects::JObject;
 use jni::strings::JNIString;
 use jni::sys::{jbyteArray, jobject};
 use jni::{EnvUnowned, Outcome, jni_str};
-use maroontree::{BitDepth, ChromaFormat, Cicp, MatrixCoefficients, PlanarImage};
+use maroontree::{BitDepth, ChromaFormat, MatrixCoefficients, PlanarImage};
 use std::num::NonZero;
 use std::ptr::null_mut;
 use std::thread::available_parallelism;
@@ -53,7 +53,7 @@ fn encode_av2_inner_mono_u8(
 ) -> Result<Vec<u8>, anyhow::Error> {
     let cicp = config.cicp;
     let quality = config.quality;
-    let lossless = config.lossless;
+    let _lossless = config.lossless;
     let exif = config.exif.as_ref();
     dbg_log!(
         debug,
@@ -62,7 +62,7 @@ fn encode_av2_inner_mono_u8(
         bitmap_data.height,
         bitmap_data.data.len(),
         quality,
-        lossless,
+        _lossless,
         exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
     );
 
@@ -200,7 +200,7 @@ fn encode_av2_inner_mono_u16(
 ) -> Result<Vec<u8>, anyhow::Error> {
     let cicp = config.cicp;
     let quality = config.quality;
-    let lossless = config.lossless;
+    let _lossless = config.lossless;
     let exif = config.exif.as_ref();
     dbg_log!(
         debug,
@@ -209,7 +209,7 @@ fn encode_av2_inner_mono_u16(
         bitmap_data.height,
         bitmap_data.data.len(),
         quality,
-        lossless,
+        _lossless,
         exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
     );
 
@@ -972,11 +972,16 @@ pub unsafe extern "C" fn encode_avif_av2_file(
             v
         }
         Outcome::Err(_e) => {
-            dbg_log!(error, "JNI error in with_env: {_e:?}");
+            dbg_log!(error, "JNI error in with_env: {}", _e.to_string());
             null_mut()
         }
         Outcome::Panic(_p) => {
-            dbg_log!(error, "panic in with_env: {_p:?}");
+            let _msg = _p
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| _p.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            dbg_log!(error, "panic in with_env: {_msg}");
             null_mut()
         }
     }

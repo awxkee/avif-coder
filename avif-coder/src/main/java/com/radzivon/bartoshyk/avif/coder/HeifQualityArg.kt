@@ -61,27 +61,4 @@ sealed class HeifQualityArg: HeifQualityArgument {
             return false
         }
     }
-    data class Crf(@IntRange(from = 0, to = 51) val crf: Int = 40, val preset: HeifPreset = HeifPreset.ULTRAFAST): HeifQualityArgument {
-        init {
-            require(crf in 0..51) {
-                throw IllegalStateException("CRF should be in 0..51 range")
-            }
-        }
-
-        override fun getRequiredQuality(): Int {
-            return 100
-        }
-
-        override fun getRequiredPreset(): HeifPreset {
-            return preset
-        }
-
-        override fun getRequiredCrf(): Int {
-            return crf
-        }
-
-        override fun isCrfMode(): Boolean {
-            return true
-        }
-    }
 }

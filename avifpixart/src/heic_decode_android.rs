@@ -684,7 +684,12 @@ pub unsafe extern "C" fn decode_heic_file(
             null_mut()
         }
         Outcome::Panic(_p) => {
-            dbg_log!(error, "panic in with_env: {_p:?}");
+            let _msg = _p
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| _p.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            dbg_log!(error, "panic in with_env: {_msg:?}");
             null_mut()
         }
     }

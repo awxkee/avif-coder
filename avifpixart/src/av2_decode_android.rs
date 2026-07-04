@@ -41,6 +41,10 @@ use crate::support::{
     init_logging, try_vec,
 };
 use crate::{HeicInfo, WeaveScaleMode, WeaverPreferredColorConfig, is_av2_image};
+use gainforge::{
+    GainHdrMetadata, GamutClipping, MappingColorSpace, RgbToneMapperParameters, ToneMappingMethod,
+    create_tone_mapper_rgba, create_tone_mapper_rgba10, create_tone_mapper_rgba12,
+};
 use hpvcd::BitDepth;
 use jni::objects::JObject;
 use jni::strings::JNIString;
@@ -418,25 +422,76 @@ fn decode_pipeline<'local>(
                     })?;
                 color_transform_done = true;
                 scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
-            } else if android_os_version() < 34
-                && let Some(profile) = resolve_cicp_profile(regular_image.colors)
-                && let Ok(transform) = profile.create_transform_8bit(
-                    Layout::Rgba,
-                    &ColorProfile::new_srgb(),
-                    Layout::Rgba,
-                    TransformOptions::default(),
-                )
-            {
-                dbg_log!(debug, "8-bit: applying CICP profile transform (OS < 34)");
-                let mut target_data = try_vec![0u8; scaled_data.buffer.borrow().len()];
-                transform
-                    .transform(scaled_data.buffer.borrow(), &mut target_data)
-                    .map_err(|x| {
-                        dbg_log!(error, "CICP transform failed: {x}");
-                        anyhow::anyhow!(x)
-                    })?;
-                scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
-                color_transform_done = true;
+            } else if android_os_version() < 34 {
+                let tc = regular_image.colors.transfer_characteristics;
+                if (tc != tealdust::TransferCharacteristics::Smpte2084
+                    && tc != tealdust::TransferCharacteristics::Hlg)
+                    && let Some(profile) = resolve_cicp_profile(regular_image.colors)
+                    && let Ok(transform) = profile.create_transform_8bit(
+                        Layout::Rgba,
+                        &ColorProfile::new_srgb(),
+                        Layout::Rgba,
+                        TransformOptions::default(),
+                    )
+                {
+                    dbg_log!(debug, "8-bit: applying CICP profile transform (OS < 34)");
+                    let mut target_data = try_vec![0u8; scaled_data.buffer.borrow().len()];
+                    transform
+                        .transform(scaled_data.buffer.borrow(), &mut target_data)
+                        .map_err(|x| {
+                            dbg_log!(error, "CICP transform failed: {x}");
+                            anyhow::anyhow!(x)
+                        })?;
+                    scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
+                    color_transform_done = true;
+                } else if tc == tealdust::TransferCharacteristics::Smpte2084
+                    || tc == tealdust::TransferCharacteristics::Hlg
+                {
+                    let mut new_profile = ColorProfile::default();
+                    let colorimetry = match regular_image.colors.color_primaries {
+                        tealdust::ColorPrimaries::Bt709 => moxcms::ColorPrimaries::BT_709,
+                        tealdust::ColorPrimaries::Bt2020 => moxcms::ColorPrimaries::BT_2020,
+                        tealdust::ColorPrimaries::Smpte431 => moxcms::ColorPrimaries::DCI_P3,
+                        tealdust::ColorPrimaries::Smpte432 => moxcms::ColorPrimaries::DISPLAY_P3,
+                        _ => moxcms::ColorPrimaries::BT_601,
+                    };
+                    new_profile.update_rgb_colorimetry_triplet(
+                        if regular_image.colors.color_primaries
+                            == tealdust::ColorPrimaries::Smpte431
+                        {
+                            moxcms::WHITE_POINT_D60
+                        } else {
+                            moxcms::WHITE_POINT_D65
+                        },
+                        colorimetry.red.to_xyzd(),
+                        colorimetry.green.to_xyzd(),
+                        colorimetry.blue.to_xyzd(),
+                    );
+                    new_profile.cicp = None;
+                    if let Ok(tone_mapper) = create_tone_mapper_rgba(
+                        &new_profile,
+                        &ColorProfile::new_srgb(),
+                        ToneMappingMethod::TunedReinhard(GainHdrMetadata {
+                            display_max_brightness: 203f32,
+                            content_max_brightness: regular_image.clli.max_content_light_level
+                                as f32,
+                        }),
+                        MappingColorSpace::Rgb(RgbToneMapperParameters {
+                            gamut_clipping: GamutClipping::Clip,
+                            exposure: 1.0,
+                        }),
+                    ) {
+                        let mut target_data = try_vec![0u8; scaled_data.buffer.borrow().len()];
+                        tone_mapper
+                            .tonemap_lane(scaled_data.buffer.borrow(), &mut target_data)
+                            .map_err(|x| {
+                                dbg_log!(error, "CICP transform failed: {x}");
+                                anyhow::anyhow!(x)
+                            })?;
+                        scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
+                        color_transform_done = true;
+                    }
+                }
             } else {
                 dbg_log!(
                     debug,
@@ -531,21 +586,77 @@ fn decode_pipeline<'local>(
                             .map_err(|x| anyhow::anyhow!(x))?;
                         scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
                         color_transform_done = true;
-                    } else if android_os_version() < 34
-                        && let Some(profile) = resolve_cicp_profile(hd_image.colors)
-                        && let Ok(transform) = profile.create_transform_10bit(
-                            Layout::Rgba,
-                            &ColorProfile::new_srgb(),
-                            Layout::Rgba,
-                            TransformOptions::default(),
-                        )
-                    {
-                        let mut target_data = try_vec![0u16; scaled_data.buffer.borrow().len()];
-                        transform
-                            .transform(scaled_data.buffer.borrow(), &mut target_data)
-                            .map_err(|x| anyhow::anyhow!(x))?;
-                        scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
-                        color_transform_done = true;
+                    } else if android_os_version() < 34 {
+                        let tc = hd_image.colors.transfer_characteristics;
+                        if (tc != tealdust::TransferCharacteristics::Smpte2084
+                            && tc != tealdust::TransferCharacteristics::Hlg)
+                            && let Some(profile) = resolve_cicp_profile(hd_image.colors)
+                            && let Ok(transform) = profile.create_transform_10bit(
+                                Layout::Rgba,
+                                &ColorProfile::new_srgb(),
+                                Layout::Rgba,
+                                TransformOptions::default(),
+                            )
+                        {
+                            let mut target_data = try_vec![0u16; scaled_data.buffer.borrow().len()];
+                            transform
+                                .transform(scaled_data.buffer.borrow(), &mut target_data)
+                                .map_err(|x| anyhow::anyhow!(x))?;
+                            scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
+                            color_transform_done = true;
+                        } else if tc == tealdust::TransferCharacteristics::Smpte2084
+                            || tc == tealdust::TransferCharacteristics::Hlg
+                        {
+                            let mut new_profile = ColorProfile::default();
+                            let colorimetry = match hd_image.colors.color_primaries {
+                                tealdust::ColorPrimaries::Bt709 => moxcms::ColorPrimaries::BT_709,
+                                tealdust::ColorPrimaries::Bt2020 => moxcms::ColorPrimaries::BT_2020,
+                                tealdust::ColorPrimaries::Smpte431 => {
+                                    moxcms::ColorPrimaries::DCI_P3
+                                }
+                                tealdust::ColorPrimaries::Smpte432 => {
+                                    moxcms::ColorPrimaries::DISPLAY_P3
+                                }
+                                _ => moxcms::ColorPrimaries::BT_601,
+                            };
+                            new_profile.update_rgb_colorimetry_triplet(
+                                if hd_image.colors.color_primaries
+                                    == tealdust::ColorPrimaries::Smpte431
+                                {
+                                    moxcms::WHITE_POINT_D60
+                                } else {
+                                    moxcms::WHITE_POINT_D65
+                                },
+                                colorimetry.red.to_xyzd(),
+                                colorimetry.green.to_xyzd(),
+                                colorimetry.blue.to_xyzd(),
+                            );
+                            new_profile.cicp = None;
+                            if let Ok(tone_mapper) = create_tone_mapper_rgba10(
+                                &new_profile,
+                                &ColorProfile::new_srgb(),
+                                ToneMappingMethod::TunedReinhard(GainHdrMetadata {
+                                    display_max_brightness: 203f32,
+                                    content_max_brightness: hd_image.clli.max_content_light_level
+                                        as f32,
+                                }),
+                                MappingColorSpace::Rgb(RgbToneMapperParameters {
+                                    gamut_clipping: GamutClipping::Clip,
+                                    exposure: 1.0,
+                                }),
+                            ) {
+                                let mut target_data =
+                                    try_vec![0u16; scaled_data.buffer.borrow().len()];
+                                tone_mapper
+                                    .tonemap_lane(scaled_data.buffer.borrow(), &mut target_data)
+                                    .map_err(|x| {
+                                        dbg_log!(error, "CICP transform failed: {x}");
+                                        anyhow::anyhow!(x)
+                                    })?;
+                                scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
+                                color_transform_done = true;
+                            }
+                        }
                     }
                 }
                 BitDepth::Twelve => {
@@ -565,21 +676,77 @@ fn decode_pipeline<'local>(
                             .map_err(|x| anyhow::anyhow!(x))?;
                         scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
                         color_transform_done = true;
-                    } else if android_os_version() < 34
-                        && let Some(profile) = resolve_cicp_profile(hd_image.colors)
-                        && let Ok(transform) = profile.create_transform_12bit(
-                            Layout::Rgba,
-                            &ColorProfile::new_srgb(),
-                            Layout::Rgba,
-                            TransformOptions::default(),
-                        )
-                    {
-                        let mut target_data = try_vec![0u16; scaled_data.buffer.borrow().len()];
-                        transform
-                            .transform(scaled_data.buffer.borrow(), &mut target_data)
-                            .map_err(|x| anyhow::anyhow!(x))?;
-                        scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
-                        color_transform_done = true;
+                    } else if android_os_version() < 34 {
+                        let tc = hd_image.colors.transfer_characteristics;
+                        if (tc != tealdust::TransferCharacteristics::Smpte2084
+                            && tc != tealdust::TransferCharacteristics::Hlg)
+                            && let Some(profile) = resolve_cicp_profile(hd_image.colors)
+                            && let Ok(transform) = profile.create_transform_12bit(
+                                Layout::Rgba,
+                                &ColorProfile::new_srgb(),
+                                Layout::Rgba,
+                                TransformOptions::default(),
+                            )
+                        {
+                            let mut target_data = try_vec![0u16; scaled_data.buffer.borrow().len()];
+                            transform
+                                .transform(scaled_data.buffer.borrow(), &mut target_data)
+                                .map_err(|x| anyhow::anyhow!(x))?;
+                            scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
+                            color_transform_done = true;
+                        } else if tc == tealdust::TransferCharacteristics::Smpte2084
+                            || tc == tealdust::TransferCharacteristics::Hlg
+                        {
+                            let mut new_profile = ColorProfile::default();
+                            let colorimetry = match hd_image.colors.color_primaries {
+                                tealdust::ColorPrimaries::Bt709 => moxcms::ColorPrimaries::BT_709,
+                                tealdust::ColorPrimaries::Bt2020 => moxcms::ColorPrimaries::BT_2020,
+                                tealdust::ColorPrimaries::Smpte431 => {
+                                    moxcms::ColorPrimaries::DCI_P3
+                                }
+                                tealdust::ColorPrimaries::Smpte432 => {
+                                    moxcms::ColorPrimaries::DISPLAY_P3
+                                }
+                                _ => moxcms::ColorPrimaries::BT_601,
+                            };
+                            new_profile.update_rgb_colorimetry_triplet(
+                                if hd_image.colors.color_primaries
+                                    == tealdust::ColorPrimaries::Smpte431
+                                {
+                                    moxcms::WHITE_POINT_D60
+                                } else {
+                                    moxcms::WHITE_POINT_D65
+                                },
+                                colorimetry.red.to_xyzd(),
+                                colorimetry.green.to_xyzd(),
+                                colorimetry.blue.to_xyzd(),
+                            );
+                            new_profile.cicp = None;
+                            if let Ok(tone_mapper) = create_tone_mapper_rgba12(
+                                &new_profile,
+                                &ColorProfile::new_srgb(),
+                                ToneMappingMethod::TunedReinhard(GainHdrMetadata {
+                                    display_max_brightness: 203f32,
+                                    content_max_brightness: hd_image.clli.max_content_light_level
+                                        as f32,
+                                }),
+                                MappingColorSpace::Rgb(RgbToneMapperParameters {
+                                    gamut_clipping: GamutClipping::Clip,
+                                    exposure: 1.0,
+                                }),
+                            ) {
+                                let mut target_data =
+                                    try_vec![0u16; scaled_data.buffer.borrow().len()];
+                                tone_mapper
+                                    .tonemap_lane(scaled_data.buffer.borrow(), &mut target_data)
+                                    .map_err(|x| {
+                                        dbg_log!(error, "CICP transform failed: {x}");
+                                        anyhow::anyhow!(x)
+                                    })?;
+                                scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
+                                color_transform_done = true;
+                            }
+                        }
                     }
                 }
             }
@@ -690,7 +857,12 @@ pub unsafe extern "C" fn decode_av2_file(
             null_mut()
         }
         Outcome::Panic(_p) => {
-            dbg_log!(error, "panic in with_env: {_p:?}");
+            let _msg = _p
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| _p.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            dbg_log!(error, "panic in with_env: {_msg}");
             null_mut()
         }
     }

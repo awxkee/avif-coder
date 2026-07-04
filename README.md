@@ -3,7 +3,7 @@
 This library provides a simple interface to decode or encode (create) AVIF and HEIF images for
 Android.
 Very fast and convenient to use AVIF in Android apps with API version 24+. Based
-on [maroontree](https://github.com/awxkee/maroontree), [hpvca](https://github.com/awxkee/hpvca), [hpvcd](https://github.com/awxkee/hpvcd),
+on [tealdust](https://github.com/awxkee/tealdust), [maroontree](https://github.com/awxkee/maroontree), [hpvca](https://github.com/awxkee/hpvca), [hpvcd](https://github.com/awxkee/hpvcd),
 libavif and libdav1d.
 
 Correctly handles ICC, color profiles, and HDR images.

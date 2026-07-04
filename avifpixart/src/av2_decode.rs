@@ -31,7 +31,7 @@ use crate::heic_decode::WeaverError;
 use crate::orientation::apply_orientation_av2;
 use crate::support::try_vec;
 use hpvcd::BitDepth;
-use tealdust::{AvifImage, ColorInfo};
+use tealdust::{AvifImage, ColorInfo, ContentLightLevel};
 use yuv::{
     YuvGrayAlphaImage, YuvGrayImage, YuvPlanarImage, YuvPlanarImageWithAlpha, YuvStandardMatrix,
     i010_alpha_to_rgba10, i010_to_rgba10, i012_alpha_to_rgba12, i012_to_rgba12,
@@ -46,19 +46,6 @@ use yuv::{
     yuv444_alpha_to_rgba, yuv444_to_rgba,
 };
 
-fn is_heic(bytes: &[u8]) -> bool {
-    if bytes.len() < 12 {
-        return false;
-    }
-    if &bytes[4..8] != b"ftyp" {
-        return false;
-    }
-    matches!(
-        &bytes[8..12],
-        b"heic" | b"heix" | b"hevc" | b"hevx" | b"mif1" | b"msf1" | b"miaf" | b"MiHE"
-    )
-}
-
 pub(crate) struct DecodedAvifPacket<T> {
     pub(crate) data: Vec<T>,
     pub(crate) width: usize,
@@ -67,6 +54,7 @@ pub(crate) struct DecodedAvifPacket<T> {
     pub(crate) icc: Option<Vec<u8>>,
     pub(crate) bit_depth: BitDepth,
     pub(crate) has_real_alpha: bool,
+    pub(crate) clli: ContentLightLevel,
 }
 
 fn finalize<T: Copy + Default>(
@@ -84,19 +72,18 @@ fn finalize<T: Copy + Default>(
         .clean_aperture
         .as_ref()
         .and_then(|x| x.to_crop_rect(image.width, image.height))
+        && (cw as usize != width || ch as usize != height)
     {
-        if cw as usize != width || ch as usize != height {
-            let (src_stride, dst_stride) = (width * CH, cw as usize * CH);
-            let mut cropped = try_vec![T::default(); cw as usize * ch as usize * CH];
-            for row in 0..ch as usize {
-                let s = (top as usize + row) * src_stride + left as usize * CH;
-                let d = row * dst_stride;
-                cropped[d..d + dst_stride].copy_from_slice(&data[s..s + dst_stride]);
-            }
-            data = cropped;
-            width = cw as usize;
-            height = ch as usize;
+        let (src_stride, dst_stride) = (width * CH, cw as usize * CH);
+        let mut cropped = try_vec![T::default(); cw as usize * ch as usize * CH];
+        for row in 0..ch as usize {
+            let s = (top as usize + row) * src_stride + left as usize * CH;
+            let d = row * dst_stride;
+            cropped[d..d + dst_stride].copy_from_slice(&data[s..s + dst_stride]);
         }
+        data = cropped;
+        width = cw as usize;
+        height = ch as usize;
     }
 
     if image.orientation != tealdust::Orientation::Normal {
@@ -111,7 +98,7 @@ fn finalize<T: Copy + Default>(
         width,
         height,
         colors: cicp,
-        icc: image_info.icc_profile.as_ref().map(|x| x.data.to_vec()),
+        icc: image_info.icc_profile.as_ref().map(|x| x.to_vec()),
         bit_depth: match image.bits_per_component {
             8 => BitDepth::Eight,
             10 => BitDepth::Ten,
@@ -119,6 +106,10 @@ fn finalize<T: Copy + Default>(
             _ => unreachable!("It should be impossible! and handled somewhere in different place"),
         },
         has_real_alpha: image.alpha.is_some(),
+        clli: image_info.content_light_level.unwrap_or(ContentLightLevel {
+            max_content_light_level: 2000,
+            max_frame_average_light_level: 2000,
+        }),
     })
 }
 

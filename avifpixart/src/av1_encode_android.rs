@@ -258,7 +258,7 @@ fn encode_avif_inner_mono_u16(
 
     rgba10_to_y010(
         &mut planar_image,
-        &hd_data,
+        hd_data,
         bitmap_data.width as u32 * 4,
         yuv_range,
         yuv_matrix,
@@ -968,12 +968,12 @@ fn encode_av1_inner(
     bitmap_data: &mut BitmapData,
     config: &AvEncodingConfig,
 ) -> Result<Vec<u8>, anyhow::Error> {
-    let chroma_subsampling = config.chroma;
+    let _chroma_subsampling = config.chroma;
     dbg_log!(
         debug,
         "encode_av1_inner: format={:?} chroma={:?}",
         bitmap_data.format,
-        chroma_subsampling
+        _chroma_subsampling
     );
     match bitmap_data.format {
         BitmapPixelFormat::Rgba8888 => {
@@ -1178,7 +1178,12 @@ pub unsafe extern "C" fn encode_avif_av1_file(
             null_mut()
         }
         Outcome::Panic(_p) => {
-            dbg_log!(error, "panic in with_env: {_p:?}");
+            let _msg = _p
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| _p.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            dbg_log!(error, "panic in with_env: {_msg}");
             null_mut()
         }
     }
