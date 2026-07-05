@@ -195,7 +195,7 @@ class MainActivity : AppCompatActivity() {
                             bitmap1,
                             null,
                             60,
-                            PreciseMode.LOSSY,
+                            PreciseMode.LOSSLESS,
                             AvifChromaSubsampling.YUV444,
                             AvKind.AV2,
                         )
