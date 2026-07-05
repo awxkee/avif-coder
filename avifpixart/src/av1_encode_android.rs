@@ -29,11 +29,13 @@
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
 use crate::heic_decode::WeaverError;
-use crate::support::{dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec};
+use crate::support::{
+    dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec,
+    panic_payload_to_string, throw_runtime_exception, throw_runtime_exception_raw,
+};
 use jni::objects::JObject;
-use jni::strings::JNIString;
 use jni::sys::{jbyteArray, jobject};
-use jni::{EnvUnowned, Outcome, jni_str};
+use jni::{EnvUnowned, Outcome};
 use maroontree::{
     BitDepth, ChromaFormat, ChromaSamplePosition, Cicp, MatrixCoefficients, PlanarImage, Primaries,
     TransferFunction,
@@ -214,7 +216,7 @@ fn encode_avif_inner_mono_u16(
         exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
     );
 
-    let local_cicp = cicp;
+    let mut local_cicp = cicp;
     dbg_log!(
         debug,
         "cicp: primaries={:?} transfer={:?} matrix={:?} full_range={}",
@@ -225,11 +227,19 @@ fn encode_avif_inner_mono_u16(
     );
     dbg_log!(debug, "has_real_alpha={has_real_alpha}");
 
-    let yuv_range = match cicp.full_range {
+    if lossless && !local_cicp.full_range {
+        dbg_log!(
+            warn,
+            "lossless AV1 monochrome encode requires full range; overriding CICP range to full"
+        );
+        local_cicp.full_range = true;
+    }
+
+    let yuv_range = match local_cicp.full_range {
         true => YuvRange::Full,
         false => YuvRange::Limited,
     };
-    let yuv_matrix = match cicp.matrix {
+    let yuv_matrix = match local_cicp.matrix {
         MatrixCoefficients::Bt709 => YuvStandardMatrix::Bt709,
         MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt601,
         MatrixCoefficients::Fcc => YuvStandardMatrix::Fcc,
@@ -372,7 +382,7 @@ fn encode_avif_inner_mono_u8(
         exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
     );
 
-    let local_cicp = cicp;
+    let mut local_cicp = cicp;
     dbg_log!(
         debug,
         "cicp: primaries={:?} transfer={:?} matrix={:?} full_range={}",
@@ -383,11 +393,19 @@ fn encode_avif_inner_mono_u8(
     );
     dbg_log!(debug, "has_real_alpha={has_real_alpha}");
 
-    let yuv_range = match cicp.full_range {
+    if lossless && !local_cicp.full_range {
+        dbg_log!(
+            warn,
+            "lossless AV1 monochrome10 encode requires full range; overriding CICP range to full"
+        );
+        local_cicp.full_range = true;
+    }
+
+    let yuv_range = match local_cicp.full_range {
         true => YuvRange::Full,
         false => YuvRange::Limited,
     };
-    let yuv_matrix = match cicp.matrix {
+    let yuv_matrix = match local_cicp.matrix {
         MatrixCoefficients::Bt709 => YuvStandardMatrix::Bt709,
         MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt601,
         MatrixCoefficients::Fcc => YuvStandardMatrix::Fcc,
@@ -519,7 +537,7 @@ fn encode_av1_inner_u8(
     let cicp = config.cicp;
     let quality = config.quality;
     let lossless = config.lossless;
-    let chroma_subsampling = config.chroma;
+    let requested_chroma_subsampling = config.chroma;
     let exif = config.exif.as_ref();
     dbg_log!(
         debug,
@@ -530,7 +548,7 @@ fn encode_av1_inner_u8(
         bitmap_data.data.len(),
         quality,
         lossless,
-        chroma_subsampling,
+        requested_chroma_subsampling,
         exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
     );
 
@@ -545,9 +563,30 @@ fn encode_av1_inner_u8(
     );
     dbg_log!(debug, "has_real_alpha={has_real_alpha}");
 
-    if chroma_subsampling == ChromaFormat::Monochrome {
+    if requested_chroma_subsampling == ChromaFormat::Monochrome {
         dbg_log!(debug, "delegating to monochrome path");
         return encode_avif_inner_mono_u8(bitmap_data, config, has_real_alpha);
+    }
+
+    let chroma_subsampling = if lossless {
+        if requested_chroma_subsampling != ChromaFormat::Yuv444 {
+            dbg_log!(
+                warn,
+                "lossless AV1 RGB encode requires 4:4:4; overriding requested chroma={:?} to Yuv444",
+                requested_chroma_subsampling
+            );
+        }
+        ChromaFormat::Yuv444
+    } else {
+        requested_chroma_subsampling
+    };
+
+    if lossless && !local_cicp.full_range {
+        dbg_log!(
+            warn,
+            "lossless AV1 RGB encode requires full range; overriding CICP range to full"
+        );
+        local_cicp.full_range = true;
     }
 
     let yuv_range = match local_cicp.full_range {
@@ -758,10 +797,22 @@ fn encode_av1_inner_u16_10_bit(
     let quality = config.quality;
     let lossless = config.lossless;
     let exif = config.exif.as_ref();
-    let chroma_format = config.chroma;
-    if chroma_format == ChromaFormat::Monochrome {
+    let requested_chroma_format = config.chroma;
+    if requested_chroma_format == ChromaFormat::Monochrome {
         return encode_avif_inner_mono_u16(hd_plane, bitmap_data, config, has_real_alpha);
     }
+    let chroma_format = if lossless {
+        if requested_chroma_format != ChromaFormat::Yuv444 {
+            dbg_log!(
+                warn,
+                "lossless AV1 RGB10 encode requires 4:4:4; overriding requested chroma={:?} to Yuv444",
+                requested_chroma_format
+            );
+        }
+        ChromaFormat::Yuv444
+    } else {
+        requested_chroma_format
+    };
     dbg_log!(
         debug,
         "encode_heic_inner_u16_10_bit: {}x{} hd_pixels={} quality={} lossless={} \
@@ -786,11 +837,19 @@ fn encode_av1_inner_u16_10_bit(
     );
     dbg_log!(debug, "has_real_alpha={has_real_alpha}");
 
-    let yuv_range = match cicp.full_range {
+    if lossless && !local_cicp.full_range {
+        dbg_log!(
+            warn,
+            "lossless AV1 RGB10 encode requires full range; overriding CICP range to full"
+        );
+        local_cicp.full_range = true;
+    }
+
+    let yuv_range = match local_cicp.full_range {
         true => YuvRange::Full,
         false => YuvRange::Limited,
     };
-    let yuv_matrix = match cicp.matrix {
+    let yuv_matrix = match local_cicp.matrix {
         MatrixCoefficients::Bt709 => YuvStandardMatrix::Bt709,
         MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt601,
         MatrixCoefficients::Fcc => YuvStandardMatrix::Fcc,
@@ -1184,10 +1243,7 @@ pub unsafe extern "C" fn encode_avif_av1_file(
             }
             Err(e) => {
                 dbg_log!(error, "encode_avif_file failed: {e:#}");
-                let _ = env.throw_new(
-                    jni_str!("java/lang/RuntimeException"),
-                    JNIString::from(e.to_string()),
-                );
+                throw_runtime_exception(env, format!("AVIF/AV1 encoding failed: {e:#}"));
                 Ok(JObject::null().into_raw())
             }
         }
@@ -1200,16 +1256,18 @@ pub unsafe extern "C" fn encode_avif_av1_file(
             v
         }
         Outcome::Err(_e) => {
-            dbg_log!(error, "JNI error in with_env: {_e:?}");
+            let msg = format!("JNI error while encoding AVIF/AV1: {_e}");
+            dbg_log!(error, "{msg}");
+            unsafe { throw_runtime_exception_raw(env, msg) };
             null_mut()
         }
         Outcome::Panic(_p) => {
-            let _msg = _p
-                .downcast_ref::<&str>()
-                .map(|s| s.to_string())
-                .or_else(|| _p.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "unknown panic".to_string());
-            dbg_log!(error, "panic in with_env: {_msg}");
+            let msg = format!(
+                "panic while encoding AVIF/AV1: {}",
+                panic_payload_to_string(_p.as_ref())
+            );
+            dbg_log!(error, "{msg}");
+            unsafe { throw_runtime_exception_raw(env, msg) };
             null_mut()
         }
     }

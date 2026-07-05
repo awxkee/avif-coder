@@ -40,9 +40,10 @@ use yuv::{
     i410_alpha_to_rgba10, i410_to_rgba10, i412_alpha_to_rgba12, i412_to_rgba12,
     icgc010_alpha_to_rgba10, icgc010_to_rgba10, icgc012_alpha_to_rgba12, icgc012_to_rgba12,
     icgc210_alpha_to_rgba10, icgc210_to_rgba10, icgc212_alpha_to_rgba12, icgc212_to_rgba12,
-    icgc412_alpha_to_rgba12, icgc412_to_rgba12, y010_alpha_to_rgba10, y010_to_rgba10,
-    y012_alpha_to_rgba12, y012_to_rgba12, ycgco420_alpha_to_rgba, ycgco420_to_rgba,
-    ycgco422_alpha_to_rgba, ycgco422_to_rgba, yuv400_alpha_to_rgba, yuv400_to_rgba,
+    icgc410_alpha_to_rgba10, icgc410_to_rgba10, icgc412_alpha_to_rgba12, icgc412_to_rgba12,
+    y010_alpha_to_rgba10, y010_to_rgba10, y012_alpha_to_rgba12, y012_to_rgba12,
+    ycgco420_alpha_to_rgba, ycgco420_to_rgba, ycgco422_alpha_to_rgba, ycgco422_to_rgba,
+    ycgco444_alpha_to_rgba, ycgco444_to_rgba, yuv400_alpha_to_rgba, yuv400_to_rgba,
     yuv420_alpha_to_rgba, yuv420_to_rgba, yuv422_alpha_to_rgba, yuv422_to_rgba,
     yuv444_alpha_to_rgba, yuv444_to_rgba,
 };
@@ -461,7 +462,7 @@ fn decode_inner_low_bit_depth(
         }
         hpvcd::ChromaFormat::Yuv444 => {
             if is_ycgco {
-                decode_chroma_to_rgba_cgco!(ycgco422_to_rgba, ycgco422_alpha_to_rgba, 2)
+                decode_chroma_to_rgba_cgco!(ycgco444_to_rgba, ycgco444_alpha_to_rgba, 1)
             } else {
                 decode_chroma_to_rgba!(yuv444_to_rgba, yuv444_alpha_to_rgba, 1)
             }
@@ -706,7 +707,7 @@ fn decode_heic_inner_10bit(
         }
         hpvcd::ChromaFormat::Yuv444 => {
             if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc412_to_rgba12, icgc412_alpha_to_rgba12, 1)
+                decode_chroma_to_rgba_ycgco!(icgc410_to_rgba10, icgc410_alpha_to_rgba10, 1)
             } else {
                 decode_chroma_to_rgba!(i410_to_rgba10, i410_alpha_to_rgba10, 1)
             }

@@ -27,8 +27,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use jni::objects::JObject;
+use jni::strings::JNIString;
 use jni::sys::jobject;
-use jni::{Env, JValue, jni_sig, jni_str};
+use jni::{Env, EnvUnowned, JValue, Outcome, jni_sig, jni_str};
 use num_traits::AsPrimitive;
 use std::fmt::Debug;
 use std::ops::{AddAssign, BitXor};
@@ -167,6 +168,70 @@ pub(crate) fn init_logging() {
                 .with_tag("avifweaver"),
         );
     });
+}
+
+#[inline]
+pub(crate) fn panic_payload_to_string(payload: &(dyn std::any::Any + Send + 'static)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|s| (*s).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic".to_string())
+}
+
+pub(crate) fn throw_runtime_exception(env: &mut Env, message: impl Into<String>) {
+    let message = message.into();
+
+    match env.exception_check() {
+        true => {
+            dbg_log!(
+                error,
+                "not throwing RuntimeException because a Java exception is already pending: {message}"
+            );
+            return;
+        }
+        false => {}
+    }
+
+    if let Err(_e) = env.throw_new(
+        jni_str!("java/lang/RuntimeException"),
+        JNIString::from(message.clone()),
+    ) {
+        dbg_log!(
+            error,
+            "failed to throw Java RuntimeException: {_e}; original error: {message}"
+        );
+    }
+}
+
+pub(crate) unsafe fn throw_runtime_exception_raw(
+    env: *mut jni::sys::JNIEnv,
+    message: impl Into<String>,
+) {
+    if env.is_null() {
+        return;
+    }
+
+    let message = message.into();
+    let mut unowned = unsafe { EnvUnowned::from_raw(env) };
+    let outcome = unowned.with_env(move |env| -> Result<(), jni::errors::Error> {
+        throw_runtime_exception(env, message);
+        Ok(())
+    });
+
+    match outcome.into_outcome() {
+        Outcome::Ok(()) => {}
+        Outcome::Err(_e) => {
+            dbg_log!(
+                error,
+                "failed to attach Env while throwing Java exception: {_e}"
+            );
+        }
+        Outcome::Panic(panic) => {
+            let _msg = panic_payload_to_string(panic.as_ref());
+            dbg_log!(error, "panic while throwing Java exception: {_msg}");
+        }
+    }
 }
 
 pub(crate) fn optional_bytebuffer_to_vec(

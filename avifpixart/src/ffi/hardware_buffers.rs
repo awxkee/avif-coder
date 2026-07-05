@@ -232,16 +232,12 @@ pub fn allocate_hardware_buffer(
 
 #[inline]
 fn rgba8888_hardware_buffer_usage() -> u64 {
-    AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN.0
-        | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
-        | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.0
-        | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT.0
+    AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.0
 }
 
 #[inline]
 fn rgba8888_cpu_usage() -> u64 {
-    AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN.0
-        | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
+    AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
 }
 
 #[inline]
@@ -423,7 +419,7 @@ pub struct OwnedHardwareBuffer {
 
 // SAFETY: `AHardwareBuffer` is an atomically reference-counted, thread-safe
 // handle, so moving ownership across threads is sound. `Sync` is intentionally
-// *not* implemented: concurrent locking must be serialised by the caller, which
+// *not* implemented: concurrent locking must be serialized by the caller, which
 // the `&mut self` receiver on `lock` already guarantees for a single owner.
 unsafe impl Send for OwnedHardwareBuffer {}
 
