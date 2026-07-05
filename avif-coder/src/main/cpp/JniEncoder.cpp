@@ -76,15 +76,21 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_encodeAvifImpl(JNIEnv *env,
                                                             jint dataSpace,
                                                             jboolean lossless,
                                                             jint chromaSubsampling,
-                                                            jboolean useAV2) {
+                                                            jboolean useAV2, jint speed) {
   try {
+    auto avSpeed = AvEncodingSpeed::Fast;
+    if (speed == 1) {
+      avSpeed = AvEncodingSpeed::Medium;
+    } else if (speed == 2) {
+      avSpeed = AvEncodingSpeed::Slow;
+    }
     if (useAV2) {
       return encode_avif_av2_file(
-          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling, AvEncodingSpeed::Fast
+          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling, avSpeed
       );
     } else {
       return encode_avif_av1_file(
-          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling, AvEncodingSpeed::Fast
+          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling, avSpeed
       );
     }
   } catch (std::bad_alloc &err) {

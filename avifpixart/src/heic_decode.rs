@@ -192,8 +192,8 @@ fn solve_heic_colors(decoded_yuv: &DecodedYuv) -> Result<HeicColors, WeaverError
         full_range: true,
     });
     let yuv_range = match cicp.full_range {
-        true => yuv::YuvRange::Limited,
-        false => yuv::YuvRange::Full,
+        false => yuv::YuvRange::Limited,
+        true => yuv::YuvRange::Full,
     };
 
     let matrix: YuvStandardMatrix = match cicp.matrix {
@@ -345,35 +345,35 @@ fn decode_inner_low_bit_depth(
                     false,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma_plane,
+                    y_stride: decoded_yuv.width,
+                    u_plane: cb_plane,
+                    u_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    v_plane: cr_plane,
+                    v_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    width: decoded_yuv.width,
+                    height: decoded_yuv.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    decoded_yuv.width * 4,
+                    colors.range,
+                    colors.matrix,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: luma_plane,
-                y_stride: decoded_yuv.width,
-                u_plane: cb_plane,
-                u_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                v_plane: cr_plane,
-                v_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -413,34 +413,34 @@ fn decode_inner_low_bit_depth(
                     colors.range,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma_plane,
+                    y_stride: decoded_yuv.width,
+                    u_plane: cb_plane,
+                    u_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    v_plane: cr_plane,
+                    v_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    width: decoded_yuv.width,
+                    height: decoded_yuv.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    decoded_yuv.width * 4,
+                    colors.range,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: luma_plane,
-                y_stride: decoded_yuv.width,
-                u_plane: cb_plane,
-                u_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                v_plane: cr_plane,
-                v_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
     match decoded_yuv.chroma {
@@ -589,35 +589,35 @@ fn decode_heic_inner_10bit(
                     colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma_plane,
+                    y_stride: decoded_yuv.width,
+                    u_plane: cb_plane,
+                    u_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    v_plane: cr_plane,
+                    v_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    width: decoded_yuv.width,
+                    height: decoded_yuv.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    decoded_yuv.width * 4,
+                    colors.range,
+                    colors.matrix,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: luma_plane,
-                y_stride: decoded_yuv.width,
-                u_plane: cb_plane,
-                u_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                v_plane: cr_plane,
-                v_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -657,34 +657,34 @@ fn decode_heic_inner_10bit(
                     colors.range,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma_plane,
+                    y_stride: decoded_yuv.width,
+                    u_plane: cb_plane,
+                    u_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    v_plane: cr_plane,
+                    v_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    width: decoded_yuv.width,
+                    height: decoded_yuv.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    decoded_yuv.width * 4,
+                    colors.range,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: luma_plane,
-                y_stride: decoded_yuv.width,
-                u_plane: cb_plane,
-                u_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                v_plane: cr_plane,
-                v_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -834,35 +834,35 @@ fn decode_heic_inner_12bit(
                     colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma_plane,
+                    y_stride: decoded_yuv.width,
+                    u_plane: cb_plane,
+                    u_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    v_plane: cr_plane,
+                    v_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    width: decoded_yuv.width,
+                    height: decoded_yuv.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    decoded_yuv.width * 4,
+                    colors.range,
+                    colors.matrix,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: luma_plane,
-                y_stride: decoded_yuv.width,
-                u_plane: cb_plane,
-                u_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                v_plane: cr_plane,
-                v_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -902,34 +902,34 @@ fn decode_heic_inner_12bit(
                     colors.range,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma_plane,
+                    y_stride: decoded_yuv.width,
+                    u_plane: cb_plane,
+                    u_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    v_plane: cr_plane,
+                    v_stride: if $sub_w != 1 {
+                        decoded_yuv.width.div_ceil($sub_w)
+                    } else {
+                        decoded_yuv.width
+                    },
+                    width: decoded_yuv.width,
+                    height: decoded_yuv.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    decoded_yuv.width * 4,
+                    colors.range,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: luma_plane,
-                y_stride: decoded_yuv.width,
-                u_plane: cb_plane,
-                u_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                v_plane: cr_plane,
-                v_stride: if $sub_w != 1 {
-                    decoded_yuv.width.div_ceil($sub_w)
-                } else {
-                    decoded_yuv.width
-                },
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 

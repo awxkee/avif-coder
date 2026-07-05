@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
             var allFiles = mutableListOf<String>()
             allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("heic_icc.heic") }.toMutableList()
+            allFiles = allFiles.filter { it.contains("test_1.avif") }.toMutableList()
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -126,11 +126,29 @@ class MainActivity : AppCompatActivity() {
 
                     val size = coder.getSize(buffer)
                     if (size != null) {
-                        val bitmap0 = coder.decodeSampled(
+                        val bitmap00 = coder.decodeSampled(
                             buffer,
                             if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
                             if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
                             PreferredColorConfig.RGBA_8888,
+                            ScaleMode.RESIZE
+                        )
+
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            val imageView = BindingImageViewBinding.inflate(
+                                layoutInflater,
+                                binding.scrollViewContainer,
+                                false
+                            )
+                            imageView.root.setImageBitmap(bitmap00)
+                            binding.scrollViewContainer.addView(imageView.root)
+                        }
+
+                        val bitmap0 = coder.decodeSampled(
+                            buffer,
+                            if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
+                            if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
+                            PreferredColorConfig.RGBA_F16,
                             ScaleMode.FIT
                         )
                         var start = System.currentTimeMillis()
@@ -149,7 +167,7 @@ class MainActivity : AppCompatActivity() {
                         val encoded = coder.encodeHeic(
                             bitmap0, null, PreciseMode.LOSSY,
                             HeifQualityArg.Quality(70),
-                            HeicChromaSubsampling.YUV444
+                            HeicChromaSubsampling.YUV420
                         )
 
                         val bitmap1 = coder.decodeSampled(
@@ -178,9 +196,10 @@ class MainActivity : AppCompatActivity() {
                             null,
                             60,
                             PreciseMode.LOSSY,
-                            AvifChromaSubsampling.YUV400,
+                            AvifChromaSubsampling.YUV444,
                             AvKind.AV2,
                         )
+//                        writeFile("result2.avif", encodedAvif)
 
                         val bitmap2 = coder.decodeSampled(
                             encodedAvif,
@@ -291,6 +310,18 @@ class MainActivity : AppCompatActivity() {
 //        output.close()
 //        Log.d("p", bytes.size.toString())
 //    }
+
+    private fun writeFile(file: String, ba: ByteArray) {
+        val ff = File(this.filesDir, file)
+        ff.delete()
+        val output = FileOutputStream(ff)
+        output.sink().buffer().use {
+            it.write(ba)
+            it.flush()
+        }
+        output.close()
+        Log.d("p", ba.size.toString())
+    }
 
     companion object {
         // Used to load the 'avif' library on application startup.

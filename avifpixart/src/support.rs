@@ -222,10 +222,10 @@ where
 {
     assert!(ALPHA_CHANNEL_INDEX < CHANNELS);
     assert!(CHANNELS > 0 && CHANNELS <= 4);
-    if store.is_empty() {
+    if store.len() <= ALPHA_CHANNEL_INDEX || width == 0 {
         return false;
     }
-    let first = store[0];
+    let first = store[ALPHA_CHANNEL_INDEX];
     let mut row_sums: J = 0u32.as_();
     for row in store.chunks_exact(width * CHANNELS) {
         for color in row.as_chunks::<CHANNELS>().0.iter() {
@@ -235,6 +235,5 @@ where
             return true;
         }
     }
-    let zeros = 0.as_();
-    row_sums.ne(&zeros)
+    false
 }

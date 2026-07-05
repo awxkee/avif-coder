@@ -32,4 +32,6 @@ mod hardware_buffers;
 
 pub(crate) use android_bitmap::{MIN_OS_BITMAP_COLOR_SPACE, software_bitmap, wrap_hardware_buffer};
 pub(crate) use bitmap_reader::*;
-pub(super) use hardware_buffers::{MIN_HARDWARE_BUFFER_OS, load_hardware_buffer_api};
+pub(super) use hardware_buffers::{
+    create_rgba8888_hardware_buffer, create_rgba8888_hardware_buffer_from_u16,
+};

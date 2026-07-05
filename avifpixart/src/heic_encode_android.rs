@@ -36,6 +36,7 @@ use jni::strings::JNIString;
 use jni::sys::{jbyteArray, jobject};
 use jni::{EnvUnowned, Outcome, jni_str};
 use ndk_sys::ADataSpace;
+use std::borrow::Cow;
 use std::num::NonZero;
 use std::ptr::null_mut;
 use std::thread::available_parallelism;
@@ -45,6 +46,65 @@ use yuv::{
     rgba_to_yuv444, rgba10_to_i010, rgba10_to_i210, rgba10_to_i410, rgba10_to_icgc010,
     rgba10_to_icgc210, rgba10_to_icgc410,
 };
+
+#[inline]
+fn hpvca_coded_dimensions(width: usize, height: usize, chroma: ChromaFormat) -> (usize, usize) {
+    match chroma {
+        ChromaFormat::Monochrome => (width, height),
+        ChromaFormat::Yuv420 => (width.next_multiple_of(2), height.next_multiple_of(2)),
+        ChromaFormat::Yuv422 => (width.next_multiple_of(2), height),
+        ChromaFormat::Yuv444 => (width, height),
+    }
+}
+
+fn maybe_pad_rgba_for_hpvca<T: Copy>(
+    src: &[T],
+    width: usize,
+    height: usize,
+    coded_width: usize,
+    coded_height: usize,
+) -> Result<Cow<'_, [T]>, anyhow::Error> {
+    if width == 0 || height == 0 {
+        return Err(anyhow::anyhow!(
+            "bitmap dimensions must be non-zero: {width}x{height}"
+        ));
+    }
+
+    let src_len = width
+        .checked_mul(height)
+        .and_then(|v| v.checked_mul(4))
+        .ok_or_else(|| anyhow::anyhow!("source RGBA dimensions overflow"))?;
+    if src.len() < src_len {
+        return Err(anyhow::anyhow!(
+            "source RGBA buffer is too small: got {} samples, need {src_len}",
+            src.len()
+        ));
+    }
+
+    if width == coded_width && height == coded_height {
+        return Ok(Cow::Borrowed(src));
+    }
+
+    let dst_len = coded_width
+        .checked_mul(coded_height)
+        .and_then(|v| v.checked_mul(4))
+        .ok_or_else(|| anyhow::anyhow!("coded RGBA dimensions overflow"))?;
+    let mut out = Vec::with_capacity(dst_len);
+    let src_stride = width * 4;
+
+    for y in 0..coded_height {
+        let sy = y.min(height - 1);
+        let row = &src[sy * src_stride..(sy + 1) * src_stride];
+        out.extend_from_slice(row);
+
+        let last_px = &row[(width - 1) * 4..width * 4];
+        for _ in width..coded_width {
+            out.extend_from_slice(last_px);
+        }
+    }
+
+    Ok(Cow::Owned(out))
+}
 
 fn resolve_cicp(color_space: i32) -> Cicp {
     let ds = ADataSpace(color_space);
@@ -229,9 +289,42 @@ fn encode_heic_inner_u8(
     };
     dbg_log!(debug, "yuv_range={yuv_range:?} yuv_matrix={yuv_matrix:?}");
 
+    let (coded_width, coded_height) =
+        hpvca_coded_dimensions(bitmap_data.width, bitmap_data.height, chroma_format);
+    let coded_width_u32 = u32::try_from(coded_width)
+        .map_err(|_| anyhow::anyhow!("coded width does not fit in u32: {coded_width}"))?;
+    let coded_height_u32 = u32::try_from(coded_height)
+        .map_err(|_| anyhow::anyhow!("coded height does not fit in u32: {coded_height}"))?;
+    let original_width_u32 = u32::try_from(bitmap_data.width)
+        .map_err(|_| anyhow::anyhow!("bitmap width does not fit in u32: {}", bitmap_data.width))?;
+    let original_height_u32 = u32::try_from(bitmap_data.height).map_err(|_| {
+        anyhow::anyhow!("bitmap height does not fit in u32: {}", bitmap_data.height)
+    })?;
+    let rgba = maybe_pad_rgba_for_hpvca(
+        &bitmap_data.data,
+        bitmap_data.width,
+        bitmap_data.height,
+        coded_width,
+        coded_height,
+    )?;
+    let rgba_stride = coded_width_u32
+        .checked_mul(4)
+        .ok_or_else(|| anyhow::anyhow!("coded RGBA stride overflow"))?;
+    if coded_width != bitmap_data.width || coded_height != bitmap_data.height {
+        dbg_log!(
+            debug,
+            "padding RGBA for hpvca chroma grid: {}x{} -> {}x{} ({:?})",
+            bitmap_data.width,
+            bitmap_data.height,
+            coded_width,
+            coded_height,
+            chroma_format
+        );
+    }
+
     let mut planar_image = YuvPlanarImageMut::alloc(
-        bitmap_data.width as u32,
-        bitmap_data.height as u32,
+        coded_width_u32,
+        coded_height_u32,
         match chroma_format {
             ChromaFormat::Monochrome => unreachable!("Should be sorted out in different place"),
             ChromaFormat::Yuv420 => YuvChromaSubsampling::Yuv420,
@@ -241,9 +334,11 @@ fn encode_heic_inner_u8(
     );
     dbg_log!(
         debug,
-        "allocated YUV420 planes: {}x{} (y={} u={} v={} samples)",
+        "allocated YUV planes: coded={}x{} display={}x{} (y={} u={} v={} samples)",
         planar_image.width,
         planar_image.height,
+        bitmap_data.width,
+        bitmap_data.height,
         planar_image.y_plane.borrow().len(),
         planar_image.u_plane.borrow().len(),
         planar_image.v_plane.borrow().len(),
@@ -259,8 +354,8 @@ fn encode_heic_inner_u8(
         };
         f(
             &mut planar_image,
-            &bitmap_data.data,
-            bitmap_data.width as u32 * 4,
+            rgba.as_ref(),
+            rgba_stride,
             yuv_range,
             yuv_matrix,
             YuvConversionMode::Balanced,
@@ -281,13 +376,7 @@ fn encode_heic_inner_u8(
             ChromaFormat::Yuv422 => rgba_to_ycgco422,
             ChromaFormat::Yuv444 => rgba_to_ycgco444,
         };
-        f(
-            &mut planar_image,
-            &bitmap_data.data,
-            bitmap_data.width as u32 * 4,
-            yuv_range,
-        )
-        .map_err(|x| {
+        f(&mut planar_image, rgba.as_ref(), rgba_stride, yuv_range).map_err(|x| {
             dbg_log!(error, "rgba_to_ycgco420 failed: {x}");
             anyhow::anyhow!(x)
         })?;
@@ -321,10 +410,10 @@ fn encode_heic_inner_u8(
             .iter()
             .map(|&x| x as u16)
             .collect(),
-        width: planar_image.width,
-        height: planar_image.height,
-        display_w: planar_image.width,
-        display_h: planar_image.height,
+        width: coded_width_u32,
+        height: coded_height_u32,
+        display_w: original_width_u32,
+        display_h: original_height_u32,
         chroma: chroma_format,
         bit_depth: BitDepth::Eight,
     };
@@ -354,8 +443,8 @@ fn encode_heic_inner_u8(
 
     if has_real_alpha {
         dbg_log!(debug, "encoding with alpha plane");
-        let alpha = bitmap_data
-            .data
+        let alpha = rgba
+            .as_ref()
             .as_chunks::<4>()
             .0
             .iter()
@@ -438,9 +527,42 @@ fn encode_heic_inner_u16_10_bit(
     };
     dbg_log!(debug, "yuv_range={yuv_range:?} yuv_matrix={yuv_matrix:?}");
 
+    let (coded_width, coded_height) =
+        hpvca_coded_dimensions(bitmap_data.width, bitmap_data.height, chroma_format);
+    let coded_width_u32 = u32::try_from(coded_width)
+        .map_err(|_| anyhow::anyhow!("coded width does not fit in u32: {coded_width}"))?;
+    let coded_height_u32 = u32::try_from(coded_height)
+        .map_err(|_| anyhow::anyhow!("coded height does not fit in u32: {coded_height}"))?;
+    let original_width_u32 = u32::try_from(bitmap_data.width)
+        .map_err(|_| anyhow::anyhow!("bitmap width does not fit in u32: {}", bitmap_data.width))?;
+    let original_height_u32 = u32::try_from(bitmap_data.height).map_err(|_| {
+        anyhow::anyhow!("bitmap height does not fit in u32: {}", bitmap_data.height)
+    })?;
+    let rgba = maybe_pad_rgba_for_hpvca(
+        hd_plane,
+        bitmap_data.width,
+        bitmap_data.height,
+        coded_width,
+        coded_height,
+    )?;
+    let rgba_stride = coded_width_u32
+        .checked_mul(4)
+        .ok_or_else(|| anyhow::anyhow!("coded RGBA stride overflow"))?;
+    if coded_width != bitmap_data.width || coded_height != bitmap_data.height {
+        dbg_log!(
+            debug,
+            "padding RGBA10 for hpvca chroma grid: {}x{} -> {}x{} ({:?})",
+            bitmap_data.width,
+            bitmap_data.height,
+            coded_width,
+            coded_height,
+            chroma_format
+        );
+    }
+
     let mut planar_image = YuvPlanarImageMut::alloc(
-        bitmap_data.width as u32,
-        bitmap_data.height as u32,
+        coded_width_u32,
+        coded_height_u32,
         match chroma_format {
             ChromaFormat::Monochrome => unreachable!("Should be sorted out in different place"),
             ChromaFormat::Yuv420 => YuvChromaSubsampling::Yuv420,
@@ -450,9 +572,11 @@ fn encode_heic_inner_u16_10_bit(
     );
     dbg_log!(
         debug,
-        "allocated YUV420 planes: {}x{} (y={} u={} v={} samples)",
+        "allocated YUV planes: coded={}x{} display={}x{} (y={} u={} v={} samples)",
         planar_image.width,
         planar_image.height,
+        bitmap_data.width,
+        bitmap_data.height,
         planar_image.y_plane.borrow().len(),
         planar_image.u_plane.borrow().len(),
         planar_image.v_plane.borrow().len(),
@@ -468,8 +592,8 @@ fn encode_heic_inner_u16_10_bit(
         };
         f(
             &mut planar_image,
-            hd_plane,
-            bitmap_data.width as u32 * 4,
+            rgba.as_ref(),
+            rgba_stride,
             yuv_range,
             yuv_matrix,
         )
@@ -489,13 +613,7 @@ fn encode_heic_inner_u16_10_bit(
             ChromaFormat::Yuv422 => rgba10_to_icgc210,
             ChromaFormat::Yuv444 => rgba10_to_icgc410,
         };
-        f(
-            &mut planar_image,
-            hd_plane,
-            bitmap_data.width as u32 * 4,
-            yuv_range,
-        )
-        .map_err(|x| {
+        f(&mut planar_image, rgba.as_ref(), rgba_stride, yuv_range).map_err(|x| {
             dbg_log!(error, "rgba10_to_icgc010 failed: {x}");
             anyhow::anyhow!(x)
         })?;
@@ -514,10 +632,10 @@ fn encode_heic_inner_u16_10_bit(
         y: planar_image.y_plane.borrow().to_vec(),
         cb: planar_image.u_plane.borrow().to_vec(),
         cr: planar_image.v_plane.borrow().to_vec(),
-        width: planar_image.width,
-        height: planar_image.height,
-        display_w: planar_image.width,
-        display_h: planar_image.height,
+        width: coded_width_u32,
+        height: coded_height_u32,
+        display_w: original_width_u32,
+        display_h: original_height_u32,
         chroma: chroma_format,
         bit_depth: BitDepth::Ten,
     };
@@ -547,12 +665,12 @@ fn encode_heic_inner_u16_10_bit(
 
     if has_real_alpha {
         dbg_log!(debug, "encoding with alpha plane");
-        let alpha = bitmap_data
-            .data
+        let alpha = rgba
+            .as_ref()
             .as_chunks::<4>()
             .0
             .iter()
-            .map(|x| x[3] as u16)
+            .map(|x| x[3])
             .collect::<Vec<_>>();
 
         dbg_log!(debug, "alpha plane: {} samples", alpha.len());
