@@ -231,13 +231,23 @@ pub fn allocate_hardware_buffer(
 }
 
 #[inline]
-fn rgba8888_hardware_buffer_usage() -> u64 {
+fn rgba8888_gpu_usage() -> u64 {
     AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.0
 }
 
 #[inline]
-fn rgba8888_cpu_usage() -> u64 {
+fn rgba8888_cpu_write_usage() -> u64 {
     AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
+}
+
+#[inline]
+fn rgba8888_hardware_buffer_usage() -> u64 {
+    rgba8888_gpu_usage() | rgba8888_cpu_write_usage()
+}
+
+#[inline]
+fn rgba8888_lock_usage() -> u64 {
+    rgba8888_cpu_write_usage()
 }
 
 #[inline]
@@ -298,7 +308,7 @@ fn lock_rgba8888_hardware_buffer(
         bottom: height as i32,
     };
     let lock = owned
-        .lock(rgba8888_cpu_usage(), -1, Some(&rect))
+        .lock(rgba8888_lock_usage(), -1, Some(&rect))
         .map_err(|x| anyhow::anyhow!("Locking hardware buffer failed with an error {x}"))?;
     if lock.as_ptr().is_null() {
         return Err(anyhow::anyhow!(
