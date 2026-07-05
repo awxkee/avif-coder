@@ -384,9 +384,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "maroontree"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42a1f61c144703b7c200e205938568f30829b016e6d643c64e20e34b187c25ab"
+checksum = "8f35070b77347302ec5382853dd944f15d55f6e71ad3e49d8dfb0808e980c696"
 
 [[package]]
 name = "memchr"
