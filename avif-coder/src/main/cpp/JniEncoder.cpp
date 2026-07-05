@@ -235,7 +235,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_Coder_isSupportedImageImplBB(JNIEnv *env, jobject thiz,
                                                                     jobject byteBuffer) {
   try {
-    auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
+    auto bufferAddress = reinterpret_cast<const uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
     auto length = (size_t) env->GetDirectBufferCapacity(byteBuffer);
     if (!bufferAddress || length <= 0) {
       std::string errorString = "Only direct byte buffers are supported";
@@ -255,7 +255,7 @@ JNIEXPORT jint JNICALL
 Java_com_radzivon_bartoshyk_avif_coder_Coder_detectContainerImpl(JNIEnv *env, jobject thiz,
                                                                  jobject byteBuffer) {
   try {
-    auto bufferAddress = reinterpret_cast<uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
+    auto bufferAddress = reinterpret_cast<const uint8_t *>(env->GetDirectBufferAddress(byteBuffer));
     auto length = (size_t) env->GetDirectBufferCapacity(byteBuffer);
     if (!bufferAddress || length <= 0) {
       std::string errorString = "Only direct byte buffers are supported";
