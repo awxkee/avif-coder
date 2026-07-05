@@ -550,11 +550,11 @@ fn encode_av1_inner_u8(
         return encode_avif_inner_mono_u8(bitmap_data, config, has_real_alpha);
     }
 
-    let yuv_range = match cicp.full_range {
+    let yuv_range = match local_cicp.full_range {
         true => YuvRange::Full,
         false => YuvRange::Limited,
     };
-    let yuv_matrix = match cicp.matrix {
+    let yuv_matrix = match local_cicp.matrix {
         MatrixCoefficients::Bt709 => YuvStandardMatrix::Bt709,
         MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt601,
         MatrixCoefficients::Fcc => YuvStandardMatrix::Fcc,
@@ -696,11 +696,17 @@ fn encode_av1_inner_u8(
             ],
             bit_depth: BitDepth::Eight,
         };
-        let result =
+        let result = if lossless {
+            maroontree::encode_lossless_with_alpha(&av1_planar_image, &config).map_err(|x| {
+                dbg_log!(error, "encode_yuva8_with_alpha failed: {x}");
+                anyhow::anyhow!(x)
+            })?
+        } else {
             maroontree::encode_yuva8_with_alpha(&av1_planar_image, &config).map_err(|x| {
                 dbg_log!(error, "encode_yuva8_with_alpha failed: {x}");
                 anyhow::anyhow!(x)
-            })?;
+            })?
+        };
         dbg_log!(
             debug,
             "encoded {:?}+alpha: {} bytes",
@@ -721,10 +727,17 @@ fn encode_av1_inner_u8(
         ],
         bit_depth: BitDepth::Eight,
     };
-    let result = maroontree::encode_yuv8(&av1_planar_image, &config).map_err(|x| {
-        dbg_log!(error, "encode_yuv8 failed: {x}");
-        anyhow::anyhow!(x)
-    })?;
+    let result = if lossless {
+        maroontree::encode_lossless(&av1_planar_image, &config).map_err(|x| {
+            dbg_log!(error, "encode_yuv8 failed: {x}");
+            anyhow::anyhow!(x)
+        })?
+    } else {
+        maroontree::encode_yuv8(&av1_planar_image, &config).map_err(|x| {
+            dbg_log!(error, "encode_yuv8 failed: {x}");
+            anyhow::anyhow!(x)
+        })?
+    };
     dbg_log!(
         debug,
         "encoded {:?}: {} bytes ({:.2} bpp)",
@@ -925,11 +938,17 @@ fn encode_av1_inner_u16_10_bit(
             ],
             bit_depth: BitDepth::Ten,
         };
-        let result =
+        let result = if lossless {
+            maroontree::encode_lossless_with_alpha(&av1_planar_image, &config).map_err(|x| {
+                dbg_log!(error, "encode_yuva10_with_alpha failed: {x}");
+                anyhow::anyhow!(x)
+            })?
+        } else {
             maroontree::encode_yuva10_with_alpha(&av1_planar_image, &config).map_err(|x| {
                 dbg_log!(error, "encode_yuva10_with_alpha failed: {x}");
                 anyhow::anyhow!(x)
-            })?;
+            })?
+        };
         dbg_log!(
             debug,
             "encoded 10-bit {:?}+alpha: {} bytes",
@@ -950,10 +969,17 @@ fn encode_av1_inner_u16_10_bit(
         ],
         bit_depth: BitDepth::Ten,
     };
-    let result = maroontree::encode_yuv10(&av1_planar_image, &config).map_err(|x| {
-        dbg_log!(error, "encode_yuv10 failed: {x}");
-        anyhow::anyhow!(x)
-    })?;
+    let result = if lossless {
+        maroontree::encode_lossless(&av1_planar_image, &config).map_err(|x| {
+            dbg_log!(error, "encode_yuv10 failed: {x}");
+            anyhow::anyhow!(x)
+        })?
+    } else {
+        maroontree::encode_yuv10(&av1_planar_image, &config).map_err(|x| {
+            dbg_log!(error, "encode_yuv10 failed: {x}");
+            anyhow::anyhow!(x)
+        })?
+    };
     dbg_log!(
         debug,
         "encoded 10-bit {:?}: {} bytes ({:.2} bpp)",

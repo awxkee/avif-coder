@@ -35,14 +35,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("maven-publish")
     id("signing")
-    id("com.vanniktech.maven.publish") version "0.36.0"
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
 mavenPublishing {
     if (System.getenv("PUBLISH_STATE") == "Release") {
         publishToMavenCentral(
             automaticRelease = true,
-            validateDeployment = DeploymentValidation.PUBLISHED
+            validateDeployment = DeploymentValidation.VALIDATED
         )
         signAllPublications()
     }

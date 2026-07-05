@@ -31,7 +31,7 @@ use crate::heic_decode::WeaverError;
 use crate::orientation::apply_orientation_av2;
 use crate::support::try_vec;
 use hpvcd::BitDepth;
-use tealdust::{AvifImage, ColorInfo, ContentLightLevel};
+use tealdust::{AvifImage, AvifSettings, ColorInfo, ContentLightLevel};
 use yuv::{
     YuvGrayAlphaImage, YuvGrayImage, YuvPlanarImage, YuvPlanarImageWithAlpha, YuvStandardMatrix,
     i010_alpha_to_rgba10, i010_to_rgba10, i012_alpha_to_rgba12, i012_to_rgba12,
@@ -39,9 +39,10 @@ use yuv::{
     i410_alpha_to_rgba10, i410_to_rgba10, i412_alpha_to_rgba12, i412_to_rgba12,
     icgc010_alpha_to_rgba10, icgc010_to_rgba10, icgc012_alpha_to_rgba12, icgc012_to_rgba12,
     icgc210_alpha_to_rgba10, icgc210_to_rgba10, icgc212_alpha_to_rgba12, icgc212_to_rgba12,
-    icgc412_alpha_to_rgba12, icgc412_to_rgba12, y010_alpha_to_rgba10, y010_to_rgba10,
-    y012_alpha_to_rgba12, y012_to_rgba12, ycgco420_alpha_to_rgba, ycgco420_to_rgba,
-    ycgco422_alpha_to_rgba, ycgco422_to_rgba, yuv400_alpha_to_rgba, yuv400_to_rgba,
+    icgc410_alpha_to_rgba10, icgc410_to_rgba10, icgc412_alpha_to_rgba12, icgc412_to_rgba12,
+    y010_alpha_to_rgba10, y010_to_rgba10, y012_alpha_to_rgba12, y012_to_rgba12,
+    ycgco420_alpha_to_rgba, ycgco420_to_rgba, ycgco422_alpha_to_rgba, ycgco422_to_rgba,
+    ycgco444_alpha_to_rgba, ycgco444_to_rgba, yuv400_alpha_to_rgba, yuv400_to_rgba,
     yuv420_alpha_to_rgba, yuv420_to_rgba, yuv422_alpha_to_rgba, yuv422_to_rgba,
     yuv444_alpha_to_rgba, yuv444_to_rgba,
 };
@@ -132,8 +133,8 @@ fn solve_av2_colors(image: &AvifImage) -> Result<AvifColors, WeaverError> {
         full_range: true,
     });
     let yuv_range = match cicp.full_range {
-        true => yuv::YuvRange::Limited,
-        false => yuv::YuvRange::Full,
+        false => yuv::YuvRange::Limited,
+        true => yuv::YuvRange::Full,
     };
 
     let matrix: YuvStandardMatrix = match cicp.matrix_coefficients {
@@ -248,27 +249,27 @@ fn decode_inner_low_bit_depth(
                     false,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: &image.planes[0],
+                    y_stride: image.strides[0] as u32,
+                    u_plane: &image.planes[1],
+                    u_stride: image.strides[1] as u32,
+                    v_plane: &image.planes[2],
+                    v_stride: image.strides[1] as u32,
+                    width: image.width,
+                    height: image.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    image.width * 4,
+                    colors.range,
+                    colors.matrix,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: &image.planes[0],
-                y_stride: image.strides[0] as u32,
-                u_plane: &image.planes[1],
-                u_stride: image.strides[1] as u32,
-                v_plane: &image.planes[2],
-                v_stride: image.strides[1] as u32,
-                width: image.width,
-                height: image.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                image.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -290,21 +291,21 @@ fn decode_inner_low_bit_depth(
 
                 $alpha_to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
                     .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: &image.planes[0],
+                    y_stride: image.strides[0] as u32,
+                    u_plane: &image.planes[1],
+                    u_stride: image.strides[1] as u32,
+                    v_plane: &image.planes[2],
+                    v_stride: image.strides[1] as u32,
+                    width: image.width,
+                    height: image.height,
+                };
+
+                $to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: &image.planes[0],
-                y_stride: image.strides[0] as u32,
-                u_plane: &image.planes[1],
-                u_stride: image.strides[1] as u32,
-                v_plane: &image.planes[2],
-                v_stride: image.strides[1] as u32,
-                width: image.width,
-                height: image.height,
-            };
-
-            $to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
     match image.pixel_layout {
@@ -325,7 +326,7 @@ fn decode_inner_low_bit_depth(
         }
         tealdust::PixelLayout::I444 => {
             if is_ycgco {
-                decode_chroma_to_rgba_cgco!(ycgco422_to_rgba, ycgco422_alpha_to_rgba, 2)
+                decode_chroma_to_rgba_cgco!(ycgco444_to_rgba, ycgco444_alpha_to_rgba, 2)
             } else {
                 decode_chroma_to_rgba!(yuv444_to_rgba, yuv444_alpha_to_rgba, 1)
             }
@@ -426,27 +427,27 @@ fn decode_av2_inner_10bit(
                     colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: &pack_u8_into_u16(&image.planes[0]),
+                    y_stride: image.strides[0] as u32,
+                    u_plane: &pack_u8_into_u16(&image.planes[1]),
+                    u_stride: image.strides[1] as u32,
+                    v_plane: &pack_u8_into_u16(&image.planes[2]),
+                    v_stride: image.strides[1] as u32,
+                    width: image.width,
+                    height: image.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    image.width * 4,
+                    colors.range,
+                    colors.matrix,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: &pack_u8_into_u16(&image.planes[0]),
-                y_stride: image.strides[0] as u32,
-                u_plane: &pack_u8_into_u16(&image.planes[1]),
-                u_stride: image.strides[1] as u32,
-                v_plane: &pack_u8_into_u16(&image.planes[2]),
-                v_stride: image.strides[1] as u32,
-                width: image.width,
-                height: image.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                image.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -468,21 +469,21 @@ fn decode_av2_inner_10bit(
 
                 $alpha_to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
                     .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: &pack_u8_into_u16(&image.planes[0]),
+                    y_stride: image.strides[0] as u32,
+                    u_plane: &pack_u8_into_u16(&image.planes[1]),
+                    u_stride: image.strides[1] as u32,
+                    v_plane: &pack_u8_into_u16(&image.planes[2]),
+                    v_stride: image.strides[1] as u32,
+                    width: image.width,
+                    height: image.height,
+                };
+
+                $to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: &pack_u8_into_u16(&image.planes[0]),
-                y_stride: image.strides[0] as u32,
-                u_plane: &pack_u8_into_u16(&image.planes[1]),
-                u_stride: image.strides[1] as u32,
-                v_plane: &pack_u8_into_u16(&image.planes[2]),
-                v_stride: image.strides[1] as u32,
-                width: image.width,
-                height: image.height,
-            };
-
-            $to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -504,7 +505,7 @@ fn decode_av2_inner_10bit(
         }
         tealdust::PixelLayout::I444 => {
             if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc412_to_rgba12, icgc412_alpha_to_rgba12, 1)
+                decode_chroma_to_rgba_ycgco!(icgc410_to_rgba10, icgc410_alpha_to_rgba10, 1)
             } else {
                 decode_chroma_to_rgba!(i410_to_rgba10, i410_alpha_to_rgba10, 1)
             }
@@ -596,27 +597,27 @@ fn decode_av2_inner_12bit(
                     colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: &pack_u8_into_u16(&image.planes[0]),
+                    y_stride: image.strides[0] as u32,
+                    u_plane: &pack_u8_into_u16(&image.planes[1]),
+                    u_stride: image.strides[1] as u32,
+                    v_plane: &pack_u8_into_u16(&image.planes[2]),
+                    v_stride: image.strides[1] as u32,
+                    width: image.width,
+                    height: image.height,
+                };
+
+                $to_rgba(
+                    &planar_yuv,
+                    &mut target_data,
+                    image.width * 4,
+                    colors.range,
+                    colors.matrix,
+                )
+                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: &pack_u8_into_u16(&image.planes[0]),
-                y_stride: image.strides[0] as u32,
-                u_plane: &pack_u8_into_u16(&image.planes[1]),
-                u_stride: image.strides[1] as u32,
-                v_plane: &pack_u8_into_u16(&image.planes[2]),
-                v_stride: image.strides[1] as u32,
-                width: image.width,
-                height: image.height,
-            };
-
-            $to_rgba(
-                &planar_yuv,
-                &mut target_data,
-                image.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -638,21 +639,21 @@ fn decode_av2_inner_12bit(
 
                 $alpha_to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
                     .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: &pack_u8_into_u16(&image.planes[0]),
+                    y_stride: image.strides[0] as u32,
+                    u_plane: &pack_u8_into_u16(&image.planes[1]),
+                    u_stride: image.strides[1] as u32,
+                    v_plane: &pack_u8_into_u16(&image.planes[2]),
+                    v_stride: image.strides[1] as u32,
+                    width: image.width,
+                    height: image.height,
+                };
+
+                $to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
-
-            let planar_yuv = YuvPlanarImage {
-                y_plane: &pack_u8_into_u16(&image.planes[0]),
-                y_stride: image.strides[0] as u32,
-                u_plane: &pack_u8_into_u16(&image.planes[1]),
-                u_stride: image.strides[1] as u32,
-                v_plane: &pack_u8_into_u16(&image.planes[2]),
-                v_stride: image.strides[1] as u32,
-                width: image.width,
-                height: image.height,
-            };
-
-            $to_rgba(&planar_yuv, &mut target_data, image.width * 4, colors.range)
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }};
     }
 
@@ -684,13 +685,10 @@ fn decode_av2_inner_12bit(
     finalize(target_data, image, image_info, colors.cicp)
 }
 
-/// # Arguments
-///
-/// * `data`:
-///
-/// returns: Result<PackedHeic, WeaverError>
 pub(crate) fn decode_packed_av2(data: &[u8]) -> Result<PackedAv2, WeaverError> {
-    let mut decoder = tealdust::AvifDecoder::new(data)
+    let mut settings = AvifSettings::default();
+    settings.decoder_settings.frame_size_limit = 16536 * 16536;
+    let mut decoder = tealdust::AvifDecoder::with_settings(data, settings)
         .map_err(|x| WeaverError::FailedToDecodeAv2(x.to_string()))?;
     let image_info = decoder
         .image_info()

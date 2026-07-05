@@ -140,6 +140,8 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
           str = "On identity matrix image layout must be 4:4:4 but it wasn't";
       throw std::runtime_error(str);
     }
+  } else if (image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_YCGCO) {
+    matrix = YuvMatrix::YCgCo;
   }
 
   YuvRange range = YuvRange::Tv;

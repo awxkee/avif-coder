@@ -31,8 +31,10 @@ use crate::cvt::{
     pack_8_to_565, pack_8_to_ar30, pack_8_to_f16, pack_10_or_12_to_565, pack_10_or_12_to_ar30,
     pack_10_or_12_to_f16,
 };
-use crate::ffi::{MIN_HARDWARE_BUFFER_OS, load_hardware_buffer_api};
-use crate::ffi::{MIN_OS_BITMAP_COLOR_SPACE, software_bitmap, wrap_hardware_buffer};
+use crate::ffi::{
+    MIN_OS_BITMAP_COLOR_SPACE, create_rgba8888_hardware_buffer,
+    create_rgba8888_hardware_buffer_from_u16, software_bitmap, wrap_hardware_buffer,
+};
 use crate::heic_decode::WeaverError;
 use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
@@ -51,10 +53,9 @@ use jni::strings::JNIString;
 use jni::sys::jobject;
 use jni::{Env, EnvUnowned, Outcome, jni_str};
 use moxcms::{ColorProfile, Layout, TransformOptions};
-use ndk_sys::{AHardwareBuffer_Desc, AHardwareBuffer_Format, AHardwareBuffer_UsageFlags, ARect};
 use std::ptr::null_mut;
 use std::slice;
-use tealdust::{AvifDecoder, ColorInfo};
+use tealdust::{AvifDecoder, AvifSettings, ColorInfo};
 
 fn resolve_cicp_profile(colors: ColorInfo) -> Option<ColorProfile> {
     match colors.color_primaries {
@@ -192,57 +193,10 @@ fn make_8bit_transfer(
             }
         }
         WeaverPreferredColorConfig::Hardware => {
-            if android_os_version() >= MIN_HARDWARE_BUFFER_OS
-                && let Some(hw_apis) = load_hardware_buffer_api()
+            if let Some(hardware_buffer) =
+                create_rgba8888_hardware_buffer(env, data, width, height)?
             {
-                let usage = AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN.0
-                    | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
-                    | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.0
-                    | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT.0;
-                let descriptor = AHardwareBuffer_Desc {
-                    width: width as u32,
-                    height: height as u32,
-                    layers: 1,
-                    format: AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM.0,
-                    usage,
-                    stride: 0,
-                    rfu0: 0,
-                    rfu1: 0,
-                };
-                if !hw_apis.is_supported(&descriptor) {
-                    Ok(PackedImageTransfer::Image(PackedImageBuffer {
-                        data: data.to_vec(),
-                        width,
-                        height,
-                        format: WeaverPreferredColorConfig::Rgba8888,
-                    }))
-                } else {
-                    let mut owned = hw_apis.allocate_owned(&descriptor).map_err(|x| {
-                        anyhow::anyhow!("Allocation hardware buffer failed with an error {x}")
-                    })?;
-                    let usage_flags =
-                        AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN.0
-                            | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0;
-                    let a_rect = ARect {
-                        left: 0,
-                        top: 0,
-                        right: width as i32,
-                        bottom: height as i32,
-                    };
-                    {
-                        let mut lock = owned.lock(usage_flags, -1, Some(&a_rect)).map_err(|x| {
-                            anyhow::anyhow!("Locking hardware buffer failed with an error {x}")
-                        })?;
-                        let total_length = width * height * 4;
-                        let locked_data = unsafe {
-                            slice::from_raw_parts_mut(lock.as_mut_ptr() as *mut u8, total_length)
-                        };
-                        locked_data.copy_from_slice(data);
-                    }
-                    Ok(PackedImageTransfer::HardwareBuffer(unsafe {
-                        owned.to_java_hardware_buffer(env)
-                    }))
-                }
+                Ok(PackedImageTransfer::HardwareBuffer(hardware_buffer))
             } else {
                 Ok(PackedImageTransfer::Image(PackedImageBuffer {
                     data: data.to_vec(),
@@ -310,52 +264,14 @@ fn make_10_12bit_transfer(
             }
         }
         WeaverPreferredColorConfig::Hardware => {
-            if android_os_version() >= MIN_HARDWARE_BUFFER_OS
-                && let Some(hw_apis) = load_hardware_buffer_api()
-            {
-                let usage = AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN.0
-                    | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
-                    | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE.0
-                    | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT.0;
-                let descriptor = AHardwareBuffer_Desc {
-                    width: width as u32,
-                    height: height as u32,
-                    layers: 1,
-                    format: AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM.0,
-                    usage,
-                    stride: 0,
-                    rfu0: 0,
-                    rfu1: 0,
-                };
-                if !hw_apis.is_supported(&descriptor) {
-                    format_8_bit()
-                } else {
-                    let mut owned = hw_apis.allocate_owned(&descriptor).map_err(|x| {
-                        anyhow::anyhow!("Allocation hardware buffer failed with an error {x}")
-                    })?;
-                    let usage_flags =
-                        AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN.0
-                            | AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0;
-                    let a_rect = ARect {
-                        left: 0,
-                        top: 0,
-                        right: width as i32,
-                        bottom: height as i32,
-                    };
-                    {
-                        let mut lock = owned.lock(usage_flags, -1, Some(&a_rect)).map_err(|x| {
-                            anyhow::anyhow!("Locking hardware buffer failed with an error {x}")
-                        })?;
-                        let total_length = width * height * 4;
-                        let locked_data = unsafe {
-                            slice::from_raw_parts_mut(lock.as_mut_ptr() as *mut u8, total_length)
-                        };
-                        locked_data.copy_from_slice(bytemuck::cast_slice(data));
-                    }
-                    Ok(PackedImageTransfer::HardwareBuffer(unsafe {
-                        owned.to_java_hardware_buffer(env)
-                    }))
-                }
+            if let Some(hardware_buffer) = create_rgba8888_hardware_buffer_from_u16(
+                env,
+                data,
+                width,
+                height,
+                bit_depth.bits() as usize,
+            )? {
+                Ok(PackedImageTransfer::HardwareBuffer(hardware_buffer))
             } else {
                 format_8_bit()
             }
@@ -874,7 +790,10 @@ pub unsafe extern "C" fn read_av2_file_info(data: *const u8, length: usize) -> H
         return HeicInfo::not_a_heic();
     }
     let bytes = unsafe { slice::from_raw_parts(data, length) };
-    let image_info = match AvifDecoder::new(bytes).and_then(|x| x.image_info()) {
+    let mut settings = AvifSettings::default();
+    settings.decoder_settings.frame_size_limit = 16536 * 16536;
+    let image_info = match AvifDecoder::with_settings(bytes, settings).and_then(|x| x.image_info())
+    {
         Ok(v) => v,
         Err(_v) => {
             dbg_log!(error, "Failed to read AV2 info: {_v:?}");

@@ -51,7 +51,7 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                       scalingQuality);
     } else {
       WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
-      if (scaleMode == 2) {
+      if (scaleMode == 1) {
         mScaleMode = WeaveScaleMode::ScaleToFit;
       } else if (scaleMode == 3) {
         mScaleMode = WeaveScaleMode::JustResize;
@@ -124,7 +124,7 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeImpl(JNIEnv *env,
     auto containerType = container_recognisance(srcBuffer.data(), srcBuffer.size());
 
     WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
-    if (scaleMode == 2) {
+    if (scaleMode == 1) {
       mScaleMode = WeaveScaleMode::ScaleToFit;
     } else if (scaleMode == 3) {
       mScaleMode = WeaveScaleMode::JustResize;
@@ -190,7 +190,7 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeByteBufferImpl(JNIEnv *env,
     auto containerType = container_recognisance(srcBuffer.data(), srcBuffer.size());
 
     WeaveScaleMode mScaleMode = WeaveScaleMode::ScaleToFill;
-    if (scaleMode == 2) {
+    if (scaleMode == 1) {
       mScaleMode = WeaveScaleMode::ScaleToFit;
     } else if (scaleMode == 3) {
       mScaleMode = WeaveScaleMode::JustResize;
