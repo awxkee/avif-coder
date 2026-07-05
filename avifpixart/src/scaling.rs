@@ -82,13 +82,32 @@ pub extern "C" fn weave_scaling_result16_free(result: ScalingResultU16) {
     }
 }
 
+#[inline]
+fn round_up_to_even_dimension(value: usize) -> usize {
+    if value <= 1 {
+        2
+    } else {
+        value.saturating_add(value & 1)
+    }
+}
+
 fn resolve_dimensions(
     src_width: u32,
     src_height: u32,
     new_width: i32,
     new_height: i32,
 ) -> (usize, usize) {
+    let src_width = src_width.max(1) as usize;
+    let src_height = src_height.max(1) as usize;
+
     match (new_width, new_height) {
+        // Original size, but force the scaler target to even dimensions.
+        (-2, -2) => (
+            round_up_to_even_dimension(src_width),
+            round_up_to_even_dimension(src_height),
+        ),
+        // Android/JNI callers use a non-positive pair for "original size" / no resize.
+        (w, h) if w <= 0 && h <= 0 => (src_width, src_height),
         (w, -1) if w > 0 => {
             // auto height
             let scale = w as f64 / src_width as f64;
@@ -99,7 +118,7 @@ fn resolve_dimensions(
             // auto height divisible by 2
             let scale = w as f64 / src_width as f64;
             let h = (src_height as f64 * scale).round() as usize;
-            (w as usize, (h.max(1) + 1) & !1)
+            (w as usize, round_up_to_even_dimension(h))
         }
         (-1, h) if h > 0 => {
             // auto width
@@ -111,7 +130,7 @@ fn resolve_dimensions(
             // auto width divisible by 2
             let scale = h as f64 / src_height as f64;
             let w = (src_width as f64 * scale).round() as usize;
-            ((w.max(1) + 1) & !1, h as usize)
+            (round_up_to_even_dimension(w), h as usize)
         }
         (w, h) => {
             // both explicit
@@ -557,5 +576,34 @@ pub extern "C" fn weave_scale_f16(
             };
             _ = plan.resample(&_source_store, &mut dst_store);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_dimensions;
+
+    #[test]
+    fn resolve_dimensions_keeps_original_for_zero_pair() {
+        assert_eq!(resolve_dimensions(4032, 3024, 0, 0), (4032, 3024));
+    }
+
+    #[test]
+    fn resolve_dimensions_keeps_original_for_negative_one_pair() {
+        assert_eq!(resolve_dimensions(4032, 3024, -1, -1), (4032, 3024));
+    }
+
+    #[test]
+    fn resolve_dimensions_rounds_original_to_even_for_negative_two_pair() {
+        assert_eq!(resolve_dimensions(4032, 3024, -2, -2), (4032, 3024));
+        assert_eq!(resolve_dimensions(4033, 3025, -2, -2), (4034, 3026));
+    }
+
+    #[test]
+    fn resolve_dimensions_preserves_auto_single_axis_modes() {
+        assert_eq!(resolve_dimensions(4000, 2000, 1000, -1), (1000, 500));
+        assert_eq!(resolve_dimensions(4000, 2000, -1, 500), (1000, 500));
+        assert_eq!(resolve_dimensions(4000, 2001, 1000, -2), (1000, 502));
+        assert_eq!(resolve_dimensions(4001, 2000, -2, 500), (1002, 500));
     }
 }

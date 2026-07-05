@@ -29,12 +29,14 @@
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
 use crate::heic_decode::WeaverError;
-use crate::support::{dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec};
+use crate::support::{
+    dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec,
+    panic_payload_to_string, throw_runtime_exception, throw_runtime_exception_raw,
+};
 use hpvca::{BitDepth, ChromaFormat, Cicp, MatrixCoefficients, Primaries, TransferFunction};
 use jni::objects::JObject;
-use jni::strings::JNIString;
 use jni::sys::{jbyteArray, jobject};
-use jni::{EnvUnowned, Outcome, jni_str};
+use jni::{EnvUnowned, Outcome};
 use ndk_sys::ADataSpace;
 use std::borrow::Cow;
 use std::num::NonZero;
@@ -803,10 +805,7 @@ pub unsafe extern "C" fn encode_heic_file(
                 error,
                 "encode_heic_file failed: monochrome in heic currently is not supported"
             );
-            let _ = env.throw_new(
-                jni_str!("java/lang/RuntimeException"),
-                JNIString::from(WeaverError::MonochromeIsNotSupported.to_string()),
-            );
+            throw_runtime_exception(env, WeaverError::MonochromeIsNotSupported.to_string());
             return Ok(JObject::null().into_raw());
         }
         let mut encoding_result = || -> Result<jobject, anyhow::Error> {
@@ -879,10 +878,7 @@ pub unsafe extern "C" fn encode_heic_file(
             }
             Err(e) => {
                 dbg_log!(error, "encode_heic_file failed: {e:#}");
-                let _ = env.throw_new(
-                    jni_str!("java/lang/RuntimeException"),
-                    JNIString::from(e.to_string()),
-                );
+                throw_runtime_exception(env, format!("HEIC encoding failed: {e:#}"));
                 Ok(JObject::null().into_raw())
             }
         }
@@ -895,16 +891,18 @@ pub unsafe extern "C" fn encode_heic_file(
             v
         }
         Outcome::Err(_e) => {
-            dbg_log!(error, "JNI error in with_env: {_e:?}");
+            let msg = format!("JNI error while encoding HEIC: {_e}");
+            dbg_log!(error, "{msg}");
+            unsafe { throw_runtime_exception_raw(env, msg) };
             null_mut()
         }
         Outcome::Panic(_p) => {
-            let _msg = _p
-                .downcast_ref::<&str>()
-                .map(|s| s.to_string())
-                .or_else(|| _p.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "unknown panic".to_string());
-            dbg_log!(error, "panic in with_env: {_msg:?}");
+            let msg = format!(
+                "panic while encoding HEIC: {}",
+                panic_payload_to_string(_p.as_ref())
+            );
+            dbg_log!(error, "{msg}");
+            unsafe { throw_runtime_exception_raw(env, msg) };
             null_mut()
         }
     }
