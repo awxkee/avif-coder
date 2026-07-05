@@ -337,12 +337,35 @@ fn decode_inner_low_bit_depth(
 }
 
 #[inline(never)]
-fn pack_u8_into_u16(data: &[u8]) -> Vec<u16> {
-    data.as_chunks::<2>()
+fn pack_u8_into_u16(data: &[u8], plane: &str) -> Result<Vec<u16>, WeaverError> {
+    if data.len() & 1 != 0 {
+        return Err(WeaverError::FailedToDecodeAv2(format!(
+            "{plane} high bit-depth plane has odd byte length {}",
+            data.len()
+        )));
+    }
+
+    Ok(data
+        .as_chunks::<2>()
         .0
         .iter()
-        .map(|&x| u16::from_ne_bytes([x[0], x[1]]))
-        .collect()
+        .map(|x| u16::from_ne_bytes([x[0], x[1]]))
+        .collect())
+}
+
+#[inline]
+fn highbd_stride_samples(stride_bytes: usize, plane: &str) -> Result<u32, WeaverError> {
+    if stride_bytes & 1 != 0 {
+        return Err(WeaverError::FailedToDecodeAv2(format!(
+            "{plane} high bit-depth stride is not u16 aligned: {stride_bytes} bytes"
+        )));
+    }
+
+    u32::try_from(stride_bytes / 2).map_err(|_| {
+        WeaverError::FailedToDecodeAv2(format!(
+            "{plane} high bit-depth stride is too large: {stride_bytes} bytes"
+        ))
+    })
 }
 
 fn decode_av2_inner_10bit(
@@ -363,13 +386,24 @@ fn decode_av2_inner_10bit(
     let colors = solve_av2_colors(image)?;
     let is_ycgco = is_metadata_ycgco(image);
 
+    let y_plane = pack_u8_into_u16(&image.planes[0], "Y")?;
+    let y_stride = highbd_stride_samples(image.strides[0], "Y")?;
+    let alpha_plane = if let Some(alpha_plane) = image.alpha.as_ref() {
+        Some((
+            pack_u8_into_u16(&alpha_plane.data, "alpha")?,
+            highbd_stride_samples(alpha_plane.stride, "alpha")?,
+        ))
+    } else {
+        None
+    };
+
     if image.pixel_layout == tealdust::PixelLayout::I400 {
-        if let Some(alpha_plane) = image.alpha.as_ref() {
+        if let Some((alpha_plane, alpha_stride)) = alpha_plane.as_ref() {
             let gray_alpha_img = YuvGrayAlphaImage {
-                y_plane: &pack_u8_into_u16(&image.planes[0]),
-                y_stride: image.strides[0] as u32,
-                a_plane: &pack_u8_into_u16(&alpha_plane.data),
-                a_stride: alpha_plane.stride as u32,
+                y_plane: &y_plane,
+                y_stride,
+                a_plane: alpha_plane,
+                a_stride: *alpha_stride,
                 width: image.width,
                 height: image.height,
             };
@@ -386,8 +420,8 @@ fn decode_av2_inner_10bit(
         }
 
         let gray_img = YuvGrayImage {
-            y_plane: &pack_u8_into_u16(&image.planes[0]),
-            y_stride: image.strides[0] as u32,
+            y_plane: &y_plane,
+            y_stride,
             width: image.width,
             height: image.height,
         };
@@ -403,18 +437,23 @@ fn decode_av2_inner_10bit(
         return finalize(target_data, image, image_info, colors.cicp);
     }
 
+    let u_plane = pack_u8_into_u16(&image.planes[1], "U")?;
+    let u_stride = highbd_stride_samples(image.strides[1] as usize, "U")?;
+    let v_plane = pack_u8_into_u16(&image.planes[2], "V")?;
+    let v_stride = highbd_stride_samples(image.strides[1] as usize, "V")?;
+
     macro_rules! decode_chroma_to_rgba {
         ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(alpha_plane) = image.alpha.as_ref() {
+            if let Some((alpha_plane, alpha_stride)) = alpha_plane.as_ref() {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
-                    a_plane: &pack_u8_into_u16(&alpha_plane.data),
-                    a_stride: alpha_plane.stride as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
+                    a_plane: alpha_plane,
+                    a_stride: *alpha_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -429,12 +468,12 @@ fn decode_av2_inner_10bit(
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -453,16 +492,16 @@ fn decode_av2_inner_10bit(
 
     macro_rules! decode_chroma_to_rgba_ycgco {
         ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(alpha_plane) = image.alpha.as_ref() {
+            if let Some((alpha_plane, alpha_stride)) = alpha_plane.as_ref() {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
-                    a_plane: &pack_u8_into_u16(&alpha_plane.data),
-                    a_stride: alpha_plane.stride as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
+                    a_plane: alpha_plane,
+                    a_stride: *alpha_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -471,12 +510,12 @@ fn decode_av2_inner_10bit(
                     .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -533,13 +572,24 @@ fn decode_av2_inner_12bit(
     let colors = solve_av2_colors(image)?;
     let is_ycgco = is_metadata_ycgco(image);
 
+    let y_plane = pack_u8_into_u16(&image.planes[0], "Y")?;
+    let y_stride = highbd_stride_samples(image.strides[0], "Y")?;
+    let alpha_plane = if let Some(alpha_plane) = image.alpha.as_ref() {
+        Some((
+            pack_u8_into_u16(&alpha_plane.data, "alpha")?,
+            highbd_stride_samples(alpha_plane.stride, "alpha")?,
+        ))
+    } else {
+        None
+    };
+
     if image.pixel_layout == tealdust::PixelLayout::I400 {
-        if let Some(alpha_plane) = image.alpha.as_ref() {
+        if let Some((alpha_plane, alpha_stride)) = alpha_plane.as_ref() {
             let gray_alpha_img = YuvGrayAlphaImage {
-                y_plane: &pack_u8_into_u16(&image.planes[0]),
-                y_stride: image.strides[0] as u32,
-                a_plane: &pack_u8_into_u16(&alpha_plane.data),
-                a_stride: alpha_plane.stride as u32,
+                y_plane: &y_plane,
+                y_stride,
+                a_plane: alpha_plane,
+                a_stride: *alpha_stride,
                 width: image.width,
                 height: image.height,
             };
@@ -556,8 +606,8 @@ fn decode_av2_inner_12bit(
         }
 
         let gray_img = YuvGrayImage {
-            y_plane: &pack_u8_into_u16(&image.planes[0]),
-            y_stride: image.strides[0] as u32,
+            y_plane: &y_plane,
+            y_stride,
             width: image.width,
             height: image.height,
         };
@@ -573,18 +623,23 @@ fn decode_av2_inner_12bit(
         return finalize(target_data, image, image_info, colors.cicp);
     }
 
+    let u_plane = pack_u8_into_u16(&image.planes[1], "U")?;
+    let u_stride = highbd_stride_samples(image.strides[1] as usize, "U")?;
+    let v_plane = pack_u8_into_u16(&image.planes[2], "V")?;
+    let v_stride = highbd_stride_samples(image.strides[1] as usize, "V")?;
+
     macro_rules! decode_chroma_to_rgba {
         ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(alpha_plane) = image.alpha.as_ref() {
+            if let Some((alpha_plane, alpha_stride)) = alpha_plane.as_ref() {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
-                    a_plane: &pack_u8_into_u16(&alpha_plane.data),
-                    a_stride: alpha_plane.stride as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
+                    a_plane: alpha_plane,
+                    a_stride: *alpha_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -599,12 +654,12 @@ fn decode_av2_inner_12bit(
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -623,16 +678,16 @@ fn decode_av2_inner_12bit(
 
     macro_rules! decode_chroma_to_rgba_cgco {
         ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(alpha_plane) = image.alpha.as_ref() {
+            if let Some((alpha_plane, alpha_stride)) = alpha_plane.as_ref() {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
-                    a_plane: &pack_u8_into_u16(&alpha_plane.data),
-                    a_stride: alpha_plane.stride as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
+                    a_plane: alpha_plane,
+                    a_stride: *alpha_stride,
                     width: image.width,
                     height: image.height,
                 };
@@ -641,12 +696,12 @@ fn decode_av2_inner_12bit(
                     .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: &pack_u8_into_u16(&image.planes[0]),
-                    y_stride: image.strides[0] as u32,
-                    u_plane: &pack_u8_into_u16(&image.planes[1]),
-                    u_stride: image.strides[1] as u32,
-                    v_plane: &pack_u8_into_u16(&image.planes[2]),
-                    v_stride: image.strides[1] as u32,
+                    y_plane: &y_plane,
+                    y_stride,
+                    u_plane: &u_plane,
+                    u_stride,
+                    v_plane: &v_plane,
+                    v_stride,
                     width: image.width,
                     height: image.height,
                 };

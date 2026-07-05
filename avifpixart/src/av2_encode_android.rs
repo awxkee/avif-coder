@@ -129,7 +129,7 @@ fn encode_av2_inner_mono_u8(
 
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
-        .with_quality(quality as u8)
+        .with_quality(if _lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(ChromaFormat::Monochrome)
         .with_speed(config.speed.to_maroontree());
@@ -276,7 +276,7 @@ fn encode_av2_inner_mono_u16(
 
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
-        .with_quality(quality as u8)
+        .with_quality(if _lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(ChromaFormat::Monochrome)
         .with_speed(config.speed.to_maroontree());
@@ -500,7 +500,7 @@ fn encode_av2_inner_u8(
 
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
-        .with_quality(quality as u8)
+        .with_quality(if lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(chroma_subsampling)
         .with_speed(config.speed.to_maroontree());
@@ -732,7 +732,7 @@ fn encode_av2_inner_u16_10_bit(
 
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
-        .with_quality(quality as u8)
+        .with_quality(if lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(chroma_format)
         .with_speed(config.speed.to_maroontree());

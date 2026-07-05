@@ -215,7 +215,7 @@ pub unsafe extern "C" fn is_vvc_image(data: *const u8, len: usize) -> bool {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_av2_image(data: *const u8, len: usize) -> bool {
-    detect_image_container(data, len) == ImageContainer::Avif
+    detect_image_container(data, len) == ImageContainer::Av2
 }
 
 #[unsafe(no_mangle)]
