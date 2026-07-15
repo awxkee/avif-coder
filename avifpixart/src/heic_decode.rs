@@ -72,6 +72,10 @@ pub enum WeaverError {
     FailedToDecodeAv2(String),
     #[error("Unsupported matrix coefficients {0:?}")]
     UnsupportedMatrix(MatrixCoefficients),
+    #[cfg(all(
+        target_os = "android",
+        any(target_arch = "aarch64", target_arch = "arm")
+    ))]
     #[error("Unsupported AV2 matrix coefficients {0:?}")]
     UnsupportedMatrixAv2(tealdust::MatrixCoefficients),
     #[error("Depth signalled for encoded plane doesn't match the container")]

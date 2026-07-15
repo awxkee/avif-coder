@@ -10,19 +10,21 @@ yuv = { version = "0.8.16", features = ["nightly_f16"], default-features = false
 bytemuck = { version = "1.25", features = ["nightly_float"] }
 moxcms = { version = "0.8.1", default-features = false }
 gainforge = "0.5.0"
-hpvca = { version = "0.1.11", default-features = false }
 hpvcd = { version = "0.3.1", default-features = false }
 thiserror = "2.0.18"
 libc = "1.0.0-alpha.3"
 log = "0.4.32"
-maroontree = { git = "https://github.com/awxkee/maroontree", rev = "927db1069108cfa4d67903108b61d1e2404d261f", default-features = false }
-tealdust = { version = "0.1.3", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { version = "0.22.4", default-features = false }
 ndk-sys = "0.6"
 android_logger = { version = "0.15", optional = true }   # pulled in only by `logging`
 anyhow = "1.0.102"
+
+[target.'cfg(any(target_arch = "aarch64", target_arch = "arm"))'.dependencies]
+maroontree = { git = "https://github.com/awxkee/maroontree", rev = "48357d5348e0d44df8dcadb1fd3bb3e49640cd76", default-features = false }
+hpvca = { version = "0.1.11", default-features = false }
+tealdust = { version = "0.1.3", default-features = false }
 
 [features]
 rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "moxcms/neon_shaper_optimized_paths", "hpvcd/neon"]
