@@ -28,6 +28,7 @@
  */
 #![allow(unused)]
 
+use crate::support::dbg_log;
 use jni::Env;
 use jni::sys::{JNIEnv, jobject};
 use ndk_sys::{
@@ -151,7 +152,13 @@ impl HardwareBufferApi {
     ) -> Result<*mut AHardwareBuffer, i32> {
         let mut buf: *mut AHardwareBuffer = std::ptr::null_mut();
         let ret = unsafe { (self.allocate)(desc as *const _, &mut buf) };
-        if ret == 0 { Ok(buf) } else { Err(ret) }
+        if ret != 0 {
+            Err(ret)
+        } else if buf.is_null() {
+            Err(-libc::EFAULT)
+        } else {
+            Ok(buf)
+        }
     }
 
     /// Allocates a buffer wrapped in an [`OwnedHardwareBuffer`], which releases
@@ -237,7 +244,9 @@ fn rgba8888_gpu_usage() -> u64 {
 
 #[inline]
 fn rgba8888_cpu_write_usage() -> u64 {
-    AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.0
+    // The bitmap is uploaded once and then sampled by the GPU. RARELY gives
+    // gralloc freedom to choose a layout intended for one-shot CPU uploads.
+    AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY.0
 }
 
 #[inline]
@@ -250,18 +259,48 @@ fn rgba8888_lock_usage() -> u64 {
     rgba8888_cpu_write_usage()
 }
 
-#[inline]
-fn rgba8888_descriptor(width: usize, height: usize, usage: u64) -> AHardwareBuffer_Desc {
-    AHardwareBuffer_Desc {
-        width: width as u32,
-        height: height as u32,
+fn rgba8888_descriptor(
+    width: usize,
+    height: usize,
+    usage: u64,
+) -> Result<AHardwareBuffer_Desc, anyhow::Error> {
+    if width == 0 || height == 0 {
+        return Err(anyhow::anyhow!(
+            "Hardware buffer dimensions must be non-zero, got {width}x{height}"
+        ));
+    }
+    let width = u32::try_from(width)
+        .map_err(|_| anyhow::anyhow!("Hardware buffer width does not fit u32: {width}"))?;
+    let height = u32::try_from(height)
+        .map_err(|_| anyhow::anyhow!("Hardware buffer height does not fit u32: {height}"))?;
+
+    Ok(AHardwareBuffer_Desc {
+        width,
+        height,
         layers: 1,
         format: AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM.0,
         usage,
         stride: 0,
         rfu0: 0,
         rfu1: 0,
-    }
+    })
+}
+
+#[inline]
+fn hardware_buffer_desc_string(desc: &AHardwareBuffer_Desc) -> String {
+    format!(
+        "{}x{}, layers={}, format={}, usage={:#x}, stride={}px",
+        desc.width, desc.height, desc.layers, desc.format, desc.usage, desc.stride
+    )
+}
+
+#[inline]
+fn android_status_string(status: i32) -> String {
+    let errno = status.saturating_abs();
+    format!(
+        "{status} (errno {errno}: {})",
+        std::io::Error::from_raw_os_error(errno)
+    )
 }
 
 #[inline]
@@ -271,28 +310,53 @@ fn checked_rgba8_row_bytes(width: usize) -> Result<usize, anyhow::Error> {
         .ok_or_else(|| anyhow::anyhow!("RGBA row byte count overflow for width {width}"))
 }
 
-fn hardware_buffer_stride_bytes(
+fn checked_rgba8_len(width: usize, height: usize) -> Result<(usize, usize), anyhow::Error> {
+    let row_bytes = checked_rgba8_row_bytes(width)?;
+    let len = row_bytes.checked_mul(height).ok_or_else(|| {
+        anyhow::anyhow!("RGBA byte count overflow for dimensions {width}x{height}")
+    })?;
+    Ok((row_bytes, len))
+}
+
+fn hardware_buffer_layout(
     owned: &OwnedHardwareBuffer,
     width: usize,
     height: usize,
-) -> Result<(usize, usize, usize), anyhow::Error> {
-    let row_bytes = checked_rgba8_row_bytes(width)?;
+) -> Result<(AHardwareBuffer_Desc, usize, usize, usize), anyhow::Error> {
+    let (row_bytes, _) = checked_rgba8_len(width, height)?;
     let desc = owned.describe();
+    let expected_format = AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM.0;
+
+    if desc.width as usize != width
+        || desc.height as usize != height
+        || desc.layers != 1
+        || desc.format != expected_format
+    {
+        return Err(anyhow::anyhow!(
+            "Allocated hardware buffer descriptor mismatch: requested={}x{}, layers=1, \
+             format={expected_format}; actual={}",
+            width,
+            height,
+            hardware_buffer_desc_string(&desc)
+        ));
+    }
+
     let stride_pixels = desc.stride as usize;
     if stride_pixels < width {
         return Err(anyhow::anyhow!(
-            "Hardware buffer stride {stride_pixels} is smaller than image width {width}"
+            "Hardware buffer stride {stride_pixels}px is smaller than image width {width}px; {}",
+            hardware_buffer_desc_string(&desc)
         ));
     }
-    let stride_bytes = stride_pixels.checked_mul(4).ok_or_else(|| {
-        anyhow::anyhow!("Hardware buffer row stride byte count overflow: {stride_pixels} pixels")
-    })?;
+    let stride_bytes = stride_pixels
+        .checked_mul(4)
+        .ok_or_else(|| anyhow::anyhow!("Hardware buffer row stride overflow: {stride_pixels}px"))?;
     let mapped_len = stride_bytes.checked_mul(height).ok_or_else(|| {
         anyhow::anyhow!(
             "Hardware buffer mapped byte count overflow: stride={stride_bytes}, height={height}"
         )
     })?;
-    Ok((row_bytes, stride_bytes, mapped_len))
+    Ok((desc, row_bytes, stride_bytes, mapped_len))
 }
 
 fn lock_rgba8888_hardware_buffer(
@@ -300,19 +364,45 @@ fn lock_rgba8888_hardware_buffer(
     width: usize,
     height: usize,
 ) -> Result<(LockGuard<'_>, usize, usize, usize), anyhow::Error> {
-    let (row_bytes, stride_bytes, mapped_len) = hardware_buffer_stride_bytes(owned, width, height)?;
-    let rect = ARect {
-        left: 0,
-        top: 0,
-        right: width as i32,
-        bottom: height as i32,
-    };
-    let lock = owned
-        .lock(rgba8888_lock_usage(), -1, Some(&rect))
-        .map_err(|x| anyhow::anyhow!("Locking hardware buffer failed with an error {x}"))?;
+    let (desc, row_bytes, stride_bytes, mapped_len) = hardware_buffer_layout(owned, width, height)?;
+    let lock_usage = rgba8888_lock_usage();
+
+    dbg_log!(
+        debug,
+        "AHardwareBuffer lock request: requested={}x{}, actual={}, lock_usage={:#x}, \
+         row_bytes={}, stride_bytes={}, mapped_len={}",
+        width,
+        height,
+        hardware_buffer_desc_string(&desc),
+        lock_usage,
+        row_bytes,
+        stride_bytes,
+        mapped_len
+    );
+
+    // A null rectangle means the complete buffer and avoids vendor-specific
+    // partial-rectangle validation paths for what is already a full upload.
+    let lock = owned.lock(lock_usage, -1, None).map_err(|status| {
+        anyhow::anyhow!(
+            "AHardwareBuffer_lock failed: status={}, api={}, requested={}x{}, actual={}, \
+             lock_usage={:#x}, row_bytes={}, stride_bytes={}, mapped_len={}",
+            android_status_string(status),
+            android_api_level(),
+            width,
+            height,
+            hardware_buffer_desc_string(&desc),
+            lock_usage,
+            row_bytes,
+            stride_bytes,
+            mapped_len
+        )
+    })?;
     if lock.as_ptr().is_null() {
         return Err(anyhow::anyhow!(
-            "Locking hardware buffer returned a null virtual address"
+            "AHardwareBuffer_lock succeeded but returned a null address: requested={}x{}, actual={}",
+            width,
+            height,
+            hardware_buffer_desc_string(&desc)
         ));
     }
     Ok((lock, row_bytes, stride_bytes, mapped_len))
@@ -324,42 +414,69 @@ pub(crate) fn create_rgba8888_hardware_buffer(
     width: usize,
     height: usize,
 ) -> Result<Option<jobject>, anyhow::Error> {
-    let Some(hw_apis) = load_hardware_buffer_api() else {
-        return Ok(None);
-    };
-
-    let descriptor = rgba8888_descriptor(width, height, rgba8888_hardware_buffer_usage());
-    if !hw_apis.is_supported(&descriptor) {
-        return Ok(None);
-    }
-
-    let mut owned = hw_apis
-        .allocate_owned(&descriptor)
-        .map_err(|x| anyhow::anyhow!("Allocation hardware buffer failed with an error {x}"))?;
-
-    let (mut lock, row_bytes, stride_bytes, mapped_len) =
-        lock_rgba8888_hardware_buffer(&mut owned, width, height)?;
-    let expected_len = row_bytes.checked_mul(height).ok_or_else(|| {
-        anyhow::anyhow!("RGBA source byte count overflow: row={row_bytes}, height={height}")
-    })?;
+    let (row_bytes, expected_len) = checked_rgba8_len(width, height)?;
     if data.len() != expected_len {
         return Err(anyhow::anyhow!(
-            "Invalid RGBA source length: got {}, expected {} for {}x{}",
+            "Invalid RGBA source length: got {}, expected {} for {}x{} (row_bytes={})",
             data.len(),
             expected_len,
             width,
-            height
+            height,
+            row_bytes
         ));
     }
 
-    let dst = unsafe { std::slice::from_raw_parts_mut(lock.as_mut_ptr().cast::<u8>(), mapped_len) };
+    let Some(hw_apis) = load_hardware_buffer_api() else {
+        dbg_log!(
+            debug,
+            "AHardwareBuffer API is unavailable on API {}",
+            android_api_level()
+        );
+        return Ok(None);
+    };
+
+    let descriptor = rgba8888_descriptor(width, height, rgba8888_hardware_buffer_usage())?;
+    dbg_log!(
+        debug,
+        "AHardwareBuffer allocation request: {}, source_len={}",
+        hardware_buffer_desc_string(&descriptor),
+        data.len()
+    );
+    if !hw_apis.is_supported(&descriptor) {
+        dbg_log!(
+            warn,
+            "AHardwareBuffer descriptor is unsupported: {}",
+            hardware_buffer_desc_string(&descriptor)
+        );
+        return Ok(None);
+    }
+
+    let mut owned = hw_apis.allocate_owned(&descriptor).map_err(|status| {
+        anyhow::anyhow!(
+            "AHardwareBuffer_allocate failed: status={}, api={}, requested={}",
+            android_status_string(status),
+            android_api_level(),
+            hardware_buffer_desc_string(&descriptor)
+        )
+    })?;
+
+    let (mut lock, row_bytes, stride_bytes, mapped_len) =
+        lock_rgba8888_hardware_buffer(&mut owned, width, height)?;
+    let dst = unsafe { lock.as_mut_slice(mapped_len) };
     for (src_row, dst_row) in data
         .chunks_exact(row_bytes)
         .zip(dst.chunks_exact_mut(stride_bytes))
     {
         dst_row[..row_bytes].copy_from_slice(src_row);
     }
-    drop(lock);
+    lock.unlock().map_err(|status| {
+        anyhow::anyhow!(
+            "AHardwareBuffer_unlock failed after RGBA upload: status={}, requested={}x{}",
+            android_status_string(status),
+            width,
+            height
+        )
+    })?;
 
     Ok(Some(unsafe { owned.to_java_hardware_buffer(env) }))
 }
@@ -371,39 +488,63 @@ pub(crate) fn create_rgba8888_hardware_buffer_from_u16(
     height: usize,
     bit_depth: usize,
 ) -> Result<Option<jobject>, anyhow::Error> {
-    let Some(hw_apis) = load_hardware_buffer_api() else {
-        return Ok(None);
-    };
-
-    let descriptor = rgba8888_descriptor(width, height, rgba8888_hardware_buffer_usage());
-    if !hw_apis.is_supported(&descriptor) {
-        return Ok(None);
-    }
-
-    let mut owned = hw_apis
-        .allocate_owned(&descriptor)
-        .map_err(|x| anyhow::anyhow!("Allocation hardware buffer failed with an error {x}"))?;
-
-    let (mut lock, row_bytes, stride_bytes, mapped_len) =
-        lock_rgba8888_hardware_buffer(&mut owned, width, height)?;
     let src_stride = width
         .checked_mul(4)
         .ok_or_else(|| anyhow::anyhow!("RGBA source row length overflow for width {width}"))?;
     let expected_len = src_stride.checked_mul(height).ok_or_else(|| {
-        anyhow::anyhow!("RGBA source pixel count overflow: row={src_stride}, height={height}")
+        anyhow::anyhow!("RGBA source sample count overflow for dimensions {width}x{height}")
     })?;
     if data.len() != expected_len {
         return Err(anyhow::anyhow!(
-            "Invalid high-bit-depth RGBA source length: got {}, expected {} for {}x{}",
+            "Invalid high-bit-depth RGBA source length: got {}, expected {} for {}x{} \
+             (row_samples={})",
             data.len(),
             expected_len,
             width,
-            height
+            height,
+            src_stride
         ));
     }
 
+    let Some(hw_apis) = load_hardware_buffer_api() else {
+        dbg_log!(
+            debug,
+            "AHardwareBuffer API is unavailable on API {}",
+            android_api_level()
+        );
+        return Ok(None);
+    };
+
+    let descriptor = rgba8888_descriptor(width, height, rgba8888_hardware_buffer_usage())?;
+    dbg_log!(
+        debug,
+        "AHardwareBuffer allocation request (u16 source): {}, source_samples={}, bit_depth={}",
+        hardware_buffer_desc_string(&descriptor),
+        data.len(),
+        bit_depth
+    );
+    if !hw_apis.is_supported(&descriptor) {
+        dbg_log!(
+            warn,
+            "AHardwareBuffer descriptor is unsupported: {}",
+            hardware_buffer_desc_string(&descriptor)
+        );
+        return Ok(None);
+    }
+
+    let mut owned = hw_apis.allocate_owned(&descriptor).map_err(|status| {
+        anyhow::anyhow!(
+            "AHardwareBuffer_allocate failed: status={}, api={}, requested={}",
+            android_status_string(status),
+            android_api_level(),
+            hardware_buffer_desc_string(&descriptor)
+        )
+    })?;
+
+    let (mut lock, row_bytes, stride_bytes, mapped_len) =
+        lock_rgba8888_hardware_buffer(&mut owned, width, height)?;
     let shift = bit_depth.saturating_sub(8) as u32;
-    let dst = unsafe { std::slice::from_raw_parts_mut(lock.as_mut_ptr().cast::<u8>(), mapped_len) };
+    let dst = unsafe { lock.as_mut_slice(mapped_len) };
     for (src_row, dst_row) in data
         .chunks_exact(src_stride)
         .zip(dst.chunks_exact_mut(stride_bytes))
@@ -412,7 +553,16 @@ pub(crate) fn create_rgba8888_hardware_buffer_from_u16(
             *dst = (src >> shift).min(255) as u8;
         }
     }
-    drop(lock);
+    lock.unlock().map_err(|status| {
+        anyhow::anyhow!(
+            "AHardwareBuffer_unlock failed after high-bit-depth RGBA upload: status={}, \
+             requested={}x{}, bit_depth={}",
+            android_status_string(status),
+            width,
+            height,
+            bit_depth
+        )
+    })?;
 
     Ok(Some(unsafe { owned.to_java_hardware_buffer(env) }))
 }
@@ -568,6 +718,14 @@ impl LockGuard<'_> {
     /// with a CPU-write usage flag.
     pub unsafe fn as_mut_slice(&mut self, len: usize) -> &mut [u8] {
         unsafe { std::slice::from_raw_parts_mut(self.addr.cast::<u8>(), len) }
+    }
+
+    /// Explicitly unlocks without requesting a release fence.
+    pub fn unlock(self) -> Result<(), i32> {
+        let this = std::mem::ManuallyDrop::new(self);
+        // SAFETY: the guard only exists while the buffer is locked.
+        let ret = unsafe { (this.api.unlock)(this.buffer, std::ptr::null_mut()) };
+        if ret == 0 { Ok(()) } else { Err(ret) }
     }
 
     /// Explicitly unlocks, retrieving the optional release sync-fence fd

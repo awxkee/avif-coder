@@ -26,7 +26,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::av2_decode::{PackedAv2, decode_packed_av2};
+use crate::av2_decode::{DecodedAvifPacket, PackedAv2, decode_packed_av2};
 use crate::cvt::{
     pack_8_to_565, pack_8_to_ar30, pack_8_to_f16, pack_10_or_12_to_565, pack_10_or_12_to_ar30,
     pack_10_or_12_to_f16,
@@ -193,17 +193,30 @@ fn make_8bit_transfer(
             }
         }
         WeaverPreferredColorConfig::Hardware => {
-            if let Some(hardware_buffer) =
-                create_rgba8888_hardware_buffer(env, data, width, height)?
-            {
-                Ok(PackedImageTransfer::HardwareBuffer(hardware_buffer))
-            } else {
-                Ok(PackedImageTransfer::Image(PackedImageBuffer {
+            match create_rgba8888_hardware_buffer(env, data, width, height) {
+                Ok(Some(hardware_buffer)) => {
+                    Ok(PackedImageTransfer::HardwareBuffer(hardware_buffer))
+                }
+                Ok(None) => Ok(PackedImageTransfer::Image(PackedImageBuffer {
                     data: data.to_vec(),
                     width,
                     height,
                     format: WeaverPreferredColorConfig::Rgba8888,
-                }))
+                })),
+                Err(_error) => {
+                    dbg_log!(
+                        warn,
+                        "Hardware RGBA8888 transfer failed for {}x{}; falling back to software bitmap: {_error:#}",
+                        width,
+                        height
+                    );
+                    Ok(PackedImageTransfer::Image(PackedImageBuffer {
+                        data: data.to_vec(),
+                        width,
+                        height,
+                        format: WeaverPreferredColorConfig::Rgba8888,
+                    }))
+                }
             }
         }
     }
@@ -264,16 +277,27 @@ fn make_10_12bit_transfer(
             }
         }
         WeaverPreferredColorConfig::Hardware => {
-            if let Some(hardware_buffer) = create_rgba8888_hardware_buffer_from_u16(
+            match create_rgba8888_hardware_buffer_from_u16(
                 env,
                 data,
                 width,
                 height,
                 bit_depth.bits() as usize,
-            )? {
-                Ok(PackedImageTransfer::HardwareBuffer(hardware_buffer))
-            } else {
-                format_8_bit()
+            ) {
+                Ok(Some(hardware_buffer)) => {
+                    Ok(PackedImageTransfer::HardwareBuffer(hardware_buffer))
+                }
+                Ok(None) => format_8_bit(),
+                Err(_error) => {
+                    dbg_log!(
+                        warn,
+                        "Hardware high-bit-depth transfer failed for {}x{} at {} bits; falling back to software bitmap: {_error:#}",
+                        width,
+                        height,
+                        bit_depth.bits()
+                    );
+                    format_8_bit()
+                }
             }
         }
     }
@@ -291,34 +315,51 @@ fn decode_pipeline<'local>(
     let mut color_transform_done = false;
     match decode {
         PackedAv2::Regular(regular_image) => {
+            let DecodedAvifPacket {
+                data: source_data,
+                width,
+                height,
+                colors,
+                icc,
+                bit_depth: _,
+                has_real_alpha,
+                clli,
+            } = regular_image;
+            let _source_len = source_data.len();
             dbg_log!(
                 debug,
-                "Regular 8-bit image: {}x{}, has_alpha={}, colors={:?}",
-                regular_image.width,
-                regular_image.height,
-                regular_image.has_real_alpha,
-                regular_image.colors
+                "Regular 8-bit image: {}x{}, has_alpha={}, colors={:?}, source_bytes={}, requested={}x{}, mode={:?}",
+                width,
+                height,
+                has_real_alpha,
+                colors,
+                _source_len,
+                scaled_width,
+                scaled_height,
+                scale_mode
             );
 
             let mut scaled_data = internal_scale_u8(
-                std::borrow::Cow::Borrowed(&regular_image.data),
-                regular_image.width as u32 * 4,
-                regular_image.width as u32,
-                regular_image.height as u32,
+                std::borrow::Cow::Owned(source_data),
+                width as u32 * 4,
+                width as u32,
+                height as u32,
                 scaled_width,
                 scaled_height,
-                regular_image.has_real_alpha,
+                has_real_alpha,
                 scale_mode,
             )?;
 
             dbg_log!(
                 debug,
-                "scaled to {}x{}",
+                "8-bit scaling complete: source_bytes_released={}, output={}x{}, output_bytes={}",
+                _source_len,
                 scaled_data.width,
-                scaled_data.height
+                scaled_data.height,
+                scaled_data.buffer.borrow().len()
             );
 
-            if let Some(icc) = regular_image.icc.as_ref()
+            if let Some(icc) = icc.as_ref()
                 && let Ok(transform) = ColorProfile::new_from_slice(icc).and_then(|x| {
                     x.create_transform_8bit(
                         Layout::Rgba,
@@ -339,10 +380,10 @@ fn decode_pipeline<'local>(
                 color_transform_done = true;
                 scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
             } else if android_os_version() < 34 {
-                let tc = regular_image.colors.transfer_characteristics;
+                let tc = colors.transfer_characteristics;
                 if (tc != tealdust::TransferCharacteristics::Smpte2084
                     && tc != tealdust::TransferCharacteristics::Hlg)
-                    && let Some(profile) = resolve_cicp_profile(regular_image.colors)
+                    && let Some(profile) = resolve_cicp_profile(colors)
                     && let Ok(transform) = profile.create_transform_8bit(
                         Layout::Rgba,
                         &ColorProfile::new_srgb(),
@@ -364,7 +405,7 @@ fn decode_pipeline<'local>(
                     || tc == tealdust::TransferCharacteristics::Hlg
                 {
                     let mut new_profile = ColorProfile::default();
-                    let colorimetry = match regular_image.colors.color_primaries {
+                    let colorimetry = match colors.color_primaries {
                         tealdust::ColorPrimaries::Bt709 => moxcms::ColorPrimaries::BT_709,
                         tealdust::ColorPrimaries::Bt2020 => moxcms::ColorPrimaries::BT_2020,
                         tealdust::ColorPrimaries::Smpte431 => moxcms::ColorPrimaries::DCI_P3,
@@ -372,9 +413,7 @@ fn decode_pipeline<'local>(
                         _ => moxcms::ColorPrimaries::BT_601,
                     };
                     new_profile.update_rgb_colorimetry_triplet(
-                        if regular_image.colors.color_primaries
-                            == tealdust::ColorPrimaries::Smpte431
-                        {
+                        if colors.color_primaries == tealdust::ColorPrimaries::Smpte431 {
                             moxcms::WHITE_POINT_D60
                         } else {
                             moxcms::WHITE_POINT_D65
@@ -389,8 +428,7 @@ fn decode_pipeline<'local>(
                         &ColorProfile::new_srgb(),
                         ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                             display_max_brightness: 203f32,
-                            content_max_brightness: regular_image.clli.max_content_light_level
-                                as f32,
+                            content_max_brightness: clli.max_content_light_level as f32,
                         }),
                         MappingColorSpace::Rgb(RgbToneMapperParameters {
                             gamut_clipping: GamutClipping::Clip,
@@ -414,7 +452,7 @@ fn decode_pipeline<'local>(
                     "8-bit: no color transform applied \
                     (color_transform_done={color_transform_done}, os={}, cicp={:?})",
                     android_os_version(),
-                    regular_image.colors
+                    colors
                 );
             }
 
@@ -431,7 +469,7 @@ fn decode_pipeline<'local>(
 
             let color_space = if !color_transform_done
                 && android_os_version() >= MIN_OS_BITMAP_COLOR_SPACE
-                && let Some(space) = resolve_native_profile(regular_image.colors)
+                && let Some(space) = resolve_native_profile(colors)
             {
                 dbg_log!(debug, "8-bit: attaching native color space {:?}", space);
                 Some(space)
@@ -472,21 +510,54 @@ fn decode_pipeline<'local>(
             result
         }
         PackedAv2::HighBitDepth(hd_image) => {
-            let mut scaled_data = internal_scale_u16(
-                std::borrow::Cow::Borrowed(&hd_image.data),
-                hd_image.width * 4,
-                hd_image.width as u32,
-                hd_image.height as u32,
+            let DecodedAvifPacket {
+                data: source_data,
+                width,
+                height,
+                colors,
+                icc,
+                bit_depth,
+                has_real_alpha,
+                clli,
+            } = hd_image;
+            let _source_samples = source_data.len();
+            dbg_log!(
+                debug,
+                "High-bit-depth image: {}x{}, depth={}, has_alpha={}, colors={:?}, source_samples={}, requested={}x{}, mode={:?}",
+                width,
+                height,
+                bit_depth.bits(),
+                has_real_alpha,
+                colors,
+                _source_samples,
                 scaled_width,
                 scaled_height,
-                hd_image.bit_depth.bits() as usize,
-                hd_image.has_real_alpha,
+                scale_mode
+            );
+
+            let mut scaled_data = internal_scale_u16(
+                std::borrow::Cow::Owned(source_data),
+                width * 4,
+                width as u32,
+                height as u32,
+                scaled_width,
+                scaled_height,
+                bit_depth.bits() as usize,
+                has_real_alpha,
                 scale_mode,
             )?;
-            match hd_image.bit_depth {
+            dbg_log!(
+                debug,
+                "High-bit-depth scaling complete: source_samples_released={}, output={}x{}, output_samples={}",
+                _source_samples,
+                scaled_data.width,
+                scaled_data.height,
+                scaled_data.buffer.borrow().len()
+            );
+            match bit_depth {
                 BitDepth::Eight => unreachable!("Handled somewhere in different place"),
                 BitDepth::Ten => {
-                    if let Some(icc) = hd_image.icc.as_ref()
+                    if let Some(icc) = icc.as_ref()
                         && let Ok(transform) = ColorProfile::new_from_slice(icc).and_then(|x| {
                             x.create_transform_10bit(
                                 Layout::Rgba,
@@ -503,10 +574,10 @@ fn decode_pipeline<'local>(
                         scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
                         color_transform_done = true;
                     } else if android_os_version() < 34 {
-                        let tc = hd_image.colors.transfer_characteristics;
+                        let tc = colors.transfer_characteristics;
                         if (tc != tealdust::TransferCharacteristics::Smpte2084
                             && tc != tealdust::TransferCharacteristics::Hlg)
-                            && let Some(profile) = resolve_cicp_profile(hd_image.colors)
+                            && let Some(profile) = resolve_cicp_profile(colors)
                             && let Ok(transform) = profile.create_transform_10bit(
                                 Layout::Rgba,
                                 &ColorProfile::new_srgb(),
@@ -524,7 +595,7 @@ fn decode_pipeline<'local>(
                             || tc == tealdust::TransferCharacteristics::Hlg
                         {
                             let mut new_profile = ColorProfile::default();
-                            let colorimetry = match hd_image.colors.color_primaries {
+                            let colorimetry = match colors.color_primaries {
                                 tealdust::ColorPrimaries::Bt709 => moxcms::ColorPrimaries::BT_709,
                                 tealdust::ColorPrimaries::Bt2020 => moxcms::ColorPrimaries::BT_2020,
                                 tealdust::ColorPrimaries::Smpte431 => {
@@ -536,9 +607,7 @@ fn decode_pipeline<'local>(
                                 _ => moxcms::ColorPrimaries::BT_601,
                             };
                             new_profile.update_rgb_colorimetry_triplet(
-                                if hd_image.colors.color_primaries
-                                    == tealdust::ColorPrimaries::Smpte431
-                                {
+                                if colors.color_primaries == tealdust::ColorPrimaries::Smpte431 {
                                     moxcms::WHITE_POINT_D60
                                 } else {
                                     moxcms::WHITE_POINT_D65
@@ -553,8 +622,7 @@ fn decode_pipeline<'local>(
                                 &ColorProfile::new_srgb(),
                                 ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                                     display_max_brightness: 203f32,
-                                    content_max_brightness: hd_image.clli.max_content_light_level
-                                        as f32,
+                                    content_max_brightness: clli.max_content_light_level as f32,
                                 }),
                                 MappingColorSpace::Rgb(RgbToneMapperParameters {
                                     gamut_clipping: GamutClipping::Clip,
@@ -576,7 +644,7 @@ fn decode_pipeline<'local>(
                     }
                 }
                 BitDepth::Twelve => {
-                    if let Some(icc) = hd_image.icc.as_ref()
+                    if let Some(icc) = icc.as_ref()
                         && let Ok(transform) = ColorProfile::new_from_slice(icc).and_then(|x| {
                             x.create_transform_12bit(
                                 Layout::Rgba,
@@ -593,10 +661,10 @@ fn decode_pipeline<'local>(
                         scaled_data.buffer = pic_scale::BufferStore::Owned(target_data);
                         color_transform_done = true;
                     } else if android_os_version() < 34 {
-                        let tc = hd_image.colors.transfer_characteristics;
+                        let tc = colors.transfer_characteristics;
                         if (tc != tealdust::TransferCharacteristics::Smpte2084
                             && tc != tealdust::TransferCharacteristics::Hlg)
-                            && let Some(profile) = resolve_cicp_profile(hd_image.colors)
+                            && let Some(profile) = resolve_cicp_profile(colors)
                             && let Ok(transform) = profile.create_transform_12bit(
                                 Layout::Rgba,
                                 &ColorProfile::new_srgb(),
@@ -614,7 +682,7 @@ fn decode_pipeline<'local>(
                             || tc == tealdust::TransferCharacteristics::Hlg
                         {
                             let mut new_profile = ColorProfile::default();
-                            let colorimetry = match hd_image.colors.color_primaries {
+                            let colorimetry = match colors.color_primaries {
                                 tealdust::ColorPrimaries::Bt709 => moxcms::ColorPrimaries::BT_709,
                                 tealdust::ColorPrimaries::Bt2020 => moxcms::ColorPrimaries::BT_2020,
                                 tealdust::ColorPrimaries::Smpte431 => {
@@ -626,9 +694,7 @@ fn decode_pipeline<'local>(
                                 _ => moxcms::ColorPrimaries::BT_601,
                             };
                             new_profile.update_rgb_colorimetry_triplet(
-                                if hd_image.colors.color_primaries
-                                    == tealdust::ColorPrimaries::Smpte431
-                                {
+                                if colors.color_primaries == tealdust::ColorPrimaries::Smpte431 {
                                     moxcms::WHITE_POINT_D60
                                 } else {
                                     moxcms::WHITE_POINT_D65
@@ -643,8 +709,7 @@ fn decode_pipeline<'local>(
                                 &ColorProfile::new_srgb(),
                                 ToneMappingMethod::TunedReinhard(GainHdrMetadata {
                                     display_max_brightness: 203f32,
-                                    content_max_brightness: hd_image.clli.max_content_light_level
-                                        as f32,
+                                    content_max_brightness: clli.max_content_light_level as f32,
                                 }),
                                 MappingColorSpace::Rgb(RgbToneMapperParameters {
                                     gamut_clipping: GamutClipping::Clip,
@@ -674,12 +739,12 @@ fn decode_pipeline<'local>(
                 scaled_data.buffer.borrow(),
                 new_width,
                 new_height,
-                hd_image.bit_depth,
+                bit_depth,
                 preferred_color,
             )?;
             let color_space = if !color_transform_done
                 && android_os_version() >= MIN_OS_BITMAP_COLOR_SPACE
-                && let Some(space) = resolve_native_profile(hd_image.colors)
+                && let Some(space) = resolve_native_profile(colors)
             {
                 Some(space)
             } else {

@@ -438,9 +438,9 @@ fn decode_av2_inner_10bit(
     }
 
     let u_plane = pack_u8_into_u16(&image.planes[1], "U")?;
-    let u_stride = highbd_stride_samples(image.strides[1] as usize, "U")?;
+    let u_stride = highbd_stride_samples(image.strides[1], "U")?;
     let v_plane = pack_u8_into_u16(&image.planes[2], "V")?;
-    let v_stride = highbd_stride_samples(image.strides[1] as usize, "V")?;
+    let v_stride = highbd_stride_samples(image.strides[1], "V")?;
 
     macro_rules! decode_chroma_to_rgba {
         ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
@@ -624,9 +624,9 @@ fn decode_av2_inner_12bit(
     }
 
     let u_plane = pack_u8_into_u16(&image.planes[1], "U")?;
-    let u_stride = highbd_stride_samples(image.strides[1] as usize, "U")?;
+    let u_stride = highbd_stride_samples(image.strides[1], "U")?;
     let v_plane = pack_u8_into_u16(&image.planes[2], "V")?;
-    let v_stride = highbd_stride_samples(image.strides[1] as usize, "V")?;
+    let v_stride = highbd_stride_samples(image.strides[1], "V")?;
 
     macro_rules! decode_chroma_to_rgba {
         ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{

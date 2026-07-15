@@ -91,6 +91,162 @@ fn round_up_to_even_dimension(value: usize) -> usize {
     }
 }
 
+#[inline]
+fn rounded_ratio(numerator: u128, denominator: u128) -> usize {
+    debug_assert!(denominator != 0);
+    ((numerator + denominator / 2) / denominator) as usize
+}
+
+/// Returns the centered source crop whose aspect ratio most closely matches the
+/// requested output. Cropping before resampling avoids allocating a potentially
+/// enormous cover-scaled intermediate for very wide or very tall images.
+fn scale_to_fill_crop(
+    width: usize,
+    height: usize,
+    target_width: usize,
+    target_height: usize,
+) -> (usize, usize, usize, usize) {
+    let source_ratio = width as u128 * target_height as u128;
+    let target_ratio = target_width as u128 * height as u128;
+
+    if source_ratio > target_ratio {
+        let crop_width =
+            rounded_ratio(height as u128 * target_width as u128, target_height as u128)
+                .clamp(1, width);
+        ((width - crop_width) / 2, 0, crop_width, height)
+    } else if source_ratio < target_ratio {
+        let crop_height =
+            rounded_ratio(width as u128 * target_height as u128, target_width as u128)
+                .clamp(1, height);
+        (0, (height - crop_height) / 2, width, crop_height)
+    } else {
+        (0, 0, width, height)
+    }
+}
+
+fn scale_to_fit_dimensions(
+    width: usize,
+    height: usize,
+    target_width: usize,
+    target_height: usize,
+) -> (usize, usize) {
+    if target_width as u128 * height as u128 <= target_height as u128 * width as u128 {
+        let scaled_height = rounded_ratio(height as u128 * target_width as u128, width as u128)
+            .clamp(1, target_height);
+        (target_width, scaled_height)
+    } else {
+        let scaled_width = rounded_ratio(width as u128 * target_height as u128, height as u128)
+            .clamp(1, target_width);
+        (scaled_width, target_height)
+    }
+}
+
+struct CropView<'a, T: Clone>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    data: std::borrow::Cow<'a, [T]>,
+    stride: usize,
+    width: usize,
+    height: usize,
+}
+
+fn crop_rgba_for_scale_to_fill<T: Copy>(
+    src: std::borrow::Cow<'_, [T]>,
+    src_stride: usize,
+    width: usize,
+    height: usize,
+    target_width: usize,
+    target_height: usize,
+) -> Result<CropView<'_, T>, PicScaleError> {
+    const CHANNELS: usize = 4;
+
+    let (crop_x, crop_y, crop_width, crop_height) =
+        scale_to_fill_crop(width, height, target_width, target_height);
+    if crop_x == 0 && crop_y == 0 && crop_width == width && crop_height == height {
+        return Ok(CropView {
+            data: src.clone(),
+            stride: src_stride,
+            width,
+            height,
+        });
+    }
+
+    let source_row = width.checked_mul(CHANNELS).ok_or_else(|| {
+        PicScaleError::Generic(format!("RGBA source row overflow for width {width}"))
+    })?;
+    if src_stride < source_row {
+        return Err(PicScaleError::Generic(format!(
+            "RGBA source stride {src_stride} is smaller than row width {source_row}"
+        )));
+    }
+
+    let crop_row = crop_width.checked_mul(CHANNELS).ok_or_else(|| {
+        PicScaleError::Generic(format!("RGBA crop row overflow for width {crop_width}"))
+    })?;
+    let crop_len = crop_row.checked_mul(crop_height).ok_or_else(|| {
+        PicScaleError::Generic(format!(
+            "RGBA crop length overflow for {crop_width}x{crop_height}"
+        ))
+    })?;
+    let x_offset = crop_x.checked_mul(CHANNELS).ok_or_else(|| {
+        PicScaleError::Generic(format!("RGBA crop offset overflow for x={crop_x}"))
+    })?;
+
+    let row_range = |row: usize,
+                     source_len: usize|
+     -> Result<std::ops::Range<usize>, PicScaleError> {
+        let start = row
+            .checked_mul(src_stride)
+            .and_then(|offset| offset.checked_add(x_offset))
+            .ok_or_else(|| PicScaleError::Generic("RGBA crop offset overflow".to_string()))?;
+        let end = start
+            .checked_add(crop_row)
+            .ok_or_else(|| PicScaleError::Generic("RGBA crop end overflow".to_string()))?;
+        if end > source_len {
+            return Err(PicScaleError::Generic(format!(
+                "RGBA source is too short for crop: len={source_len}, row={row}, range={start}..{end}"
+            )));
+        }
+        Ok(start..end)
+    };
+
+    let cropped = match src {
+        std::borrow::Cow::Owned(mut source) => {
+            // Decoder output is tightly packed and owned. Compact the centered
+            // crop in place, avoiding a second full-resolution allocation.
+            for dst_row in 0..crop_height {
+                let src_row = crop_y + dst_row;
+                let range = row_range(src_row, source.len())?;
+                let dst_start = dst_row * crop_row;
+                source.copy_within(range, dst_start);
+            }
+            source.truncate(crop_len);
+            source
+        }
+        std::borrow::Cow::Borrowed(source) => {
+            let mut cropped = Vec::new();
+            cropped.try_reserve_exact(crop_len).map_err(|_| {
+                PicScaleError::Generic(format!(
+                    "Can't allocate RGBA source crop of {crop_len} samples"
+                ))
+            })?;
+            for row in crop_y..crop_y + crop_height {
+                let range = row_range(row, source.len())?;
+                cropped.extend_from_slice(&source[range]);
+            }
+            cropped
+        }
+    };
+
+    Ok(CropView {
+        data: std::borrow::Cow::Owned(cropped),
+        stride: crop_row,
+        width: crop_width,
+        height: crop_height,
+    })
+}
+
 fn resolve_dimensions(
     src_width: u32,
     src_height: u32,
@@ -231,66 +387,76 @@ pub(crate) fn internal_scale_u8(
     premultiply_alpha: bool,
     scale_mode: WeaveScaleMode,
 ) -> Result<ImageStoreMut<'static, u8, 4>, PicScaleError> {
-    let source_store = ImageStore::<u8, 4> {
-        buffer: src,
-        channels: 4,
-        width: width as usize,
-        height: height as usize,
-        stride: src_stride as usize,
-        bit_depth: 8,
-    };
+    if width == 0 || height == 0 {
+        return Err(PicScaleError::Generic(format!(
+            "RGBA source dimensions must be non-zero, got {width}x{height}"
+        )));
+    }
 
     let scaler = Scaler::new(ResamplingFunction::MitchellNetravalli)
         .set_threading_policy(ThreadingPolicy::Single);
 
-    let (new_width, new_height) = resolve_dimensions(width, height, new_width, new_height);
-
-    let (scale_w, scale_h, crop_x, crop_y, crop_w, crop_h) = match scale_mode {
+    let (target_width, target_height) = resolve_dimensions(width, height, new_width, new_height);
+    let (src, src_stride, source_width, source_height, scale_width, scale_height) = match scale_mode
+    {
         WeaveScaleMode::ScaleToFill => {
-            // ScaleToFill: scale up to cover, then center crop
-            let x_factor = new_width as f64 / width as f64;
-            let y_factor = new_height as f64 / height as f64;
-            let scale = x_factor.max(y_factor);
-            let sw = ((width as f64 * scale).round() as usize).max(1);
-            let sh = ((height as f64 * scale).round() as usize).max(1);
-            let cx = ((sw as i64 - new_width as i64) / 2).max(0) as usize;
-            let cy = ((sh as i64 - new_height as i64) / 2).max(0) as usize;
-            // guard: crop window can't exceed scaled size due to rounding
-            let cw = new_width.min(sw);
-            let ch = new_height.min(sh);
-            (sw, sh, cx, cy, cw, ch)
+            let view = crop_rgba_for_scale_to_fill(
+                src,
+                src_stride as usize,
+                width as usize,
+                height as usize,
+                target_width,
+                target_height,
+            )?;
+            (
+                view.data,
+                view.stride,
+                view.width,
+                view.height,
+                target_width,
+                target_height,
+            )
         }
         WeaveScaleMode::ScaleToFit => {
-            // ScaleToFit: scale to fit within bounds, crop excess (will be 0 on one axis)
-            let x_factor = new_width as f64 / width as f64;
-            let y_factor = new_height as f64 / height as f64;
-            let scale = x_factor.min(y_factor);
-            let sw = ((width as f64 * scale).round() as usize).max(1);
-            let sh = ((height as f64 * scale).round() as usize).max(1);
-            let cx = ((sw as i64 - new_width as i64) / 2).max(0) as usize;
-            let cy = ((sh as i64 - new_height as i64) / 2).max(0) as usize;
-            let cw = sw.min(new_width);
-            let ch = sh.min(new_height);
-            (sw, sh, cx, cy, cw, ch)
+            let (scale_width, scale_height) = scale_to_fit_dimensions(
+                width as usize,
+                height as usize,
+                target_width,
+                target_height,
+            );
+            (
+                src,
+                src_stride as usize,
+                width as usize,
+                height as usize,
+                scale_width,
+                scale_height,
+            )
         }
-        WeaveScaleMode::JustResize => {
-            // JustResize
-            (new_width, new_height, 0, 0, new_width, new_height)
-        }
+        WeaveScaleMode::JustResize => (
+            src,
+            src_stride as usize,
+            width as usize,
+            height as usize,
+            target_width,
+            target_height,
+        ),
     };
 
-    let mut scaled_store = ImageStoreMut::try_alloc(scale_w, scale_h)?;
+    let source_store = ImageStore::<u8, 4> {
+        buffer: src,
+        channels: 4,
+        width: source_width,
+        height: source_height,
+        stride: src_stride,
+        bit_depth: 8,
+    };
+    let mut scaled_store = ImageStoreMut::try_alloc(scale_width, scale_height)?;
 
     let plan =
         scaler.plan_rgba_resampling(source_store.size(), scaled_store.size(), premultiply_alpha)?;
     plan.resample(&source_store, &mut scaled_store)?;
-
-    let final_store = if crop_x > 0 || crop_y > 0 || crop_w != scale_w || crop_h != scale_h {
-        scaled_store.crop_with_copy(crop_x, crop_y, crop_w, crop_h)?
-    } else {
-        scaled_store
-    };
-    Ok(final_store)
+    Ok(scaled_store)
 }
 
 #[unsafe(no_mangle)]
@@ -393,56 +559,74 @@ pub(crate) fn internal_scale_u16(
     premultiply_alpha: bool,
     scale_mode: WeaveScaleMode,
 ) -> Result<ImageStoreMut<'static, u16, 4>, PicScaleError> {
-    let source_store = ImageStore::<u16, 4> {
-        buffer: src,
-        channels: 4,
-        width: width as usize,
-        height: height as usize,
-        stride: src_stride,
-        bit_depth,
-    };
+    if width == 0 || height == 0 {
+        return Err(PicScaleError::Generic(format!(
+            "RGBA source dimensions must be non-zero, got {width}x{height}"
+        )));
+    }
 
     let scaler = Scaler::new(ResamplingFunction::MitchellNetravalli)
         .set_threading_policy(ThreadingPolicy::Single)
         .set_workload_strategy(WorkloadStrategy::PreferQuality);
 
-    let (new_width, new_height) = resolve_dimensions(width, height, new_width, new_height);
-
-    let (scale_w, scale_h, crop_x, crop_y, crop_w, crop_h) = match scale_mode {
+    let (target_width, target_height) = resolve_dimensions(width, height, new_width, new_height);
+    let (src, src_stride, source_width, source_height, scale_width, scale_height) = match scale_mode
+    {
         WeaveScaleMode::ScaleToFill => {
-            // ScaleToFill: scale up to cover, then center crop
-            let x_factor = new_width as f64 / width as f64;
-            let y_factor = new_height as f64 / height as f64;
-            let scale = x_factor.max(y_factor);
-            let sw = ((width as f64 * scale).round() as usize).max(1);
-            let sh = ((height as f64 * scale).round() as usize).max(1);
-            let cx = ((sw as i64 - new_width as i64) / 2).max(0) as usize;
-            let cy = ((sh as i64 - new_height as i64) / 2).max(0) as usize;
-            // guard: crop window can't exceed scaled size due to rounding
-            let cw = new_width.min(sw);
-            let ch = new_height.min(sh);
-            (sw, sh, cx, cy, cw, ch)
+            let view = crop_rgba_for_scale_to_fill(
+                src,
+                src_stride,
+                width as usize,
+                height as usize,
+                target_width,
+                target_height,
+            )?;
+            (
+                view.data,
+                view.stride,
+                view.width,
+                view.height,
+                target_width,
+                target_height,
+            )
         }
         WeaveScaleMode::ScaleToFit => {
-            // ScaleToFit: scale to fit within bounds, crop excess (will be 0 on one axis)
-            let x_factor = new_width as f64 / width as f64;
-            let y_factor = new_height as f64 / height as f64;
-            let scale = x_factor.min(y_factor);
-            let sw = ((width as f64 * scale).round() as usize).max(1);
-            let sh = ((height as f64 * scale).round() as usize).max(1);
-            let cx = ((sw as i64 - new_width as i64) / 2).max(0) as usize;
-            let cy = ((sh as i64 - new_height as i64) / 2).max(0) as usize;
-            let cw = sw.min(new_width);
-            let ch = sh.min(new_height);
-            (sw, sh, cx, cy, cw, ch)
+            let (scale_width, scale_height) = scale_to_fit_dimensions(
+                width as usize,
+                height as usize,
+                target_width,
+                target_height,
+            );
+            (
+                src,
+                src_stride,
+                width as usize,
+                height as usize,
+                scale_width,
+                scale_height,
+            )
         }
-        WeaveScaleMode::JustResize => {
-            // JustResize
-            (new_width, new_height, 0, 0, new_width, new_height)
-        }
+        WeaveScaleMode::JustResize => (
+            src,
+            src_stride,
+            width as usize,
+            height as usize,
+            target_width,
+            target_height,
+        ),
     };
 
-    let Ok(mut scaled_store) = ImageStoreMut::try_alloc_with_depth(scale_w, scale_h, bit_depth)
+    let source_store = ImageStore::<u16, 4> {
+        buffer: src,
+        channels: 4,
+        width: source_width,
+        height: source_height,
+        stride: src_stride,
+        bit_depth,
+    };
+
+    let Ok(mut scaled_store) =
+        ImageStoreMut::try_alloc_with_depth(scale_width, scale_height, bit_depth)
     else {
         return Err(PicScaleError::Generic(
             "Can't allocate required buffer".to_string(),
@@ -456,13 +640,7 @@ pub(crate) fn internal_scale_u16(
         bit_depth,
     )?;
     plan.resample(&source_store, &mut scaled_store)?;
-
-    let final_store = if crop_x > 0 || crop_y > 0 || crop_w != scale_w || crop_h != scale_h {
-        scaled_store.crop_with_copy(crop_x, crop_y, crop_w, crop_h)?
-    } else {
-        scaled_store
-    };
-    Ok(final_store)
+    Ok(scaled_store)
 }
 
 #[unsafe(no_mangle)]

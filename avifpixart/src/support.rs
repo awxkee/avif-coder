@@ -182,15 +182,12 @@ pub(crate) fn panic_payload_to_string(payload: &(dyn std::any::Any + Send + 'sta
 pub(crate) fn throw_runtime_exception(env: &mut Env, message: impl Into<String>) {
     let message = message.into();
 
-    match env.exception_check() {
-        true => {
-            dbg_log!(
-                error,
-                "not throwing RuntimeException because a Java exception is already pending: {message}"
-            );
-            return;
-        }
-        false => {}
+    if env.exception_check() {
+        dbg_log!(
+            error,
+            "not throwing RuntimeException because a Java exception is already pending: {message}"
+        );
+        return;
     }
 
     if let Err(_e) = env.throw_new(
