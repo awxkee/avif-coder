@@ -22,12 +22,12 @@ android_logger = { version = "0.15", optional = true }   # pulled in only by `lo
 anyhow = "1.0.102"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "arm"))'.dependencies]
-maroontree = { git = "https://github.com/awxkee/maroontree", rev = "48357d5348e0d44df8dcadb1fd3bb3e49640cd76", default-features = false }
+maroontree = {version = "0.1.6", default-features = false}
 hpvca = { version = "0.1.11", default-features = false }
 tealdust = { version = "0.1.3", default-features = false }
 
 [features]
-rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "moxcms/neon_shaper_optimized_paths", "hpvcd/neon"]
+rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "hpvcd/neon"]
 i8mm = ["pic-scale/nightly_i8mm"]
 sve = ["pic-scale/sve"]
 logging = ["dep:android_logger"]
