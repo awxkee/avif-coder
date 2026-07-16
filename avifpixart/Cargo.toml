@@ -22,9 +22,9 @@ android_logger = { version = "0.15", optional = true }   # pulled in only by `lo
 anyhow = "1.0.102"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "arm"))'.dependencies]
-maroontree = {version = "0.1.6", default-features = false}
+maroontree = {version = "0.1.7", default-features = false}
 hpvca = { version = "0.1.11", default-features = false }
-tealdust = { version = "0.1.3", default-features = false }
+tealdust = { version = "0.1.4", default-features = false }
 
 [features]
 rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "hpvcd/neon"]

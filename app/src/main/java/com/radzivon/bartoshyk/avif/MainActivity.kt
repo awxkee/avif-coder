@@ -195,9 +195,9 @@ class MainActivity : AppCompatActivity() {
                             bitmap1,
                             null,
                             60,
-                            PreciseMode.LOSSLESS,
+                            PreciseMode.LOSSY,
                             AvifChromaSubsampling.YUV444,
-                            AvKind.AV2,
+                            AvKind.AV1,
                         )
                         writeFile("result2.avif", encodedAvif)
 
