@@ -362,13 +362,12 @@ fn encode_av2_inner_u8(
         chroma_subsampling,
         exif.map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
     );
-    if lossless {
-        if chroma_subsampling != ChromaFormat::Yuv444
+    if lossless
+        && chroma_subsampling != ChromaFormat::Yuv444
             && chroma_subsampling != ChromaFormat::Monochrome
         {
             chroma_subsampling = ChromaFormat::Yuv444;
         }
-    }
 
     let mut local_cicp = cicp;
     dbg_log!(
@@ -586,11 +585,10 @@ fn encode_av2_inner_u16_10_bit(
         return encode_av2_inner_mono_u16(hd_plane, bitmap_data, config, has_real_alpha);
     }
 
-    if lossless {
-        if chroma_format != ChromaFormat::Yuv444 && chroma_format != ChromaFormat::Monochrome {
+    if lossless
+        && chroma_format != ChromaFormat::Yuv444 && chroma_format != ChromaFormat::Monochrome {
             chroma_format = ChromaFormat::Yuv444;
         }
-    }
     dbg_log!(
         debug,
         "encode_heic_inner_u16_10_bit: {}x{} hd_pixels={} quality={} lossless={} \

@@ -30,7 +30,8 @@ use crate::check_image_size_overflow;
 use crate::orientation::apply_orientation;
 use crate::support::try_vec;
 use hpvcd::{
-    BitDepth, Cicp, DecodedYuv, MatrixCoefficients, Orientation, Primaries, TransferFunction,
+    BitDepth, Cicp, DecodedYuv, MatrixCoefficients, Orientation, PlanarImage, PlaneBuffer,
+    Primaries, TransferFunction, YuvBuffer,
 };
 use thiserror::Error;
 use yuv::{
@@ -71,6 +72,10 @@ pub enum WeaverError {
     FailedToDecodeAv2(String),
     #[error("Unsupported matrix coefficients {0:?}")]
     UnsupportedMatrix(MatrixCoefficients),
+    #[cfg(all(
+        target_os = "android",
+        any(target_arch = "aarch64", target_arch = "arm")
+    ))]
     #[error("Unsupported AV2 matrix coefficients {0:?}")]
     UnsupportedMatrixAv2(tealdust::MatrixCoefficients),
     #[error("Depth signalled for encoded plane doesn't match the container")]
@@ -136,8 +141,8 @@ fn finalize<T: Copy + Default>(
     cicp: Cicp,
 ) -> Result<DecodedHeicPacket<T>, WeaverError> {
     const CH: usize = 4; // RGBA
-    let mut width = decoded_yuv.width as usize;
-    let mut height = decoded_yuv.height as usize;
+    let mut width = decoded_yuv.width();
+    let mut height = decoded_yuv.height();
 
     // clap is defined in coded space, so crop BEFORE orientation (clap → irot → imir).
     if let Some(clap) = decoded_yuv.clean_aperture.as_ref()
@@ -227,120 +232,150 @@ fn is_metadata_ycgco(decoded_yuv: &DecodedYuv) -> bool {
         == MatrixCoefficients::YCgCo
 }
 
+#[derive(Clone, Copy)]
+struct PlaneView<'a, T> {
+    data: &'a [T],
+    stride: u32,
+}
+
+fn plane_view<T>(plane: &PlaneBuffer<T>) -> Result<PlaneView<'_, T>, WeaverError> {
+    let stride = u32::try_from(plane.stride()).map_err(|_| {
+        WeaverError::PixelFormatIsNotSupported("HEIC plane stride exceeds u32".into())
+    })?;
+    Ok(PlaneView {
+        data: plane.data(),
+        stride,
+    })
+}
+
+fn plane_dimensions<T>(planes: &PlanarImage<T>) -> Result<(u32, u32), WeaverError> {
+    let width = u32::try_from(planes.width()).map_err(|_| {
+        WeaverError::PixelFormatIsNotSupported("HEIC image width exceeds u32".into())
+    })?;
+    let height = u32::try_from(planes.height()).map_err(|_| {
+        WeaverError::PixelFormatIsNotSupported("HEIC image height exceeds u32".into())
+    })?;
+    Ok((width, height))
+}
+
+fn rgba_stride(width: u32) -> Result<u32, WeaverError> {
+    width.checked_mul(4).ok_or_else(|| {
+        WeaverError::PixelFormatIsNotSupported("HEIC RGBA stride exceeds u32".into())
+    })
+}
+
+fn chroma_views<T>(
+    planes: &PlanarImage<T>,
+) -> Result<(PlaneView<'_, T>, PlaneView<'_, T>), WeaverError> {
+    let cb = planes.cb.as_ref().ok_or_else(|| {
+        WeaverError::PixelFormatIsNotSupported("HEIC chroma format requires a Cb plane".into())
+    })?;
+    let cr = planes.cr.as_ref().ok_or_else(|| {
+        WeaverError::PixelFormatIsNotSupported("HEIC chroma format requires a Cr plane".into())
+    })?;
+    Ok((plane_view(cb)?, plane_view(cr)?))
+}
+
+fn alpha_view_u8(decoded_yuv: &DecodedYuv) -> Result<Option<PlaneView<'_, u8>>, WeaverError> {
+    decoded_yuv
+        .alpha
+        .as_ref()
+        .map(|alpha| {
+            alpha
+                .as_u8()
+                .ok_or(WeaverError::MismatchedBitDepth)
+                .and_then(plane_view)
+        })
+        .transpose()
+}
+
+fn alpha_view_u16(decoded_yuv: &DecodedYuv) -> Result<Option<PlaneView<'_, u16>>, WeaverError> {
+    decoded_yuv
+        .alpha
+        .as_ref()
+        .map(|alpha| {
+            alpha
+                .as_u16()
+                .ok_or(WeaverError::MismatchedBitDepth)
+                .and_then(plane_view)
+        })
+        .transpose()
+}
+
 fn decode_inner_low_bit_depth(
     decoded_yuv: &DecodedYuv,
+    planes: &PlanarImage<u8>,
 ) -> Result<DecodedHeicPacket<u8>, WeaverError> {
-    if check_image_size_overflow(
-        decoded_yuv.width as u64,
-        decoded_yuv.height as u64,
-        4,
-        size_of::<u8>() as isize,
-    ) {
+    let (width, height) = plane_dimensions(planes)?;
+    if check_image_size_overflow(width as u64, height as u64, 4, size_of::<u8>() as isize) {
         return Err(WeaverError::FailedToAllocateMemory(isize::MAX as u64));
     }
 
-    let mut target_data =
-        try_vec![0u8; decoded_yuv.width as usize * decoded_yuv.height as usize * 4];
-
+    let mut target_data = try_vec![0u8; width as usize * height as usize * 4];
     let colors = solve_heic_colors(decoded_yuv)?;
     let is_ycgco = is_metadata_ycgco(decoded_yuv);
+    let luma = plane_view(&planes.y)?;
+    let alpha = alpha_view_u8(decoded_yuv)?;
+    let target_stride = rgba_stride(width)?;
 
     if decoded_yuv.chroma == hpvcd::ChromaFormat::Monochrome {
-        let probably_u8_gray = decoded_yuv.y.as_u8();
-        let Some(gray_plane) = probably_u8_gray.as_ref() else {
-            return Err(WeaverError::MismatchedBitDepth);
-        };
-
-        if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-            let bound_alpha_u8 = hidden_alpha.as_u8();
-            let Some(alpha_plane) = bound_alpha_u8.as_ref() else {
-                return Err(WeaverError::MismatchedBitDepth);
-            };
-
+        if let Some(alpha) = alpha {
             let gray_alpha_img = YuvGrayAlphaImage {
-                y_plane: gray_plane,
-                y_stride: decoded_yuv.width,
-                a_plane: alpha_plane,
-                a_stride: decoded_yuv.width,
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
+                y_plane: luma.data,
+                y_stride: luma.stride,
+                a_plane: alpha.data,
+                a_stride: alpha.stride,
+                width,
+                height,
             };
             yuv400_alpha_to_rgba(
                 &gray_alpha_img,
                 &mut target_data,
-                decoded_yuv.width * 4,
+                target_stride,
                 colors.range,
                 colors.matrix,
             )
             .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-
-            return finalize(target_data, decoded_yuv, colors.cicp);
+        } else {
+            let gray_img = YuvGrayImage {
+                y_plane: luma.data,
+                y_stride: luma.stride,
+                width,
+                height,
+            };
+            yuv400_to_rgba(
+                &gray_img,
+                &mut target_data,
+                target_stride,
+                colors.range,
+                colors.matrix,
+            )
+            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }
-
-        let gray_img = YuvGrayImage {
-            y_plane: gray_plane,
-            y_stride: decoded_yuv.width,
-            width: decoded_yuv.width,
-            height: decoded_yuv.height,
-        };
-        yuv400_to_rgba(
-            &gray_img,
-            &mut target_data,
-            decoded_yuv.width * 4,
-            colors.range,
-            colors.matrix,
-        )
-        .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-
         return finalize(target_data, decoded_yuv, colors.cicp);
     }
 
-    let probably_u8_luma = decoded_yuv.y.as_u8();
-    let Some(luma_plane) = probably_u8_luma.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-    let probably_cb_plane = decoded_yuv.cb.as_u8();
-    let Some(cb_plane) = probably_cb_plane.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-    let probably_cr_plane = decoded_yuv.cr.as_u8();
-    let Some(cr_plane) = probably_cr_plane.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
+    let (cb, cr) = chroma_views(planes)?;
 
     macro_rules! decode_chroma_to_rgba {
-        ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-                let bound_alpha_u8 = hidden_alpha.as_u8();
-                let Some(alpha_plane) = bound_alpha_u8.as_ref() else {
-                    return Err(WeaverError::MismatchedBitDepth);
-                };
-
+        ($to_rgba:ident, $alpha_to_rgba:ident) => {{
+            if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    a_plane: alpha_plane,
-                    a_stride: decoded_yuv.width,
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    a_plane: alpha.data,
+                    a_stride: alpha.stride,
+                    width,
+                    height,
                 };
-
                 $alpha_to_rgba(
                     &planar_yuv,
                     &mut target_data,
-                    decoded_yuv.width * 4,
+                    target_stride,
                     colors.range,
                     colors.matrix,
                     false,
@@ -348,272 +383,19 @@ fn decode_inner_low_bit_depth(
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    width,
+                    height,
                 };
-
                 $to_rgba(
                     &planar_yuv,
                     &mut target_data,
-                    decoded_yuv.width * 4,
-                    colors.range,
-                    colors.matrix,
-                )
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-            }
-        }};
-    }
-
-    macro_rules! decode_chroma_to_rgba_cgco {
-        ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-                let bound_alpha_u8 = hidden_alpha.as_u8();
-                let Some(alpha_plane) = bound_alpha_u8.as_ref() else {
-                    return Err(WeaverError::MismatchedBitDepth);
-                };
-
-                let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    a_plane: alpha_plane,
-                    a_stride: decoded_yuv.width,
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
-                };
-
-                $alpha_to_rgba(
-                    &planar_yuv,
-                    &mut target_data,
-                    decoded_yuv.width * 4,
-                    colors.range,
-                )
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-            } else {
-                let planar_yuv = YuvPlanarImage {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
-                };
-
-                $to_rgba(
-                    &planar_yuv,
-                    &mut target_data,
-                    decoded_yuv.width * 4,
-                    colors.range,
-                )
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-            }
-        }};
-    }
-    match decoded_yuv.chroma {
-        hpvcd::ChromaFormat::Monochrome => unreachable!("Handled in some other place"),
-        hpvcd::ChromaFormat::Yuv420 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_cgco!(ycgco420_to_rgba, ycgco420_alpha_to_rgba, 2)
-            } else {
-                decode_chroma_to_rgba!(yuv420_to_rgba, yuv420_alpha_to_rgba, 2)
-            }
-        }
-        hpvcd::ChromaFormat::Yuv422 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_cgco!(ycgco422_to_rgba, ycgco422_alpha_to_rgba, 2)
-            } else {
-                decode_chroma_to_rgba!(yuv422_to_rgba, yuv422_alpha_to_rgba, 2)
-            }
-        }
-        hpvcd::ChromaFormat::Yuv444 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_cgco!(ycgco444_to_rgba, ycgco444_alpha_to_rgba, 1)
-            } else {
-                decode_chroma_to_rgba!(yuv444_to_rgba, yuv444_alpha_to_rgba, 1)
-            }
-        }
-    }
-
-    finalize(target_data, decoded_yuv, colors.cicp)
-}
-
-fn decode_heic_inner_10bit(
-    decoded_yuv: &DecodedYuv,
-) -> Result<DecodedHeicPacket<u16>, WeaverError> {
-    if check_image_size_overflow(
-        decoded_yuv.width as u64,
-        decoded_yuv.height as u64,
-        4,
-        size_of::<u16>() as isize,
-    ) {
-        return Err(WeaverError::FailedToAllocateMemory(isize::MAX as u64));
-    }
-
-    let mut target_data =
-        try_vec![0u16; decoded_yuv.width as usize * decoded_yuv.height as usize * 4];
-
-    let colors = solve_heic_colors(decoded_yuv)?;
-    let is_ycgco = is_metadata_ycgco(decoded_yuv);
-
-    if decoded_yuv.chroma == hpvcd::ChromaFormat::Monochrome {
-        let probably_u16_gray = decoded_yuv.y.as_u16();
-        let Some(gray_plane) = probably_u16_gray.as_ref() else {
-            return Err(WeaverError::MismatchedBitDepth);
-        };
-
-        if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-            let bound_alpha_u16 = hidden_alpha.as_u16();
-            let Some(alpha_plane) = bound_alpha_u16.as_ref() else {
-                return Err(WeaverError::MismatchedBitDepth);
-            };
-
-            let gray_alpha_img = YuvGrayAlphaImage {
-                y_plane: gray_plane,
-                y_stride: decoded_yuv.width,
-                a_plane: alpha_plane,
-                a_stride: decoded_yuv.width,
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
-            };
-            y010_alpha_to_rgba10(
-                &gray_alpha_img,
-                &mut target_data,
-                decoded_yuv.width * 4,
-                colors.range,
-                colors.matrix,
-            )
-            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-
-            return finalize(target_data, decoded_yuv, colors.cicp);
-        }
-
-        let gray_img = YuvGrayImage {
-            y_plane: gray_plane,
-            y_stride: decoded_yuv.width,
-            width: decoded_yuv.width,
-            height: decoded_yuv.height,
-        };
-        y010_to_rgba10(
-            &gray_img,
-            &mut target_data,
-            decoded_yuv.width * 4,
-            colors.range,
-            colors.matrix,
-        )
-        .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-
-        return finalize(target_data, decoded_yuv, colors.cicp);
-    }
-
-    let probably_u16_luma = decoded_yuv.y.as_u16();
-    let Some(luma_plane) = probably_u16_luma.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-    let probably_cb_plane = decoded_yuv.cb.as_u16();
-    let Some(cb_plane) = probably_cb_plane.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-    let probably_cr_plane = decoded_yuv.cr.as_u16();
-    let Some(cr_plane) = probably_cr_plane.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-
-    macro_rules! decode_chroma_to_rgba {
-        ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-                let bound_alpha_u16 = hidden_alpha.as_u16();
-                let Some(alpha_plane) = bound_alpha_u16.as_ref() else {
-                    return Err(WeaverError::MismatchedBitDepth);
-                };
-
-                let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    a_plane: alpha_plane,
-                    a_stride: decoded_yuv.width,
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
-                };
-
-                $alpha_to_rgba(
-                    &planar_yuv,
-                    &mut target_data,
-                    decoded_yuv.width * 4,
-                    colors.range,
-                    colors.matrix,
-                )
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-            } else {
-                let planar_yuv = YuvPlanarImage {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
-                };
-
-                $to_rgba(
-                    &planar_yuv,
-                    &mut target_data,
-                    decoded_yuv.width * 4,
+                    target_stride,
                     colors.range,
                     colors.matrix,
                 )
@@ -623,93 +405,223 @@ fn decode_heic_inner_10bit(
     }
 
     macro_rules! decode_chroma_to_rgba_ycgco {
-        ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-                let bound_alpha_u16 = hidden_alpha.as_u16();
-                let Some(alpha_plane) = bound_alpha_u16.as_ref() else {
-                    return Err(WeaverError::MismatchedBitDepth);
-                };
-
+        ($to_rgba:ident, $alpha_to_rgba:ident) => {{
+            if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    a_plane: alpha_plane,
-                    a_stride: decoded_yuv.width,
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    a_plane: alpha.data,
+                    a_stride: alpha.stride,
+                    width,
+                    height,
                 };
+                $alpha_to_rgba(&planar_yuv, &mut target_data, target_stride, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    width,
+                    height,
+                };
+                $to_rgba(&planar_yuv, &mut target_data, target_stride, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            }
+        }};
+    }
 
+    match decoded_yuv.chroma {
+        hpvcd::ChromaFormat::Monochrome => unreachable!("handled above"),
+        hpvcd::ChromaFormat::Yuv420 => {
+            if is_ycgco {
+                decode_chroma_to_rgba_ycgco!(ycgco420_to_rgba, ycgco420_alpha_to_rgba)
+            } else {
+                decode_chroma_to_rgba!(yuv420_to_rgba, yuv420_alpha_to_rgba)
+            }
+        }
+        hpvcd::ChromaFormat::Yuv422 => {
+            if is_ycgco {
+                decode_chroma_to_rgba_ycgco!(ycgco422_to_rgba, ycgco422_alpha_to_rgba)
+            } else {
+                decode_chroma_to_rgba!(yuv422_to_rgba, yuv422_alpha_to_rgba)
+            }
+        }
+        hpvcd::ChromaFormat::Yuv444 => {
+            if is_ycgco {
+                decode_chroma_to_rgba_ycgco!(ycgco444_to_rgba, ycgco444_alpha_to_rgba)
+            } else {
+                decode_chroma_to_rgba!(yuv444_to_rgba, yuv444_alpha_to_rgba)
+            }
+        }
+    }
+
+    finalize(target_data, decoded_yuv, colors.cicp)
+}
+
+fn decode_heic_inner_10bit(
+    decoded_yuv: &DecodedYuv,
+    planes: &PlanarImage<u16>,
+) -> Result<DecodedHeicPacket<u16>, WeaverError> {
+    let (width, height) = plane_dimensions(planes)?;
+    if check_image_size_overflow(width as u64, height as u64, 4, size_of::<u16>() as isize) {
+        return Err(WeaverError::FailedToAllocateMemory(isize::MAX as u64));
+    }
+
+    let mut target_data = try_vec![0u16; width as usize * height as usize * 4];
+    let colors = solve_heic_colors(decoded_yuv)?;
+    let is_ycgco = is_metadata_ycgco(decoded_yuv);
+    let luma = plane_view(&planes.y)?;
+    let alpha = alpha_view_u16(decoded_yuv)?;
+    let target_stride = rgba_stride(width)?;
+
+    if decoded_yuv.chroma == hpvcd::ChromaFormat::Monochrome {
+        if let Some(alpha) = alpha {
+            let gray_alpha_img = YuvGrayAlphaImage {
+                y_plane: luma.data,
+                y_stride: luma.stride,
+                a_plane: alpha.data,
+                a_stride: alpha.stride,
+                width,
+                height,
+            };
+            y010_alpha_to_rgba10(
+                &gray_alpha_img,
+                &mut target_data,
+                target_stride,
+                colors.range,
+                colors.matrix,
+            )
+            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+        } else {
+            let gray_img = YuvGrayImage {
+                y_plane: luma.data,
+                y_stride: luma.stride,
+                width,
+                height,
+            };
+            y010_to_rgba10(
+                &gray_img,
+                &mut target_data,
+                target_stride,
+                colors.range,
+                colors.matrix,
+            )
+            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+        }
+        return finalize(target_data, decoded_yuv, colors.cicp);
+    }
+
+    let (cb, cr) = chroma_views(planes)?;
+
+    macro_rules! decode_chroma_to_rgba {
+        ($to_rgba:ident, $alpha_to_rgba:ident) => {{
+            if let Some(alpha) = alpha {
+                let planar_yuv = YuvPlanarImageWithAlpha {
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    a_plane: alpha.data,
+                    a_stride: alpha.stride,
+                    width,
+                    height,
+                };
                 $alpha_to_rgba(
                     &planar_yuv,
                     &mut target_data,
-                    decoded_yuv.width * 4,
+                    target_stride,
                     colors.range,
+                    colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    width,
+                    height,
                 };
-
                 $to_rgba(
                     &planar_yuv,
                     &mut target_data,
-                    decoded_yuv.width * 4,
+                    target_stride,
                     colors.range,
+                    colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
         }};
     }
 
+    macro_rules! decode_chroma_to_rgba_ycgco {
+        ($to_rgba:ident, $alpha_to_rgba:ident) => {{
+            if let Some(alpha) = alpha {
+                let planar_yuv = YuvPlanarImageWithAlpha {
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    a_plane: alpha.data,
+                    a_stride: alpha.stride,
+                    width,
+                    height,
+                };
+                $alpha_to_rgba(&planar_yuv, &mut target_data, target_stride, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            } else {
+                let planar_yuv = YuvPlanarImage {
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    width,
+                    height,
+                };
+                $to_rgba(&planar_yuv, &mut target_data, target_stride, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+            }
+        }};
+    }
+
     match decoded_yuv.chroma {
-        hpvcd::ChromaFormat::Monochrome => unreachable!("Handled in some other place"),
+        hpvcd::ChromaFormat::Monochrome => unreachable!("handled above"),
         hpvcd::ChromaFormat::Yuv420 => {
             if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc010_to_rgba10, icgc010_alpha_to_rgba10, 2)
+                decode_chroma_to_rgba_ycgco!(icgc010_to_rgba10, icgc010_alpha_to_rgba10)
             } else {
-                decode_chroma_to_rgba!(i010_to_rgba10, i010_alpha_to_rgba10, 2)
+                decode_chroma_to_rgba!(i010_to_rgba10, i010_alpha_to_rgba10)
             }
         }
         hpvcd::ChromaFormat::Yuv422 => {
             if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc210_to_rgba10, icgc210_alpha_to_rgba10, 2)
+                decode_chroma_to_rgba_ycgco!(icgc210_to_rgba10, icgc210_alpha_to_rgba10)
             } else {
-                decode_chroma_to_rgba!(i210_to_rgba10, i210_alpha_to_rgba10, 2)
+                decode_chroma_to_rgba!(i210_to_rgba10, i210_alpha_to_rgba10)
             }
         }
         hpvcd::ChromaFormat::Yuv444 => {
             if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc410_to_rgba10, icgc410_alpha_to_rgba10, 1)
+                decode_chroma_to_rgba_ycgco!(icgc410_to_rgba10, icgc410_alpha_to_rgba10)
             } else {
-                decode_chroma_to_rgba!(i410_to_rgba10, i410_alpha_to_rgba10, 1)
+                decode_chroma_to_rgba!(i410_to_rgba10, i410_alpha_to_rgba10)
             }
         }
     }
@@ -719,146 +631,97 @@ fn decode_heic_inner_10bit(
 
 fn decode_heic_inner_12bit(
     decoded_yuv: &DecodedYuv,
+    planes: &PlanarImage<u16>,
 ) -> Result<DecodedHeicPacket<u16>, WeaverError> {
-    if check_image_size_overflow(
-        decoded_yuv.width as u64,
-        decoded_yuv.height as u64,
-        4,
-        size_of::<u16>() as isize,
-    ) {
+    let (width, height) = plane_dimensions(planes)?;
+    if check_image_size_overflow(width as u64, height as u64, 4, size_of::<u16>() as isize) {
         return Err(WeaverError::FailedToAllocateMemory(isize::MAX as u64));
     }
 
-    let mut target_data =
-        try_vec![0u16; decoded_yuv.width as usize * decoded_yuv.height as usize * 4];
-
+    let mut target_data = try_vec![0u16; width as usize * height as usize * 4];
     let colors = solve_heic_colors(decoded_yuv)?;
     let is_ycgco = is_metadata_ycgco(decoded_yuv);
+    let luma = plane_view(&planes.y)?;
+    let alpha = alpha_view_u16(decoded_yuv)?;
+    let target_stride = rgba_stride(width)?;
 
     if decoded_yuv.chroma == hpvcd::ChromaFormat::Monochrome {
-        let probably_u16_gray = decoded_yuv.y.as_u16();
-        let Some(gray_plane) = probably_u16_gray.as_ref() else {
-            return Err(WeaverError::MismatchedBitDepth);
-        };
-
-        if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-            let bound_alpha_u16 = hidden_alpha.as_u16();
-            let Some(alpha_plane) = bound_alpha_u16.as_ref() else {
-                return Err(WeaverError::MismatchedBitDepth);
-            };
-
+        if let Some(alpha) = alpha {
             let gray_alpha_img = YuvGrayAlphaImage {
-                y_plane: gray_plane,
-                y_stride: decoded_yuv.width,
-                a_plane: alpha_plane,
-                a_stride: decoded_yuv.width,
-                width: decoded_yuv.width,
-                height: decoded_yuv.height,
+                y_plane: luma.data,
+                y_stride: luma.stride,
+                a_plane: alpha.data,
+                a_stride: alpha.stride,
+                width,
+                height,
             };
             y012_alpha_to_rgba12(
                 &gray_alpha_img,
                 &mut target_data,
-                decoded_yuv.width * 4,
+                target_stride,
                 colors.range,
                 colors.matrix,
             )
             .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-
-            return finalize(target_data, decoded_yuv, colors.cicp);
+        } else {
+            let gray_img = YuvGrayImage {
+                y_plane: luma.data,
+                y_stride: luma.stride,
+                width,
+                height,
+            };
+            y012_to_rgba12(
+                &gray_img,
+                &mut target_data,
+                target_stride,
+                colors.range,
+                colors.matrix,
+            )
+            .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
         }
-
-        let gray_img = YuvGrayImage {
-            y_plane: gray_plane,
-            y_stride: decoded_yuv.width,
-            width: decoded_yuv.width,
-            height: decoded_yuv.height,
-        };
-        y012_to_rgba12(
-            &gray_img,
-            &mut target_data,
-            decoded_yuv.width * 4,
-            colors.range,
-            colors.matrix,
-        )
-        .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
-
         return finalize(target_data, decoded_yuv, colors.cicp);
     }
 
-    let probably_u16_luma = decoded_yuv.y.as_u16();
-    let Some(luma_plane) = probably_u16_luma.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-    let probably_cb_plane = decoded_yuv.cb.as_u16();
-    let Some(cb_plane) = probably_cb_plane.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
-    let probably_cr_plane = decoded_yuv.cr.as_u16();
-    let Some(cr_plane) = probably_cr_plane.as_ref() else {
-        return Err(WeaverError::MismatchedBitDepth);
-    };
+    let (cb, cr) = chroma_views(planes)?;
 
     macro_rules! decode_chroma_to_rgba {
-        ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-                let bound_alpha_u16 = hidden_alpha.as_u16();
-                let Some(alpha_plane) = bound_alpha_u16.as_ref() else {
-                    return Err(WeaverError::MismatchedBitDepth);
-                };
-
+        ($to_rgba:ident, $alpha_to_rgba:ident) => {{
+            if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    a_plane: alpha_plane,
-                    a_stride: decoded_yuv.width,
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    a_plane: alpha.data,
+                    a_stride: alpha.stride,
+                    width,
+                    height,
                 };
-
                 $alpha_to_rgba(
                     &planar_yuv,
                     &mut target_data,
-                    decoded_yuv.width * 4,
+                    target_stride,
                     colors.range,
                     colors.matrix,
                 )
                 .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    width,
+                    height,
                 };
-
                 $to_rgba(
                     &planar_yuv,
                     &mut target_data,
-                    decoded_yuv.width * 4,
+                    target_stride,
                     colors.range,
                     colors.matrix,
                 )
@@ -867,94 +730,61 @@ fn decode_heic_inner_12bit(
         }};
     }
 
-    macro_rules! decode_chroma_to_rgba_cgco {
-        ($to_rgba:ident, $alpha_to_rgba:ident, $sub_w: expr) => {{
-            if let Some(hidden_alpha) = decoded_yuv.alpha.as_ref() {
-                let bound_alpha_u16 = hidden_alpha.as_u16();
-                let Some(alpha_plane) = bound_alpha_u16.as_ref() else {
-                    return Err(WeaverError::MismatchedBitDepth);
-                };
-
+    macro_rules! decode_chroma_to_rgba_ycgco {
+        ($to_rgba:ident, $alpha_to_rgba:ident) => {{
+            if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    a_plane: alpha_plane,
-                    a_stride: decoded_yuv.width,
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    a_plane: alpha.data,
+                    a_stride: alpha.stride,
+                    width,
+                    height,
                 };
-
-                $alpha_to_rgba(
-                    &planar_yuv,
-                    &mut target_data,
-                    decoded_yuv.width * 4,
-                    colors.range,
-                )
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+                $alpha_to_rgba(&planar_yuv, &mut target_data, target_stride, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             } else {
                 let planar_yuv = YuvPlanarImage {
-                    y_plane: luma_plane,
-                    y_stride: decoded_yuv.width,
-                    u_plane: cb_plane,
-                    u_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    v_plane: cr_plane,
-                    v_stride: if $sub_w != 1 {
-                        decoded_yuv.width.div_ceil($sub_w)
-                    } else {
-                        decoded_yuv.width
-                    },
-                    width: decoded_yuv.width,
-                    height: decoded_yuv.height,
+                    y_plane: luma.data,
+                    y_stride: luma.stride,
+                    u_plane: cb.data,
+                    u_stride: cb.stride,
+                    v_plane: cr.data,
+                    v_stride: cr.stride,
+                    width,
+                    height,
                 };
-
-                $to_rgba(
-                    &planar_yuv,
-                    &mut target_data,
-                    decoded_yuv.width * 4,
-                    colors.range,
-                )
-                .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
+                $to_rgba(&planar_yuv, &mut target_data, target_stride, colors.range)
+                    .map_err(|x| WeaverError::YuvDecodingSignalledError(x.to_string()))?;
             }
         }};
     }
 
     match decoded_yuv.chroma {
-        hpvcd::ChromaFormat::Monochrome => unreachable!("Handled in some other place"),
+        hpvcd::ChromaFormat::Monochrome => unreachable!("handled above"),
         hpvcd::ChromaFormat::Yuv420 => {
             if is_ycgco {
-                decode_chroma_to_rgba_cgco!(icgc012_to_rgba12, icgc012_alpha_to_rgba12, 2)
+                decode_chroma_to_rgba_ycgco!(icgc012_to_rgba12, icgc012_alpha_to_rgba12)
             } else {
-                decode_chroma_to_rgba!(i012_to_rgba12, i012_alpha_to_rgba12, 2)
+                decode_chroma_to_rgba!(i012_to_rgba12, i012_alpha_to_rgba12)
             }
         }
         hpvcd::ChromaFormat::Yuv422 => {
             if is_ycgco {
-                decode_chroma_to_rgba_cgco!(icgc212_to_rgba12, icgc212_alpha_to_rgba12, 2)
+                decode_chroma_to_rgba_ycgco!(icgc212_to_rgba12, icgc212_alpha_to_rgba12)
             } else {
-                decode_chroma_to_rgba!(i212_to_rgba12, i212_alpha_to_rgba12, 2)
+                decode_chroma_to_rgba!(i212_to_rgba12, i212_alpha_to_rgba12)
             }
         }
         hpvcd::ChromaFormat::Yuv444 => {
             if is_ycgco {
-                decode_chroma_to_rgba_cgco!(icgc412_to_rgba12, icgc412_alpha_to_rgba12, 1)
+                decode_chroma_to_rgba_ycgco!(icgc412_to_rgba12, icgc412_alpha_to_rgba12)
             } else {
-                decode_chroma_to_rgba!(i412_to_rgba12, i412_alpha_to_rgba12, 1)
+                decode_chroma_to_rgba!(i412_to_rgba12, i412_alpha_to_rgba12)
             }
         }
     }
@@ -970,15 +800,16 @@ pub(crate) fn decode_packed_heic(data: &[u8]) -> Result<PackedHeic, WeaverError>
     let decoded_heic =
         hpvcd::decode_heic_yuv(data).map_err(|x| WeaverError::FailedToDecodeHeic(x.to_string()))?;
 
-    match decoded_heic.bit_depth {
-        BitDepth::Eight => Ok(PackedHeic::Regular(decode_inner_low_bit_depth(
-            &decoded_heic,
-        )?)),
-        BitDepth::Ten => Ok(PackedHeic::HighBitDepth(decode_heic_inner_10bit(
-            &decoded_heic,
-        )?)),
-        BitDepth::Twelve => Ok(PackedHeic::HighBitDepth(decode_heic_inner_12bit(
-            &decoded_heic,
-        )?)),
+    match (decoded_heic.bit_depth, &decoded_heic.planes) {
+        (BitDepth::Eight, YuvBuffer::U8(planes)) => Ok(PackedHeic::Regular(
+            decode_inner_low_bit_depth(&decoded_heic, planes)?,
+        )),
+        (BitDepth::Ten, YuvBuffer::U16(planes)) => Ok(PackedHeic::HighBitDepth(
+            decode_heic_inner_10bit(&decoded_heic, planes)?,
+        )),
+        (BitDepth::Twelve, YuvBuffer::U16(planes)) => Ok(PackedHeic::HighBitDepth(
+            decode_heic_inner_12bit(&decoded_heic, planes)?,
+        )),
+        _ => Err(WeaverError::MismatchedBitDepth),
     }
 }

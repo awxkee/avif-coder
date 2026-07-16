@@ -100,6 +100,10 @@ fn rotate_buf<T: Copy + Default>(w: usize, h: usize, px: &[T], o: Orientation) -
 }
 
 /// Generic pixel-buffer rotation; works for both `u8` and `u16` samples.
+#[cfg(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+))]
 pub(crate) fn apply_orientation_av2<T: Copy + Default>(
     rgba: &[T],
     w: usize,
@@ -116,6 +120,10 @@ pub(crate) fn apply_orientation_av2<T: Copy + Default>(
     (rotate_buf_av2(w, h, rgba, o), nw, nh)
 }
 
+#[cfg(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+))]
 fn rotate_buf_av2<T: Copy + Default>(
     w: usize,
     h: usize,

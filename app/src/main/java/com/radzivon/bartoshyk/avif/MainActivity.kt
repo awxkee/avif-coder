@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity() {
                             AvifChromaSubsampling.YUV444,
                             AvKind.AV2,
                         )
-//                        writeFile("result2.avif", encodedAvif)
+                        writeFile("result2.avif", encodedAvif)
 
                         val bitmap2 = coder.decodeSampled(
                             encodedAvif,

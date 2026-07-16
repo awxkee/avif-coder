@@ -43,7 +43,7 @@ typedef int (*AHardwareBufferIsSupportedFunc)(
     const AHardwareBuffer_Desc *_Nonnull desc
 );
 
-typedef int (*AHardwareBufferReleaseFunc)(
+typedef void (*AHardwareBufferReleaseFunc)(
     AHardwareBuffer *_Nonnull buffer
 );
 

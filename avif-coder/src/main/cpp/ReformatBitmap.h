@@ -36,6 +36,10 @@
 #include "definitions.h"
 
 namespace coder {
+// Controls verbose AHardwareBuffer lifecycle diagnostics at runtime.
+void SetHardwareBufferDebugLoggingEnabled(bool enabled) noexcept;
+bool IsHardwareBufferDebugLoggingEnabled() noexcept;
+
 void
 ReformatColorConfig(JNIEnv *env, aligned_uint8_vector &imageData, std::string &imageConfig,
                     PreferredColorConfig preferredColorConfig, uint32_t depth,

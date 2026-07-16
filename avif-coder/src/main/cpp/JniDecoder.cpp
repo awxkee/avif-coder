@@ -77,6 +77,12 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                               mScaleMode, mConfig);
     }
 
+    // The controller owns its own compressed-input copy and has already been
+    // destroyed here. Release the JNI input before color conversion and the
+    // hardware-buffer upload so large files do not add avoidable native-memory
+    // pressure at the gralloc lock boundary.
+    std::vector<uint8_t>().swap(srcBuffer);
+
     int osVersion = androidOSVersion();
 
     bool useBitmapHalf16Floats = false;
@@ -95,6 +101,9 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
                                frame.bitDepth, frame.width,
                                frame.height, &stride, &useBitmapHalf16Floats, &hwBuffer,
                                false, frame.hasAlpha);
+    if (env->ExceptionCheck()) {
+      return static_cast<jobject>(nullptr);
+    }
 
     return createBitmap(env, ref(frame.store), imageConfig, stride, frame.width, frame.height,
                         useBitmapHalf16Floats, hwBuffer);
