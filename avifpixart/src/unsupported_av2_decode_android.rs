@@ -59,23 +59,3 @@ pub unsafe extern "C" fn read_av2_file_info(_data: *const u8, _length: usize) ->
     // This ABI has no error/exception parameter, so report the image as unsupported.
     HeicInfo::not_a_heic()
 }
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encode_avif_av2_file(
-    env: *mut jni::sys::JNIEnv,
-    image: jobject,
-    exif: jobject,
-    color_space: i32,
-    quality: i32,
-    lossless: bool,
-    chroma_subsampling_code: i32,
-    speed: AvEncodingSpeed,
-) -> jbyteArray {
-    init_logging();
-    let message = format!(
-        "AV2 encoding is not supported on target architecture '{}'. Supported targets: {SUPPORTED_AV2_DECODING_TARGETS}",
-        std::env::consts::ARCH,
-    );
-    unsafe { throw_runtime_exception_raw(env, message) };
-    null_mut()
-}
