@@ -5,12 +5,11 @@ edition = "2024"
 
 [dependencies]
 num-traits = "0.2"
-pic-scale = { version = "0.7.10", default-features = false, features = ["nightly_f16"] }
+pic-scale = { version = "0.7.11", default-features = false, features = ["nightly_f16"] }
 yuv = { version = "0.8.16", features = ["nightly_f16"], default-features = false }
 bytemuck = { version = "1.25", features = ["nightly_float"] }
-moxcms = { version = "0.8.1", default-features = false }
-gainforge = "0.5.0"
-hpvcd = { version = "0.3.1", default-features = false }
+moxcms = { version = "0.9.0", default-features = false }
+gainforge = {version = "0.5.1", default-features = false}
 thiserror = "2.0.18"
 libc = "1.0.0-alpha.3"
 log = "0.4.32"
@@ -22,12 +21,13 @@ android_logger = { version = "0.15", optional = true }   # pulled in only by `lo
 anyhow = "1.0.102"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "arm"))'.dependencies]
-maroontree = {version = "0.1.8", default-features = false}
-hpvca = { version = "0.1.11", default-features = false }
+hpvcd = { version = "0.3.1", default-features = false }
+maroontree = {version = "0.1.10", default-features = false}
+hpvca = { version = "0.1.15", default-features = false }
 tealdust = { version = "0.1.4", default-features = false }
 
 [features]
-rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "hpvcd/neon"]
+rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "hpvcd/neon", "maroontree/neon"]
 i8mm = ["pic-scale/nightly_i8mm"]
 sve = ["pic-scale/sve"]
 logging = ["dep:android_logger"]

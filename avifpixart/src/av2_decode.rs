@@ -27,7 +27,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::check_image_size_overflow;
-use crate::heic_decode::WeaverError;
+use crate::weaver_error::WeaverError;
 use crate::orientation::apply_orientation_av2;
 use crate::support::try_vec;
 use hpvcd::BitDepth;

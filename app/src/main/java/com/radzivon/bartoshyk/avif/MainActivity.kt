@@ -34,10 +34,12 @@ import android.util.Size
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.radzivon.bartoshyk.avif.coder.AvKind
+import com.radzivon.bartoshyk.avif.coder.AvifEncodingOptions
 import com.radzivon.bartoshyk.avif.coder.AvifChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.Coder
 import com.radzivon.bartoshyk.avif.coder.HeicChromaSubsampling
 import com.radzivon.bartoshyk.avif.coder.HeifQualityArg
+import com.radzivon.bartoshyk.avif.coder.HevcEncodingOptions
 import com.radzivon.bartoshyk.avif.coder.PreciseMode
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
@@ -165,9 +167,12 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         val encoded = coder.encodeHeic(
-                            bitmap0, null, PreciseMode.LOSSY,
-                            HeifQualityArg.Quality(70),
-                            HeicChromaSubsampling.YUV420
+                            bitmap0,
+                            options = HevcEncodingOptions(
+                                preciseMode = PreciseMode.LOSSY,
+                                quality = HeifQualityArg.Quality(70),
+                                chromaSubsampling = HeicChromaSubsampling.YUV420,
+                            )
                         )
 
                         val bitmap1 = coder.decodeSampled(
@@ -193,11 +198,12 @@ class MainActivity : AppCompatActivity() {
 
                         val encodedAvif = coder.encodeAvif(
                             bitmap1,
-                            null,
-                            60,
-                            PreciseMode.LOSSY,
-                            AvifChromaSubsampling.YUV444,
-                            AvKind.AV1,
+                            options = AvifEncodingOptions(
+                                quality = 60,
+                                preciseMode = PreciseMode.LOSSY,
+                                chromaSubsampling = AvifChromaSubsampling.YUV444,
+                                avKind = AvKind.AV1,
+                            ),
                         )
                         writeFile("result2.avif", encodedAvif)
 

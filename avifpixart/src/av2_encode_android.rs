@@ -26,10 +26,11 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::av1_encode_android::{AvEncodingConfig, AvEncodingSpeed, resolve_cicp_maroontree};
+use crate::av1_encode_android::{AvEncodingConfig, resolve_cicp_maroontree};
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
+use crate::encoding_options::AvifEncodingOptions;
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
-use crate::heic_decode::WeaverError;
+use crate::weaver_error::WeaverError;
 use crate::support::{
     dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec,
     panic_payload_to_string, throw_runtime_exception, throw_runtime_exception_raw,
@@ -132,7 +133,9 @@ fn encode_av2_inner_mono_u8(
         .with_quality(if _lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(ChromaFormat::Monochrome)
-        .with_speed(config.speed.to_maroontree());
+        .with_speed(config.speed.to_maroontree())
+        .with_screen_content(config.screen_content_coding)
+        .with_intrabc(config.screen_content_coding);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -279,7 +282,9 @@ fn encode_av2_inner_mono_u16(
         .with_quality(if _lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(ChromaFormat::Monochrome)
-        .with_speed(config.speed.to_maroontree());
+        .with_speed(config.speed.to_maroontree())
+        .with_screen_content(config.screen_content_coding)
+        .with_intrabc(config.screen_content_coding);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -364,10 +369,10 @@ fn encode_av2_inner_u8(
     );
     if lossless
         && chroma_subsampling != ChromaFormat::Yuv444
-            && chroma_subsampling != ChromaFormat::Monochrome
-        {
-            chroma_subsampling = ChromaFormat::Yuv444;
-        }
+        && chroma_subsampling != ChromaFormat::Monochrome
+    {
+        chroma_subsampling = ChromaFormat::Yuv444;
+    }
 
     let mut local_cicp = cicp;
     dbg_log!(
@@ -502,7 +507,9 @@ fn encode_av2_inner_u8(
         .with_quality(if lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(chroma_subsampling)
-        .with_speed(config.speed.to_maroontree());
+        .with_speed(config.speed.to_maroontree())
+        .with_screen_content(config.screen_content_coding)
+        .with_intrabc(config.screen_content_coding);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -586,9 +593,11 @@ fn encode_av2_inner_u16_10_bit(
     }
 
     if lossless
-        && chroma_format != ChromaFormat::Yuv444 && chroma_format != ChromaFormat::Monochrome {
-            chroma_format = ChromaFormat::Yuv444;
-        }
+        && chroma_format != ChromaFormat::Yuv444
+        && chroma_format != ChromaFormat::Monochrome
+    {
+        chroma_format = ChromaFormat::Yuv444;
+    }
     dbg_log!(
         debug,
         "encode_heic_inner_u16_10_bit: {}x{} hd_pixels={} quality={} lossless={} \
@@ -733,7 +742,9 @@ fn encode_av2_inner_u16_10_bit(
         .with_quality(if lossless { 0 } else { quality as u8 })
         .with_threads(threads)
         .with_chroma(chroma_format)
-        .with_speed(config.speed.to_maroontree());
+        .with_speed(config.speed.to_maroontree())
+        .with_screen_content(config.screen_content_coding)
+        .with_intrabc(config.screen_content_coding);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -860,15 +871,11 @@ pub unsafe extern "C" fn encode_avif_av2_file(
     env: *mut jni::sys::JNIEnv,
     image: jobject,
     exif: jobject,
-    color_space: i32,
-    quality: i32,
-    lossless: bool,
-    chroma_subsampling_code: i32,
-    speed: AvEncodingSpeed,
+    options: AvifEncodingOptions,
 ) -> jbyteArray {
     init_logging();
 
-    let chroma_subsampling = match chroma_subsampling_code {
+    let chroma_subsampling = match options.chroma_subsampling_code {
         2 => ChromaFormat::Yuv422,
         3 => ChromaFormat::Yuv444,
         4 => ChromaFormat::Monochrome,
@@ -877,14 +884,18 @@ pub unsafe extern "C" fn encode_avif_av2_file(
 
     dbg_log!(
         debug,
-        "encode_avif_av2_file: color_space={color_space} quality={quality} lossless={lossless} chroma={} ({chroma_subsampling_code}) \
+        "encode_avif_av2_file: color_space={} quality={} lossless={} chroma={} ({}) \
          image_null={} exif_null={}",
+        options.color_space,
+        options.quality,
+        options.lossless,
         match chroma_subsampling {
             ChromaFormat::Yuv420 => "4:2:0",
             ChromaFormat::Yuv422 => "4:2:2",
             ChromaFormat::Yuv444 => "4:4:4",
             ChromaFormat::Monochrome => "Mono",
         },
+        options.chroma_subsampling_code,
         image.is_null(),
         exif.is_null(),
     );
@@ -893,10 +904,10 @@ pub unsafe extern "C" fn encode_avif_av2_file(
 
     let outcome = unowned.with_env(|env| -> Result<jobject, jni::errors::Error> {
         let result: Result<jobject, anyhow::Error> = (|| {
-            let quality = quality.clamp(1, 100) as u32;
+            let quality = options.quality.clamp(1, 100) as u32;
             dbg_log!(debug, "clamped quality={quality}");
 
-            let cicp = resolve_cicp_maroontree(color_space);
+            let cicp = resolve_cicp_maroontree(options.color_space);
             dbg_log!(
                 debug,
                 "resolved cicp: primaries={:?} transfer={:?} matrix={:?} full_range={}",
@@ -938,10 +949,11 @@ pub unsafe extern "C" fn encode_avif_av2_file(
                 &AvEncodingConfig {
                     cicp,
                     quality,
-                    lossless,
+                    lossless: options.lossless,
                     exif: exif_data.map(|x| x.to_vec()),
                     chroma: chroma_subsampling,
-                    speed,
+                    speed: options.speed,
+                    screen_content_coding: options.screen_content_coding,
                 },
             )
             .map_err(|x| {
