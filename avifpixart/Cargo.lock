@@ -401,9 +401,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "maroontree"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4790c7e283dbc62de263c1c62940e58ed76f33190ddc1906b6fddf21258cfe7d"
+checksum = "4f42457adf42b44c32883f0a621779d35757fb1d437983f5341af6fafc4a6ab2"
 dependencies = [
  "hashbrown",
 ]
