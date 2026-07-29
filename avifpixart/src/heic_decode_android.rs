@@ -34,13 +34,15 @@ use crate::ffi::{
     MIN_OS_BITMAP_COLOR_SPACE, create_rgba8888_hardware_buffer,
     create_rgba8888_hardware_buffer_from_u16, software_bitmap, wrap_hardware_buffer,
 };
-use crate::heic_decode::{DecodedHeicPacket, PackedHeic, WeaverError, decode_packed_heic};
+use crate::heic_decode::{DecodedHeicPacket, PackedHeic, decode_packed_heic};
+use crate::image_info::HeicInfo;
 use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
 use crate::support::{
     MIN_OS_AR30, MIN_OS_F16, PackedImageBuffer, PackedImageTransfer, android_os_version, dbg_log,
     init_logging, try_vec,
 };
+use crate::weaver_error::WeaverError;
 use crate::{WeaveScaleMode, WeaverPreferredColorConfig, is_heic_image};
 use hpvcd::{BitDepth, Cicp, Orientation, Primaries, TransferFunction};
 use jni::objects::JObject;
@@ -684,26 +686,6 @@ pub unsafe extern "C" fn decode_heic_file(
                 .unwrap_or_else(|| "unknown panic".to_string());
             dbg_log!(error, "panic in with_env: {_msg:?}");
             null_mut()
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct HeicInfo {
-    pub supported_image: bool,
-    pub width: u32,
-    pub height: u32,
-    pub bit_depth: u32,
-}
-
-impl HeicInfo {
-    pub(crate) fn not_a_heic() -> HeicInfo {
-        HeicInfo {
-            supported_image: false,
-            width: 0,
-            height: 0,
-            bit_depth: 0,
         }
     }
 }

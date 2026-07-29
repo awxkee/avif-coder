@@ -27,35 +27,22 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-use crate::image_info::HeicInfo;
-use crate::support::{init_logging, throw_runtime_exception_raw};
-use crate::{AvEncodingSpeed, WeaveScaleMode, WeaverPreferredColorConfig};
-use jni::sys::{jbyteArray, jobject};
-use std::ptr::null_mut;
-
-const SUPPORTED_AV2_DECODING_TARGETS: &str = "aarch64-linux-android and armv7-linux-androideabi";
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decode_av2_file(
-    env: *mut jni::sys::JNIEnv,
-    _data: *const u8,
-    _length: usize,
-    _scaled_width: i32,
-    _scaled_height: i32,
-    _scale_mode: WeaveScaleMode,
-    _preferred_color_config: WeaverPreferredColorConfig,
-) -> jobject {
-    init_logging();
-    let message = format!(
-        "AV2 decoding is not supported on target architecture '{}'. Supported targets: {SUPPORTED_AV2_DECODING_TARGETS}",
-        std::env::consts::ARCH,
-    );
-    unsafe { throw_runtime_exception_raw(env, message) };
-    null_mut()
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct HeicInfo {
+    pub supported_image: bool,
+    pub width: u32,
+    pub height: u32,
+    pub bit_depth: u32,
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn read_av2_file_info(_data: *const u8, _length: usize) -> HeicInfo {
-    // This ABI has no error/exception parameter, so report the image as unsupported.
-    HeicInfo::not_a_heic()
+impl HeicInfo {
+    pub(crate) fn not_a_heic() -> HeicInfo {
+        HeicInfo {
+            supported_image: false,
+            width: 0,
+            height: 0,
+            bit_depth: 0,
+        }
+    }
 }

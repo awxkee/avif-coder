@@ -12,6 +12,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocator-api2"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
+
+[[package]]
 name = "android_log-sys"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -233,10 +239,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
-name = "gainforge"
-version = "0.5.0"
+name = "foldhash"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a97828c225c1532b51fd868bfe534ed1322cb8e6507b661b368650a51e0f944"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
+name = "gainforge"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a03341f67f718beecf3237a67fa8388598f8f821c13dea152ac00a5a9a12fcd6"
 dependencies = [
  "moxcms",
  "num-traits",
@@ -259,6 +271,11 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash",
+]
 
 [[package]]
 name = "heck"
@@ -268,9 +285,9 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hpvca"
-version = "0.1.11"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "619d46f446a1517b85e06b16536afcf35ff1bb19cdc125bb9654823d321f0434"
+checksum = "0ec5034a2a19795a8d823abb838603042be39fa067051d6061737fada1d7d070"
 
 [[package]]
 name = "hpvcd"
@@ -384,9 +401,12 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "maroontree"
-version = "0.1.8"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d772f63d34969687344ab779a8e352d8c2a0e37a590c91e17baa8ac925cb2f7c"
+checksum = "4790c7e283dbc62de263c1c62940e58ed76f33190ddc1906b6fddf21258cfe7d"
+dependencies = [
+ "hashbrown",
+]
 
 [[package]]
 name = "memchr"
@@ -396,9 +416,9 @@ checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 
 [[package]]
 name = "moxcms"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
+checksum = "aee701c0ffba6cc991c0fefda5ff5fca1bd2f2f4a928ffba9f825b9afceedbc3"
 dependencies = [
  "num-traits",
  "pxfm",
@@ -436,9 +456,9 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "pic-scale"
-version = "0.7.10"
+version = "0.7.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "694e82ac1a7d35d78dc5fdc6763ffa7c0025a65d4fea3e53ba24fc89f216fc06"
+checksum = "d4c80d88d5c31215ceec2862abb2504860c715b8e2545a5ab15b62a3d097f30d"
 dependencies = [
  "num-traits",
  "pxfm",

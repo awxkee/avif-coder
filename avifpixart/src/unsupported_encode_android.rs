@@ -27,20 +27,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+use crate::encoding_options::{AvifEncodingOptions, HevcEncodingOptions};
 use crate::support::{init_logging, throw_runtime_exception_raw};
 use jni::sys::{jbyteArray, jobject};
 use std::ptr::null_mut;
 
 const SUPPORTED_ENCODING_TARGETS: &str =
     "aarch64-linux-android and armv7-linux-androideabi";
-
-#[repr(C)]
-#[derive(Debug, Clone)]
-pub enum AvEncodingSpeed {
-    Slow,
-    Medium,
-    Fast,
-}
 
 #[inline]
 unsafe fn unsupported_encoding(env: *mut jni::sys::JNIEnv, codec: &str) -> jbyteArray {
@@ -58,11 +51,7 @@ pub unsafe extern "C" fn encode_avif_av1_file(
     env: *mut jni::sys::JNIEnv,
     _image: jobject,
     _exif: jobject,
-    _color_space: i32,
-    _quality: i32,
-    _lossless: bool,
-    _chroma_subsampling_code: i32,
-    _speed: AvEncodingSpeed,
+    _options: AvifEncodingOptions,
 ) -> jbyteArray {
     unsafe { unsupported_encoding(env, "AV1/AVIF") }
 }
@@ -72,11 +61,7 @@ pub unsafe extern "C" fn encode_avif_av2_file(
     env: *mut jni::sys::JNIEnv,
     _image: jobject,
     _exif: jobject,
-    _color_space: i32,
-    _quality: i32,
-    _lossless: bool,
-    _chroma_subsampling_code: i32,
-    _speed: AvEncodingSpeed,
+    _options: AvifEncodingOptions,
 ) -> jbyteArray {
     unsafe { unsupported_encoding(env, "AV2/AVIF") }
 }
@@ -86,10 +71,7 @@ pub unsafe extern "C" fn encode_heic_file(
     env: *mut jni::sys::JNIEnv,
     _image: jobject,
     _exif: jobject,
-    _color_space: i32,
-    _quality: i32,
-    _chroma_subsampling_code: i32,
-    _lossless: bool,
+    _options: HevcEncodingOptions,
 ) -> jbyteArray {
     unsafe { unsupported_encoding(env, "HEIC") }
 }

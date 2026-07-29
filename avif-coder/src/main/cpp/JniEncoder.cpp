@@ -65,6 +65,165 @@ enum AvifChromaSubsampling {
   AVIF_CHROMA_LOSELESS
 };
 
+namespace {
+
+bool readAvifEncodingOptions(JNIEnv *env,
+                             jobject javaOptions,
+                             jint dataSpace,
+                             AvifEncodingOptions *options,
+                             bool *useAv2) {
+  if (javaOptions == nullptr) {
+    std::string exception = "AVIF encoding options must not be null";
+    throwException(env, exception);
+    return false;
+  }
+
+  jclass optionsClass = env->GetObjectClass(javaOptions);
+  if (optionsClass == nullptr) {
+    return false;
+  }
+
+  jmethodID qualityMethod = env->GetMethodID(optionsClass, "getQualityValue", "()I");
+  if (qualityMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID losslessMethod = env->GetMethodID(optionsClass, "isLossless", "()Z");
+  if (losslessMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID chromaMethod = env->GetMethodID(
+      optionsClass, "getChromaSubsamplingValue", "()I"
+  );
+  if (chromaMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID av2Method = env->GetMethodID(optionsClass, "useAv2", "()Z");
+  if (av2Method == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID speedMethod = env->GetMethodID(optionsClass, "getSpeedValue", "()I");
+  if (speedMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID screenContentMethod = env->GetMethodID(
+      optionsClass, "getScreenContentCoding", "()Z"
+  );
+  env->DeleteLocalRef(optionsClass);
+
+  if (screenContentMethod == nullptr) {
+    return false;
+  }
+
+  options->color_space = dataSpace;
+  options->quality = env->CallIntMethod(javaOptions, qualityMethod);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->lossless = env->CallBooleanMethod(javaOptions, losslessMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->chroma_subsampling_code = env->CallIntMethod(javaOptions, chromaMethod);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  *useAv2 = env->CallBooleanMethod(javaOptions, av2Method) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  jint speed = env->CallIntMethod(javaOptions, speedMethod);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+
+  options->speed = AvEncodingSpeed::Fast;
+  if (speed == 1) {
+    options->speed = AvEncodingSpeed::Medium;
+  } else if (speed == 2) {
+    options->speed = AvEncodingSpeed::Slow;
+  }
+  options->screen_content_coding =
+      env->CallBooleanMethod(javaOptions, screenContentMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  return true;
+}
+
+bool readHevcEncodingOptions(JNIEnv *env,
+                             jobject javaOptions,
+                             jint dataSpace,
+                             HevcEncodingOptions *options) {
+  if (javaOptions == nullptr) {
+    std::string exception = "HEVC encoding options must not be null";
+    throwException(env, exception);
+    return false;
+  }
+
+  jclass optionsClass = env->GetObjectClass(javaOptions);
+  if (optionsClass == nullptr) {
+    return false;
+  }
+
+  jmethodID qualityMethod = env->GetMethodID(optionsClass, "getQualityValue", "()I");
+  if (qualityMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID losslessMethod = env->GetMethodID(optionsClass, "isLossless", "()Z");
+  if (losslessMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID chromaMethod = env->GetMethodID(
+      optionsClass, "getChromaSubsamplingValue", "()I"
+  );
+  if (chromaMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID speedMethod = env->GetMethodID(optionsClass, "getSpeedValue", "()I");
+  if (speedMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID screenContentMethod = env->GetMethodID(
+      optionsClass, "getScreenContentCoding", "()Z"
+  );
+  env->DeleteLocalRef(optionsClass);
+
+  if (screenContentMethod == nullptr) {
+    return false;
+  }
+
+  options->color_space = dataSpace;
+  options->quality = env->CallIntMethod(javaOptions, qualityMethod);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->chroma_subsampling_code = env->CallIntMethod(javaOptions, chromaMethod);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->lossless = env->CallBooleanMethod(javaOptions, losslessMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->speed = env->CallIntMethod(javaOptions, speedMethod);
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->screen_content_coding =
+      env->CallBooleanMethod(javaOptions, screenContentMethod) == JNI_TRUE;
+  return !env->ExceptionCheck();
+}
+
+}
 
 extern "C"
 JNIEXPORT jbyteArray JNICALL
@@ -72,25 +231,21 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_encodeAvifImpl(JNIEnv *env,
                                                             jobject thiz,
                                                             jobject bitmap,
                                                             jobject exif,
-                                                            jint quality,
                                                             jint dataSpace,
-                                                            jboolean lossless,
-                                                            jint chromaSubsampling,
-                                                            jboolean useAV2, jint speed) {
+                                                            jobject javaOptions) {
   try {
-    auto avSpeed = AvEncodingSpeed::Fast;
-    if (speed == 1) {
-      avSpeed = AvEncodingSpeed::Medium;
-    } else if (speed == 2) {
-      avSpeed = AvEncodingSpeed::Slow;
+    AvifEncodingOptions options{};
+    bool useAv2 = false;
+    if (!readAvifEncodingOptions(env, javaOptions, dataSpace, &options, &useAv2)) {
+      return static_cast<jbyteArray>(nullptr);
     }
-    if (useAV2) {
+    if (useAv2) {
       return encode_avif_av2_file(
-          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling, avSpeed
+          env, bitmap, exif, options
       );
     } else {
       return encode_avif_av1_file(
-          env, bitmap, exif, dataSpace, quality, lossless, chromaSubsampling, avSpeed
+          env, bitmap, exif, options
       );
     }
   } catch (std::bad_alloc &err) {
@@ -106,13 +261,13 @@ Java_com_radzivon_bartoshyk_avif_coder_Coder_encodeHeicImpl(JNIEnv *env,
                                                             jobject thiz,
                                                             jobject bitmap,
                                                             jobject exif,
-                                                            jint quality,
                                                             jint dataSpace,
-                                                            jint chroma,
-                                                            jboolean lossless) {
-  return encode_heic_file(
-      env, bitmap, exif, dataSpace, quality, chroma, lossless
-  );
+                                                            jobject javaOptions) {
+  HevcEncodingOptions options{};
+  if (!readHevcEncodingOptions(env, javaOptions, dataSpace, &options)) {
+    return static_cast<jbyteArray>(nullptr);
+  }
+  return encode_heic_file(env, bitmap, exif, options);
 }
 
 extern "C"

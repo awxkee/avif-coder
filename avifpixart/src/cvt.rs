@@ -26,7 +26,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::heic_decode::WeaverError;
+use crate::weaver_error::WeaverError;
 use crate::support::try_vec;
 use core::f16;
 use yuv::{

@@ -13,6 +13,24 @@ enum class AvEncodingSpeed {
   Fast,
 };
 
+struct AvifEncodingOptions {
+  int32_t color_space;
+  int32_t quality;
+  bool lossless;
+  int32_t chroma_subsampling_code;
+  AvEncodingSpeed speed;
+  bool screen_content_coding;
+};
+
+struct HevcEncodingOptions {
+  int32_t color_space;
+  int32_t quality;
+  int32_t chroma_subsampling_code;
+  bool lossless;
+  int32_t speed;
+  bool screen_content_coding;
+};
+
 enum class WeaveScaleMode {
   JustResize,
   ScaleToFill,
@@ -147,11 +165,7 @@ extern "C" {
 jbyteArray encode_avif_av1_file(JNIEnv *env,
                                 jobject image,
                                 jobject exif,
-                                int32_t color_space,
-                                int32_t quality,
-                                bool lossless,
-                                int32_t chroma_subsampling_code,
-                                AvEncodingSpeed speed);
+                                AvifEncodingOptions options);
 
 jobject decode_av2_file(JNIEnv *env,
                         const uint8_t *data,
@@ -166,11 +180,7 @@ HeicInfo read_av2_file_info(const uint8_t *data, uintptr_t length);
 jbyteArray encode_avif_av2_file(JNIEnv *env,
                                 jobject image,
                                 jobject exif,
-                                int32_t color_space,
-                                int32_t quality,
-                                bool lossless,
-                                int32_t chroma_subsampling_code,
-                                AvEncodingSpeed speed);
+                                AvifEncodingOptions options);
 
 bool is_heic_image(const uint8_t *data, uintptr_t len);
 
@@ -230,10 +240,7 @@ HeicInfo read_heic_file_info(const uint8_t *data, uintptr_t length);
 jbyteArray encode_heic_file(JNIEnv *env,
                             jobject image,
                             jobject exif,
-                            int32_t color_space,
-                            int32_t quality,
-                            int32_t chroma_subsampling_code,
-                            bool lossless);
+                            HevcEncodingOptions options);
 
 void apply_icc_rgba8(const uint8_t *src_image,
                      uint32_t src_stride,

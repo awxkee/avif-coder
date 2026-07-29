@@ -27,35 +27,36 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-use crate::image_info::HeicInfo;
-use crate::support::{init_logging, throw_runtime_exception_raw};
-use crate::{AvEncodingSpeed, WeaveScaleMode, WeaverPreferredColorConfig};
-use jni::sys::{jbyteArray, jobject};
-use std::ptr::null_mut;
+use thiserror::Error;
 
-const SUPPORTED_AV2_DECODING_TARGETS: &str = "aarch64-linux-android and armv7-linux-androideabi";
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decode_av2_file(
-    env: *mut jni::sys::JNIEnv,
-    _data: *const u8,
-    _length: usize,
-    _scaled_width: i32,
-    _scaled_height: i32,
-    _scale_mode: WeaveScaleMode,
-    _preferred_color_config: WeaverPreferredColorConfig,
-) -> jobject {
-    init_logging();
-    let message = format!(
-        "AV2 decoding is not supported on target architecture '{}'. Supported targets: {SUPPORTED_AV2_DECODING_TARGETS}",
-        std::env::consts::ARCH,
-    );
-    unsafe { throw_runtime_exception_raw(env, message) };
-    null_mut()
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn read_av2_file_info(_data: *const u8, _length: usize) -> HeicInfo {
-    // This ABI has no error/exception parameter, so report the image as unsupported.
-    HeicInfo::not_a_heic()
+#[derive(Debug, Error)]
+pub enum WeaverError {
+    #[error("Data is not heic file")]
+    InvalidHeic,
+    #[error("HEIC decoder failed with an errror {0}")]
+    FailedToDecodeHeic(String),
+    #[error("AVIF AV2 decoder failed with an errror {0}")]
+    FailedToDecodeAv2(String),
+    #[cfg(all(
+        target_os = "android",
+        any(target_arch = "aarch64", target_arch = "arm")
+    ))]
+    #[error("Unsupported matrix coefficients {0:?}")]
+    UnsupportedMatrix(hpvcd::MatrixCoefficients),
+    #[cfg(all(
+        target_os = "android",
+        any(target_arch = "aarch64", target_arch = "arm")
+    ))]
+    #[error("Unsupported AV2 matrix coefficients {0:?}")]
+    UnsupportedMatrixAv2(tealdust::MatrixCoefficients),
+    #[error("Depth signalled for encoded plane doesn't match the container")]
+    MismatchedBitDepth,
+    #[error("Failed to allocate memory with size {0}")]
+    FailedToAllocateMemory(u64),
+    #[error("YUV decoding failed with an error {0}")]
+    YuvDecodingSignalledError(String),
+    #[error("YUV decoding failed with an error {0}")]
+    PixelFormatIsNotSupported(String),
+    #[error("Monochrome in current path is not supported")]
+    MonochromeIsNotSupported,
 }

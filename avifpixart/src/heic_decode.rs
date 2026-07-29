@@ -29,11 +29,11 @@
 use crate::check_image_size_overflow;
 use crate::orientation::apply_orientation;
 use crate::support::try_vec;
+use crate::weaver_error::WeaverError;
 use hpvcd::{
     BitDepth, Cicp, DecodedYuv, MatrixCoefficients, Orientation, PlanarImage, PlaneBuffer,
     Primaries, TransferFunction, YuvBuffer,
 };
-use thiserror::Error;
 use yuv::{
     YuvGrayAlphaImage, YuvGrayImage, YuvPlanarImage, YuvPlanarImageWithAlpha, YuvStandardMatrix,
     i010_alpha_to_rgba10, i010_to_rgba10, i012_alpha_to_rgba12, i012_to_rgba12,
@@ -60,34 +60,6 @@ fn is_heic(bytes: &[u8]) -> bool {
         &bytes[8..12],
         b"heic" | b"heix" | b"hevc" | b"hevx" | b"mif1" | b"msf1" | b"miaf" | b"MiHE"
     )
-}
-
-#[derive(Debug, Error)]
-pub enum WeaverError {
-    #[error("Data is not heic file")]
-    InvalidHeic,
-    #[error("HEIC decoder failed with an errror {0}")]
-    FailedToDecodeHeic(String),
-    #[error("AVIF AV2 decoder failed with an errror {0}")]
-    FailedToDecodeAv2(String),
-    #[error("Unsupported matrix coefficients {0:?}")]
-    UnsupportedMatrix(MatrixCoefficients),
-    #[cfg(all(
-        target_os = "android",
-        any(target_arch = "aarch64", target_arch = "arm")
-    ))]
-    #[error("Unsupported AV2 matrix coefficients {0:?}")]
-    UnsupportedMatrixAv2(tealdust::MatrixCoefficients),
-    #[error("Depth signalled for encoded plane doesn't match the container")]
-    MismatchedBitDepth,
-    #[error("Failed to allocate memory with size {0}")]
-    FailedToAllocateMemory(u64),
-    #[error("YUV decoding failed with an error {0}")]
-    YuvDecodingSignalledError(String),
-    #[error("YUV decoding failed with an error {0}")]
-    PixelFormatIsNotSupported(String),
-    #[error("Monochrome in current path is not supported")]
-    MonochromeIsNotSupported,
 }
 
 pub(crate) struct DecodedHeicPacket<T> {

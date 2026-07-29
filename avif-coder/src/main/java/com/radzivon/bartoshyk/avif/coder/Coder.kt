@@ -113,94 +113,32 @@ class Coder {
     /**
      * Encodes an avif image
      *
-     * @param quality must be in range 0..100
-     * @param speed - see [AvifSpeed] for more info
-     * @param preciseMode - LOSSY or LOSELESS compression mode
-     * @param surfaceMode - see [AvifSurfaceMode] for more info
-     *
-     * @throws IllegalArgumentException if image size is not even
+     * @param options AVIF encoder configuration
      */
     fun encodeAvif(
         bitmap: Bitmap,
         exif: ByteBuffer? = null,
-        quality: Int = 80,
-        preciseMode: PreciseMode = PreciseMode.LOSSY,
-        avifChromaSubsampling: AvifChromaSubsampling = AvifChromaSubsampling.AUTO,
-        avKind: AvKind = AvKind.AV1,
-        speed: AvSpeed = AvSpeed.FAST,
+        options: AvifEncodingOptions = AvifEncodingOptions(),
     ): ByteArray {
-        require(quality in 0..100) {
-            throw IllegalStateException("Quality should be in 0..100 range")
-        }
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeAvifImpl(
-                bitmap,
-                exif,
-                quality,
-                bitmap.colorSpace?.dataSpace ?: -1,
-                when (preciseMode) {
-                    PreciseMode.LOSSY -> false
-                    PreciseMode.LOSSLESS -> true
-                },
-                avifChromaSubsampling.value,
-                when (avKind) {
-                    AvKind.AV1 -> false
-                    AvKind.AV2 -> true
-                },
-                speed.value,
-            )
+        val dataSpace = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            bitmap.colorSpace?.dataSpace ?: -1
         } else {
-            encodeAvifImpl(
-                bitmap,
-                exif,
-                quality,
-                -1,
-                when (preciseMode) {
-                    PreciseMode.LOSSY -> false
-                    PreciseMode.LOSSLESS -> true
-                },
-                avifChromaSubsampling.value,
-                when (avKind) {
-                    AvKind.AV1 -> false
-                    AvKind.AV2 -> true
-                },
-                speed.value
-            )
+            -1
         }
+        return encodeAvifImpl(bitmap, exif, dataSpace, options)
     }
 
     fun encodeHeic(
         bitmap: Bitmap,
         exif: ByteBuffer? = null,
-        preciseMode: PreciseMode = PreciseMode.LOSSY,
-        quality: HeifQualityArgument = HeifQualityArg.Quality(100),
-        chromaSubsampling: HeicChromaSubsampling = HeicChromaSubsampling.YUV420,
+        options: HevcEncodingOptions = HevcEncodingOptions(),
     ): ByteArray {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            encodeHeicImpl(
-                bitmap,
-                exif,
-                quality.getRequiredQuality(),
-                bitmap.colorSpace?.dataSpace ?: -1,
-                chromaSubsampling.value,
-                when (preciseMode) {
-                    PreciseMode.LOSSY -> false
-                    PreciseMode.LOSSLESS -> true
-                },
-            )
+        val dataSpace = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            bitmap.colorSpace?.dataSpace ?: -1
         } else {
-            encodeHeicImpl(
-                bitmap,
-                exif,
-                quality.getRequiredQuality(),
-                -1,
-                chromaSubsampling.value,
-                when (preciseMode) {
-                    PreciseMode.LOSSY -> false
-                    PreciseMode.LOSSLESS -> true
-                },
-            )
+            -1
         }
+        return encodeHeicImpl(bitmap, exif, dataSpace, options)
     }
 
     fun detectContainer(byteBuffer: ByteBuffer): HeifContainerInnerType? {
@@ -253,21 +191,15 @@ class Coder {
     private external fun encodeAvifImpl(
         bitmap: Bitmap,
         exif: ByteBuffer?,
-        quality: Int,
         dataSpace: Int,
-        qualityMode: Boolean,
-        chromaSubsampling: Int,
-        useAV2: Boolean,
-        speed: Int,
+        options: AvifEncodingOptions,
     ): ByteArray
 
     private external fun encodeHeicImpl(
         bitmap: Bitmap,
         exif: ByteBuffer?,
-        quality: Int,
         dataSpace: Int,
-        chroma: Int,
-        lossless: Boolean,
+        options: HevcEncodingOptions,
     ): ByteArray
 
     @SuppressLint("ObsoleteSdkInt")

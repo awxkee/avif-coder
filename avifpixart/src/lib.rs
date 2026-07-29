@@ -52,9 +52,17 @@ mod av2_decode_android;
 mod av2_encode_android;
 mod box_walker;
 mod cvt;
+mod encoding_options;
 mod ffi;
+#[cfg(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+))]
 mod heic_decode;
-#[cfg(target_os = "android")]
+#[cfg(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+))]
 mod heic_decode_android;
 #[cfg(all(
     target_os = "android",
@@ -63,7 +71,12 @@ mod heic_decode_android;
 mod heic_encode_android;
 mod icc;
 mod native_color_space;
+#[cfg(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+))]
 mod orientation;
+mod image_info;
 mod rgb_to_yuv;
 mod scaling;
 mod support;
@@ -78,6 +91,12 @@ mod unsupported_encode_android;
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
 mod unsupported_av2_decode_android;
+#[cfg(not(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+)))]
+mod unsupported_heic_decode_android;
+mod weaver_error;
 mod yuv_ffi;
 
 use std::fmt::Debug;
@@ -86,7 +105,7 @@ use std::fmt::Debug;
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 ))]
-pub use av1_encode_android::{AvEncodingSpeed, encode_avif_av1_file};
+pub use av1_encode_android::encode_avif_av1_file;
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
@@ -105,7 +124,13 @@ pub use cvt::{
     weave_cvt_rgba8_to_ar30, weave_cvt_rgba8_to_rgba_f16, weave_cvt_rgba16_to_ar30,
     weave_cvt_rgba16_to_rgba_f16, weave_premultiply_rgba_f16,
 };
-pub use heic_decode_android::{HeicInfo, decode_heic_file, read_heic_file_info};
+pub use encoding_options::{AvEncodingSpeed, AvifEncodingOptions, HevcEncodingOptions};
+pub use image_info::HeicInfo;
+#[cfg(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+))]
+pub use heic_decode_android::{decode_heic_file, read_heic_file_info};
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
@@ -122,13 +147,18 @@ pub use tonemapper::{FfiTrc, ToneMapping, apply_tone_mapping_rgba8, apply_tone_m
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
 pub use unsupported_encode_android::{
-    AvEncodingSpeed, encode_avif_av1_file, encode_avif_av2_file, encode_heic_file,
+    encode_avif_av1_file, encode_avif_av2_file, encode_heic_file,
 };
 #[cfg(not(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
 pub use unsupported_av2_decode_android::{decode_av2_file, read_av2_file_info};
+#[cfg(not(all(
+    target_os = "android",
+    any(target_arch = "aarch64", target_arch = "arm")
+)))]
+pub use unsupported_heic_decode_android::{decode_heic_file, read_heic_file_info};
 pub use yuv_ffi::*;
 
 #[repr(C)]

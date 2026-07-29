@@ -35,7 +35,7 @@ use crate::ffi::{
     MIN_OS_BITMAP_COLOR_SPACE, create_rgba8888_hardware_buffer,
     create_rgba8888_hardware_buffer_from_u16, software_bitmap, wrap_hardware_buffer,
 };
-use crate::heic_decode::WeaverError;
+use crate::weaver_error::WeaverError;
 use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
 use crate::support::{
@@ -414,9 +414,9 @@ fn decode_pipeline<'local>(
                     };
                     new_profile.update_rgb_colorimetry_triplet(
                         if colors.color_primaries == tealdust::ColorPrimaries::Smpte431 {
-                            moxcms::WHITE_POINT_D60
+                            moxcms::white_point_d60()
                         } else {
-                            moxcms::WHITE_POINT_D65
+                            moxcms::white_point_d65()
                         },
                         colorimetry.red.to_xyzd(),
                         colorimetry.green.to_xyzd(),
@@ -608,9 +608,9 @@ fn decode_pipeline<'local>(
                             };
                             new_profile.update_rgb_colorimetry_triplet(
                                 if colors.color_primaries == tealdust::ColorPrimaries::Smpte431 {
-                                    moxcms::WHITE_POINT_D60
+                                    moxcms::white_point_d60()
                                 } else {
-                                    moxcms::WHITE_POINT_D65
+                                    moxcms::white_point_d65()
                                 },
                                 colorimetry.red.to_xyzd(),
                                 colorimetry.green.to_xyzd(),
@@ -695,9 +695,9 @@ fn decode_pipeline<'local>(
                             };
                             new_profile.update_rgb_colorimetry_triplet(
                                 if colors.color_primaries == tealdust::ColorPrimaries::Smpte431 {
-                                    moxcms::WHITE_POINT_D60
+                                    moxcms::white_point_d60()
                                 } else {
-                                    moxcms::WHITE_POINT_D65
+                                    moxcms::white_point_d65()
                                 },
                                 colorimetry.red.to_xyzd(),
                                 colorimetry.green.to_xyzd(),

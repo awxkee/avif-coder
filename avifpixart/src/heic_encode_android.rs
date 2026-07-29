@@ -27,8 +27,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
+use crate::encoding_options::HevcEncodingOptions;
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
-use crate::heic_decode::WeaverError;
+use crate::weaver_error::WeaverError;
 use crate::support::{
     dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec,
     panic_payload_to_string, throw_runtime_exception, throw_runtime_exception_raw,
@@ -44,9 +45,9 @@ use std::ptr::null_mut;
 use std::thread::available_parallelism;
 use yuv::{
     YuvChromaSubsampling, YuvConversionMode, YuvPlanarImageMut, YuvRange, YuvStandardMatrix,
-    rgba_to_ycgco420, rgba_to_ycgco422, rgba_to_ycgco444, rgba_to_yuv420, rgba_to_yuv422,
-    rgba_to_yuv444, rgba10_to_i010, rgba10_to_i210, rgba10_to_i410, rgba10_to_icgc010,
-    rgba10_to_icgc210, rgba10_to_icgc410,
+    rgba_to_gbr, rgba_to_ycgco420, rgba_to_ycgco422, rgba_to_ycgco444, rgba_to_yuv420,
+    rgba_to_yuv422, rgba_to_yuv444, rgba10_to_gb10, rgba10_to_i010, rgba10_to_i210, rgba10_to_i410,
+    rgba10_to_icgc010, rgba10_to_icgc210, rgba10_to_icgc410,
 };
 
 #[inline]
@@ -247,6 +248,8 @@ fn encode_heic_inner_u8(
     exif: Option<&[u8]>,
     has_real_alpha: bool,
     chroma_format: ChromaFormat,
+    speed: hpvca::Speed,
+    screen_content_coding: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -371,12 +374,12 @@ fn encode_heic_inner_u8(
             debug,
             "RGB→YUV path: ycgco420 (lossy) — overriding matrix to YCgCo"
         );
-        local_cicp.matrix = MatrixCoefficients::YCgCo;
+        local_cicp.matrix = MatrixCoefficients::Identity;
         let f = match chroma_format {
             ChromaFormat::Monochrome => unreachable!(),
-            ChromaFormat::Yuv420 => rgba_to_ycgco420,
-            ChromaFormat::Yuv422 => rgba_to_ycgco422,
-            ChromaFormat::Yuv444 => rgba_to_ycgco444,
+            ChromaFormat::Yuv420 => unreachable!(),
+            ChromaFormat::Yuv422 => unreachable!(),
+            ChromaFormat::Yuv444 => rgba_to_gbr,
         };
         f(&mut planar_image, rgba.as_ref(), rgba_stride, yuv_range).map_err(|x| {
             dbg_log!(error, "rgba_to_ycgco420 failed: {x}");
@@ -436,7 +439,9 @@ fn encode_heic_inner_u8(
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
         .with_threads(threads)
-        .with_lossless(lossless);
+        .with_lossless(lossless)
+        .with_speed(speed)
+        .with_screen_content(screen_content_coding);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -485,6 +490,8 @@ fn encode_heic_inner_u16_10_bit(
     exif: Option<&[u8]>,
     has_real_alpha: bool,
     chroma_format: ChromaFormat,
+    speed: hpvca::Speed,
+    screen_content_coding: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -608,12 +615,12 @@ fn encode_heic_inner_u16_10_bit(
             debug,
             "RGB→YUV path: ycgco420 (lossy) — overriding matrix to YCgCo"
         );
-        local_cicp.matrix = MatrixCoefficients::YCgCo;
+        local_cicp.matrix = MatrixCoefficients::Identity;
         let f = match chroma_format {
             ChromaFormat::Monochrome => unreachable!(),
-            ChromaFormat::Yuv420 => rgba10_to_icgc010,
-            ChromaFormat::Yuv422 => rgba10_to_icgc210,
-            ChromaFormat::Yuv444 => rgba10_to_icgc410,
+            ChromaFormat::Yuv420 => unreachable!(),
+            ChromaFormat::Yuv422 => unreachable!(),
+            ChromaFormat::Yuv444 => rgba10_to_gb10,
         };
         f(&mut planar_image, rgba.as_ref(), rgba_stride, yuv_range).map_err(|x| {
             dbg_log!(error, "rgba10_to_icgc010 failed: {x}");
@@ -658,7 +665,9 @@ fn encode_heic_inner_u16_10_bit(
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
         .with_threads(threads)
-        .with_lossless(lossless);
+        .with_lossless(lossless)
+        .with_speed(speed)
+        .with_screen_content(screen_content_coding);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -704,6 +713,8 @@ fn encode_heic_inner(
     lossless: bool,
     exif: Option<&[u8]>,
     chroma_format: ChromaFormat,
+    speed: hpvca::Speed,
+    screen_content_coding: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(debug, "encode_heic_inner: format={:?}", bitmap_data.format);
     match bitmap_data.format {
@@ -718,6 +729,8 @@ fn encode_heic_inner(
                 exif,
                 has_real_alpha,
                 chroma_format,
+                speed,
+                screen_content_coding,
             )
         }
         BitmapPixelFormat::Rgb565 => {
@@ -731,6 +744,8 @@ fn encode_heic_inner(
                 exif,
                 false,
                 chroma_format,
+                speed,
+                screen_content_coding,
             )
         }
         BitmapPixelFormat::RgbaF16 => {
@@ -745,6 +760,8 @@ fn encode_heic_inner(
                 exif,
                 false,
                 chroma_format,
+                speed,
+                screen_content_coding,
             )
         }
         BitmapPixelFormat::Rgba1010102 => {
@@ -758,6 +775,8 @@ fn encode_heic_inner(
                 exif,
                 false,
                 chroma_format,
+                speed,
+                screen_content_coding,
             )
         }
         BitmapPixelFormat::A8 => {
@@ -774,30 +793,39 @@ pub unsafe extern "C" fn encode_heic_file(
     env: *mut jni::sys::JNIEnv,
     image: jobject,
     exif: jobject,
-    color_space: i32,
-    quality: i32,
-    chroma_subsampling_code: i32,
-    lossless: bool,
+    options: HevcEncodingOptions,
 ) -> jbyteArray {
     init_logging();
 
-    let chroma_subsampling = match chroma_subsampling_code {
-        2 => ChromaFormat::Yuv422,
-        3 => ChromaFormat::Yuv444,
-        4 => ChromaFormat::Monochrome,
-        _ => ChromaFormat::Yuv420,
+    let chroma_subsampling = if options.lossless {
+        ChromaFormat::Yuv444
+    } else {
+        match options.chroma_subsampling_code {
+            2 => ChromaFormat::Yuv422,
+            3 => ChromaFormat::Yuv444,
+            4 => ChromaFormat::Monochrome,
+            _ => ChromaFormat::Yuv420,
+        }
     };
 
     dbg_log!(
         debug,
-        "encode_heic_file: color_space={color_space} quality={quality} lossless={lossless} \
+        "encode_heic_file: color_space={} quality={} lossless={} \
         chroma={:?} image_null={} exif_null={}",
+        options.color_space,
+        options.quality,
+        options.lossless,
         chroma_subsampling,
         image.is_null(),
         exif.is_null()
     );
 
     let mut unowned = unsafe { EnvUnowned::from_raw(env) };
+
+    let encoding_speed: hpvca::Speed = match options.speed {
+        0 => hpvca::Speed::Fast,
+        _ => hpvca::Speed::Slow,
+    };
 
     let outcome = unowned.with_env(|env| -> Result<jobject, anyhow::Error> {
         if chroma_subsampling == ChromaFormat::Monochrome {
@@ -809,10 +837,10 @@ pub unsafe extern "C" fn encode_heic_file(
             return Ok(JObject::null().into_raw());
         }
         let mut encoding_result = || -> Result<jobject, anyhow::Error> {
-            let quality = quality.clamp(1, 100) as u32;
+            let quality = options.quality.clamp(1, 100) as u32;
             dbg_log!(debug, "clamped quality={quality}");
 
-            let cicp = resolve_cicp(color_space);
+            let cicp = resolve_cicp(options.color_space);
             dbg_log!(
                 debug,
                 "resolved cicp: primaries={:?} transfer={:?} matrix={:?} full_range={}",
@@ -853,9 +881,11 @@ pub unsafe extern "C" fn encode_heic_file(
                 &mut bitmap_data,
                 cicp,
                 quality,
-                lossless,
+                options.lossless,
                 exif_data.as_deref(),
                 chroma_subsampling,
+                encoding_speed,
+                options.screen_content_coding,
             )?;
             dbg_log!(
                 debug,
