@@ -251,6 +251,7 @@ fn encode_heic_inner_u8(
     speed: hpvca::Speed,
     screen_content_coding: bool,
     rdpcm: bool,
+    lossless_yuv_bt601: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -370,10 +371,25 @@ fn encode_heic_inner_u8(
             dbg_log!(error, "rgba_to_yuv420 failed: {x}");
             anyhow::anyhow!(x)
         })?;
+    } else if lossless_yuv_bt601 {
+        dbg_log!(debug, "RGB→YUV path: lossless HEVC with BT.601 YUV444");
+        local_cicp.matrix = MatrixCoefficients::Smpte170m;
+        rgba_to_yuv444(
+            &mut planar_image,
+            rgba.as_ref(),
+            rgba_stride,
+            yuv_range,
+            YuvStandardMatrix::Bt601,
+            YuvConversionMode::Balanced,
+        )
+        .map_err(|x| {
+            dbg_log!(error, "lossless rgba_to_yuv444 BT.601 failed: {x}");
+            anyhow::anyhow!(x)
+        })?;
     } else {
         dbg_log!(
             debug,
-            "RGB→YUV path: ycgco420 (lossy) — overriding matrix to YCgCo"
+            "RGB→GBR path: lossless HEVC — overriding matrix to Identity"
         );
         local_cicp.matrix = MatrixCoefficients::Identity;
         let f = match chroma_format {
@@ -383,7 +399,7 @@ fn encode_heic_inner_u8(
             ChromaFormat::Yuv444 => rgba_to_gbr,
         };
         f(&mut planar_image, rgba.as_ref(), rgba_stride, yuv_range).map_err(|x| {
-            dbg_log!(error, "rgba_to_ycgco420 failed: {x}");
+            dbg_log!(error, "rgba_to_gbr failed: {x}");
             anyhow::anyhow!(x)
         })?;
     }
@@ -495,6 +511,7 @@ fn encode_heic_inner_u16_10_bit(
     speed: hpvca::Speed,
     screen_content_coding: bool,
     rdpcm: bool,
+    lossless_yuv_bt601: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -613,10 +630,24 @@ fn encode_heic_inner_u16_10_bit(
             dbg_log!(error, "rgba10_to_i010 failed: {x}");
             anyhow::anyhow!(x)
         })?;
+    } else if lossless_yuv_bt601 {
+        dbg_log!(debug, "RGB10→YUV10 path: lossless HEVC with BT.601 YUV444");
+        local_cicp.matrix = MatrixCoefficients::Smpte170m;
+        rgba10_to_i410(
+            &mut planar_image,
+            rgba.as_ref(),
+            rgba_stride,
+            yuv_range,
+            YuvStandardMatrix::Bt601,
+        )
+        .map_err(|x| {
+            dbg_log!(error, "lossless rgba10_to_i410 BT.601 failed: {x}");
+            anyhow::anyhow!(x)
+        })?;
     } else {
         dbg_log!(
             debug,
-            "RGB→YUV path: ycgco420 (lossy) — overriding matrix to YCgCo"
+            "RGB10→GBR10 path: lossless HEVC — overriding matrix to Identity"
         );
         local_cicp.matrix = MatrixCoefficients::Identity;
         let f = match chroma_format {
@@ -626,7 +657,7 @@ fn encode_heic_inner_u16_10_bit(
             ChromaFormat::Yuv444 => rgba10_to_gb10,
         };
         f(&mut planar_image, rgba.as_ref(), rgba_stride, yuv_range).map_err(|x| {
-            dbg_log!(error, "rgba10_to_icgc010 failed: {x}");
+            dbg_log!(error, "rgba10_to_gb10 failed: {x}");
             anyhow::anyhow!(x)
         })?;
     }
@@ -720,6 +751,7 @@ fn encode_heic_inner(
     speed: hpvca::Speed,
     screen_content_coding: bool,
     rdpcm: bool,
+    lossless_yuv_bt601: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(debug, "encode_heic_inner: format={:?}", bitmap_data.format);
     match bitmap_data.format {
@@ -737,6 +769,7 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
+                lossless_yuv_bt601,
             )
         }
         BitmapPixelFormat::Rgb565 => {
@@ -753,6 +786,7 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
+                lossless_yuv_bt601,
             )
         }
         BitmapPixelFormat::RgbaF16 => {
@@ -770,6 +804,7 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
+                lossless_yuv_bt601,
             )
         }
         BitmapPixelFormat::Rgba1010102 => {
@@ -786,6 +821,7 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
+                lossless_yuv_bt601,
             )
         }
         BitmapPixelFormat::A8 => {
@@ -820,13 +856,15 @@ pub unsafe extern "C" fn encode_heic_file(
     dbg_log!(
         debug,
         "encode_heic_file: color_space={} quality={} lossless={} \
-        chroma={:?} screen_content={} rdpcm={} image_null={} exif_null={}",
+        chroma={:?} screen_content={} rdpcm={} lossless_yuv_bt601={} \
+        image_null={} exif_null={}",
         options.color_space,
         options.quality,
         options.lossless,
         chroma_subsampling,
         options.screen_content_coding,
         options.rdpcm,
+        options.lossless_yuv_bt601,
         image.is_null(),
         exif.is_null()
     );
@@ -898,6 +936,7 @@ pub unsafe extern "C" fn encode_heic_file(
                 encoding_speed,
                 options.screen_content_coding,
                 options.rdpcm,
+                options.lossless_yuv_bt601,
             )?;
             dbg_log!(
                 debug,
