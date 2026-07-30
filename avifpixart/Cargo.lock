@@ -285,9 +285,9 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hpvca"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec5034a2a19795a8d823abb838603042be39fa067051d6061737fada1d7d070"
+checksum = "718a6173f90b92fc76a5f7a5d3d359c67ebfc549f58f72896b8e69d4a8968d0c"
 
 [[package]]
 name = "hpvcd"
