@@ -113,11 +113,11 @@ bool readAvifEncodingOptions(JNIEnv *env,
   jmethodID screenContentMethod = env->GetMethodID(
       optionsClass, "getScreenContentCoding", "()Z"
   );
-  env->DeleteLocalRef(optionsClass);
-
   if (screenContentMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
     return false;
   }
+  env->DeleteLocalRef(optionsClass);
 
   options->color_space = dataSpace;
   options->quality = env->CallIntMethod(javaOptions, qualityMethod);
@@ -195,9 +195,14 @@ bool readHevcEncodingOptions(JNIEnv *env,
   jmethodID screenContentMethod = env->GetMethodID(
       optionsClass, "getScreenContentCoding", "()Z"
   );
+  if (screenContentMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID rdpcmMethod = env->GetMethodID(optionsClass, "getRdpcm", "()Z");
   env->DeleteLocalRef(optionsClass);
 
-  if (screenContentMethod == nullptr) {
+  if (rdpcmMethod == nullptr) {
     return false;
   }
 
@@ -220,6 +225,10 @@ bool readHevcEncodingOptions(JNIEnv *env,
   }
   options->screen_content_coding =
       env->CallBooleanMethod(javaOptions, screenContentMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->rdpcm = env->CallBooleanMethod(javaOptions, rdpcmMethod) == JNI_TRUE;
   return !env->ExceptionCheck();
 }
 

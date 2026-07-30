@@ -36,6 +36,9 @@ data class HevcEncodingOptions @JvmOverloads constructor(
     /// Most of HEVC decoders DO NOT support RExt SCC feature, so use with care.
     @get:Keep
     val screenContentCoding: Boolean = false,
+    /// Enables implicit RDPCM for lossless HEVC encoding.
+    @get:Keep
+    val rdpcm: Boolean = false,
 ) {
     @Keep
     fun getQualityValue(): Int = quality.getRequiredQuality()

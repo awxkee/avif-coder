@@ -32,8 +32,7 @@ use crate::support::{init_logging, throw_runtime_exception_raw};
 use jni::sys::{jbyteArray, jobject};
 use std::ptr::null_mut;
 
-const SUPPORTED_ENCODING_TARGETS: &str =
-    "aarch64-linux-android and armv7-linux-androideabi";
+const SUPPORTED_ENCODING_TARGETS: &str = "aarch64-linux-android and armv7-linux-androideabi";
 
 #[inline]
 unsafe fn unsupported_encoding(env: *mut jni::sys::JNIEnv, codec: &str) -> jbyteArray {

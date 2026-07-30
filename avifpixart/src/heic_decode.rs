@@ -36,8 +36,9 @@ use hpvcd::{
 };
 use yuv::{
     YuvGrayAlphaImage, YuvGrayImage, YuvPlanarImage, YuvPlanarImageWithAlpha, YuvStandardMatrix,
-    i010_alpha_to_rgba10, i010_to_rgba10, i012_alpha_to_rgba12, i012_to_rgba12,
-    i210_alpha_to_rgba10, i210_to_rgba10, i212_alpha_to_rgba12, i212_to_rgba12,
+    gb10_alpha_to_rgba10, gb10_to_rgba10, gb12_alpha_to_rgba12, gb12_to_rgba12, gbr_to_rgba,
+    gbr_with_alpha_to_rgba, i010_alpha_to_rgba10, i010_to_rgba10, i012_alpha_to_rgba12,
+    i012_to_rgba12, i210_alpha_to_rgba10, i210_to_rgba10, i212_alpha_to_rgba12, i212_to_rgba12,
     i410_alpha_to_rgba10, i410_to_rgba10, i412_alpha_to_rgba12, i412_to_rgba12,
     icgc010_alpha_to_rgba10, icgc010_to_rgba10, icgc012_alpha_to_rgba12, icgc012_to_rgba12,
     icgc210_alpha_to_rgba10, icgc210_to_rgba10, icgc212_alpha_to_rgba12, icgc212_to_rgba12,
@@ -175,6 +176,9 @@ fn solve_heic_colors(decoded_yuv: &DecodedYuv) -> Result<HeicColors, WeaverError
     };
 
     let matrix: YuvStandardMatrix = match cicp.matrix {
+        // Identity is HEVC GBR (Y = G, Cb = B, Cr = R). Its dedicated
+        // conversion path below does not use this placeholder matrix.
+        MatrixCoefficients::Identity => YuvStandardMatrix::Bt709,
         MatrixCoefficients::Bt709 => YuvStandardMatrix::Bt709,
         MatrixCoefficients::Unspecified => YuvStandardMatrix::Bt601,
         MatrixCoefficients::Smpte170m => YuvStandardMatrix::Bt601,
@@ -188,20 +192,6 @@ fn solve_heic_colors(decoded_yuv: &DecodedYuv) -> Result<HeicColors, WeaverError
         range: yuv_range,
         matrix,
     })
-}
-
-fn is_metadata_ycgco(decoded_yuv: &DecodedYuv) -> bool {
-    decoded_yuv
-        .color
-        .cicp
-        .unwrap_or(Cicp {
-            primaries: Primaries::Bt709,
-            transfer: TransferFunction::Srgb,
-            matrix: MatrixCoefficients::Smpte170m,
-            full_range: true,
-        })
-        .matrix
-        == MatrixCoefficients::YCgCo
 }
 
 #[derive(Clone, Copy)]
@@ -285,7 +275,8 @@ fn decode_inner_low_bit_depth(
 
     let mut target_data = try_vec![0u8; width as usize * height as usize * 4];
     let colors = solve_heic_colors(decoded_yuv)?;
-    let is_ycgco = is_metadata_ycgco(decoded_yuv);
+    let is_gbr = colors.cicp.matrix == MatrixCoefficients::Identity;
+    let is_ycgco = colors.cicp.matrix == MatrixCoefficients::YCgCo;
     let luma = plane_view(&planes.y)?;
     let alpha = alpha_view_u8(decoded_yuv)?;
     let target_stride = rgba_stride(width)?;
@@ -376,7 +367,7 @@ fn decode_inner_low_bit_depth(
         }};
     }
 
-    macro_rules! decode_chroma_to_rgba_ycgco {
+    macro_rules! decode_chroma_to_rgba_direct {
         ($to_rgba:ident, $alpha_to_rgba:ident) => {{
             if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
@@ -413,22 +404,32 @@ fn decode_inner_low_bit_depth(
     match decoded_yuv.chroma {
         hpvcd::ChromaFormat::Monochrome => unreachable!("handled above"),
         hpvcd::ChromaFormat::Yuv420 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(ycgco420_to_rgba, ycgco420_alpha_to_rgba)
+            if is_gbr {
+                return Err(WeaverError::PixelFormatIsNotSupported(
+                    "HEIC GBR identity matrix requires 4:4:4 chroma".into(),
+                ));
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(ycgco420_to_rgba, ycgco420_alpha_to_rgba)
             } else {
                 decode_chroma_to_rgba!(yuv420_to_rgba, yuv420_alpha_to_rgba)
             }
         }
         hpvcd::ChromaFormat::Yuv422 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(ycgco422_to_rgba, ycgco422_alpha_to_rgba)
+            if is_gbr {
+                return Err(WeaverError::PixelFormatIsNotSupported(
+                    "HEIC GBR identity matrix requires 4:4:4 chroma".into(),
+                ));
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(ycgco422_to_rgba, ycgco422_alpha_to_rgba)
             } else {
                 decode_chroma_to_rgba!(yuv422_to_rgba, yuv422_alpha_to_rgba)
             }
         }
         hpvcd::ChromaFormat::Yuv444 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(ycgco444_to_rgba, ycgco444_alpha_to_rgba)
+            if is_gbr {
+                decode_chroma_to_rgba_direct!(gbr_to_rgba, gbr_with_alpha_to_rgba)
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(ycgco444_to_rgba, ycgco444_alpha_to_rgba)
             } else {
                 decode_chroma_to_rgba!(yuv444_to_rgba, yuv444_alpha_to_rgba)
             }
@@ -449,7 +450,8 @@ fn decode_heic_inner_10bit(
 
     let mut target_data = try_vec![0u16; width as usize * height as usize * 4];
     let colors = solve_heic_colors(decoded_yuv)?;
-    let is_ycgco = is_metadata_ycgco(decoded_yuv);
+    let is_gbr = colors.cicp.matrix == MatrixCoefficients::Identity;
+    let is_ycgco = colors.cicp.matrix == MatrixCoefficients::YCgCo;
     let luma = plane_view(&planes.y)?;
     let alpha = alpha_view_u16(decoded_yuv)?;
     let target_stride = rgba_stride(width)?;
@@ -539,7 +541,7 @@ fn decode_heic_inner_10bit(
         }};
     }
 
-    macro_rules! decode_chroma_to_rgba_ycgco {
+    macro_rules! decode_chroma_to_rgba_direct {
         ($to_rgba:ident, $alpha_to_rgba:ident) => {{
             if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
@@ -576,22 +578,32 @@ fn decode_heic_inner_10bit(
     match decoded_yuv.chroma {
         hpvcd::ChromaFormat::Monochrome => unreachable!("handled above"),
         hpvcd::ChromaFormat::Yuv420 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc010_to_rgba10, icgc010_alpha_to_rgba10)
+            if is_gbr {
+                return Err(WeaverError::PixelFormatIsNotSupported(
+                    "HEIC GBR identity matrix requires 4:4:4 chroma".into(),
+                ));
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(icgc010_to_rgba10, icgc010_alpha_to_rgba10)
             } else {
                 decode_chroma_to_rgba!(i010_to_rgba10, i010_alpha_to_rgba10)
             }
         }
         hpvcd::ChromaFormat::Yuv422 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc210_to_rgba10, icgc210_alpha_to_rgba10)
+            if is_gbr {
+                return Err(WeaverError::PixelFormatIsNotSupported(
+                    "HEIC GBR identity matrix requires 4:4:4 chroma".into(),
+                ));
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(icgc210_to_rgba10, icgc210_alpha_to_rgba10)
             } else {
                 decode_chroma_to_rgba!(i210_to_rgba10, i210_alpha_to_rgba10)
             }
         }
         hpvcd::ChromaFormat::Yuv444 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc410_to_rgba10, icgc410_alpha_to_rgba10)
+            if is_gbr {
+                decode_chroma_to_rgba_direct!(gb10_to_rgba10, gb10_alpha_to_rgba10)
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(icgc410_to_rgba10, icgc410_alpha_to_rgba10)
             } else {
                 decode_chroma_to_rgba!(i410_to_rgba10, i410_alpha_to_rgba10)
             }
@@ -612,7 +624,8 @@ fn decode_heic_inner_12bit(
 
     let mut target_data = try_vec![0u16; width as usize * height as usize * 4];
     let colors = solve_heic_colors(decoded_yuv)?;
-    let is_ycgco = is_metadata_ycgco(decoded_yuv);
+    let is_gbr = colors.cicp.matrix == MatrixCoefficients::Identity;
+    let is_ycgco = colors.cicp.matrix == MatrixCoefficients::YCgCo;
     let luma = plane_view(&planes.y)?;
     let alpha = alpha_view_u16(decoded_yuv)?;
     let target_stride = rgba_stride(width)?;
@@ -702,7 +715,7 @@ fn decode_heic_inner_12bit(
         }};
     }
 
-    macro_rules! decode_chroma_to_rgba_ycgco {
+    macro_rules! decode_chroma_to_rgba_direct {
         ($to_rgba:ident, $alpha_to_rgba:ident) => {{
             if let Some(alpha) = alpha {
                 let planar_yuv = YuvPlanarImageWithAlpha {
@@ -739,22 +752,32 @@ fn decode_heic_inner_12bit(
     match decoded_yuv.chroma {
         hpvcd::ChromaFormat::Monochrome => unreachable!("handled above"),
         hpvcd::ChromaFormat::Yuv420 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc012_to_rgba12, icgc012_alpha_to_rgba12)
+            if is_gbr {
+                return Err(WeaverError::PixelFormatIsNotSupported(
+                    "HEIC GBR identity matrix requires 4:4:4 chroma".into(),
+                ));
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(icgc012_to_rgba12, icgc012_alpha_to_rgba12)
             } else {
                 decode_chroma_to_rgba!(i012_to_rgba12, i012_alpha_to_rgba12)
             }
         }
         hpvcd::ChromaFormat::Yuv422 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc212_to_rgba12, icgc212_alpha_to_rgba12)
+            if is_gbr {
+                return Err(WeaverError::PixelFormatIsNotSupported(
+                    "HEIC GBR identity matrix requires 4:4:4 chroma".into(),
+                ));
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(icgc212_to_rgba12, icgc212_alpha_to_rgba12)
             } else {
                 decode_chroma_to_rgba!(i212_to_rgba12, i212_alpha_to_rgba12)
             }
         }
         hpvcd::ChromaFormat::Yuv444 => {
-            if is_ycgco {
-                decode_chroma_to_rgba_ycgco!(icgc412_to_rgba12, icgc412_alpha_to_rgba12)
+            if is_gbr {
+                decode_chroma_to_rgba_direct!(gb12_to_rgba12, gb12_alpha_to_rgba12)
+            } else if is_ycgco {
+                decode_chroma_to_rgba_direct!(icgc412_to_rgba12, icgc412_alpha_to_rgba12)
             } else {
                 decode_chroma_to_rgba!(i412_to_rgba12, i412_alpha_to_rgba12)
             }

@@ -29,6 +29,7 @@ struct HevcEncodingOptions {
   bool lossless;
   int32_t speed;
   bool screen_content_coding;
+  bool rdpcm;
 };
 
 enum class WeaveScaleMode {

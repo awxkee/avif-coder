@@ -26,8 +26,8 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::weaver_error::WeaverError;
 use crate::support::try_vec;
+use crate::weaver_error::WeaverError;
 use core::f16;
 use yuv::{
     BufferStoreMut, Rgb30ByteOrder, convert_rgba_f16_to_rgba16, convert_rgba_to_f16,

@@ -33,8 +33,7 @@ use crate::{WeaveScaleMode, WeaverPreferredColorConfig};
 use jni::sys::jobject;
 use std::ptr::null_mut;
 
-const SUPPORTED_HEVC_DECODING_TARGETS: &str =
-    "aarch64-linux-android and armv7-linux-androideabi";
+const SUPPORTED_HEVC_DECODING_TARGETS: &str = "aarch64-linux-android and armv7-linux-androideabi";
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn decode_heic_file(

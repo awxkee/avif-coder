@@ -29,11 +29,11 @@
 use crate::cvt::{ar30_bytes_to_rgba10, f16_bytes_to_rgba10, rgb565_bytes_to_rgba8888};
 use crate::encoding_options::{AvEncodingSpeed, AvifEncodingOptions};
 use crate::ffi::{BitmapData, BitmapPixelFormat, get_bitmap_data};
-use crate::weaver_error::WeaverError;
 use crate::support::{
     dbg_log, has_non_constant_alpha, init_logging, optional_bytebuffer_to_vec,
     panic_payload_to_string, throw_runtime_exception, throw_runtime_exception_raw,
 };
+use crate::weaver_error::WeaverError;
 use jni::objects::JObject;
 use jni::sys::{jbyteArray, jobject};
 use jni::{EnvUnowned, Outcome};
