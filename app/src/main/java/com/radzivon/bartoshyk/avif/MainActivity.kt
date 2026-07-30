@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity() {
                             buffer,
                             if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
                             if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                            PreferredColorConfig.RGB_565,
+                            PreferredColorConfig.RGBA_8888,
                             ScaleMode.FIT
                         )
                         var start = System.currentTimeMillis()
@@ -172,6 +172,7 @@ class MainActivity : AppCompatActivity() {
                                 preciseMode = PreciseMode.LOSSLESS,
                                 quality = HeifQualityArg.Quality(70),
                                 chromaSubsampling = HeicChromaSubsampling.YUV420,
+                                losslessYuvBt601 = true,
                             )
                         )
 

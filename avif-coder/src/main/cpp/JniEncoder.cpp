@@ -200,9 +200,16 @@ bool readHevcEncodingOptions(JNIEnv *env,
     return false;
   }
   jmethodID rdpcmMethod = env->GetMethodID(optionsClass, "getRdpcm", "()Z");
+  if (rdpcmMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID losslessYuvBt601Method = env->GetMethodID(
+      optionsClass, "getLosslessYuvBt601", "()Z"
+  );
   env->DeleteLocalRef(optionsClass);
 
-  if (rdpcmMethod == nullptr) {
+  if (losslessYuvBt601Method == nullptr) {
     return false;
   }
 
@@ -229,6 +236,11 @@ bool readHevcEncodingOptions(JNIEnv *env,
     return false;
   }
   options->rdpcm = env->CallBooleanMethod(javaOptions, rdpcmMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->lossless_yuv_bt601 =
+      env->CallBooleanMethod(javaOptions, losslessYuvBt601Method) == JNI_TRUE;
   return !env->ExceptionCheck();
 }
 
