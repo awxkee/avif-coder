@@ -132,7 +132,7 @@ class MainActivity : AppCompatActivity() {
                             buffer,
                             if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
                             if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                            PreferredColorConfig.RGBA_8888,
+                            PreferredColorConfig.RGBA_1010102,
                             ScaleMode.RESIZE
                         )
 
@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity() {
                             buffer,
                             if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
                             if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                            PreferredColorConfig.RGBA_F16,
+                            PreferredColorConfig.RGB_565,
                             ScaleMode.FIT
                         )
                         var start = System.currentTimeMillis()
@@ -169,11 +169,13 @@ class MainActivity : AppCompatActivity() {
                         val encoded = coder.encodeHeic(
                             bitmap0,
                             options = HevcEncodingOptions(
-                                preciseMode = PreciseMode.LOSSY,
+                                preciseMode = PreciseMode.LOSSLESS,
                                 quality = HeifQualityArg.Quality(70),
                                 chromaSubsampling = HeicChromaSubsampling.YUV420,
                             )
                         )
+
+                        writeFile("result.heic", encoded)
 
                         val bitmap1 = coder.decodeSampled(
                             encoded,

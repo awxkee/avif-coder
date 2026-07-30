@@ -250,6 +250,7 @@ fn encode_heic_inner_u8(
     chroma_format: ChromaFormat,
     speed: hpvca::Speed,
     screen_content_coding: bool,
+    rdpcm: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -442,7 +443,7 @@ fn encode_heic_inner_u8(
         .with_lossless(lossless)
         .with_speed(speed)
         .with_screen_content(screen_content_coding)
-        .with_implicit_rdpcm(false);
+        .with_implicit_rdpcm(rdpcm);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -493,6 +494,7 @@ fn encode_heic_inner_u16_10_bit(
     chroma_format: ChromaFormat,
     speed: hpvca::Speed,
     screen_content_coding: bool,
+    rdpcm: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -669,7 +671,7 @@ fn encode_heic_inner_u16_10_bit(
         .with_lossless(lossless)
         .with_speed(speed)
         .with_screen_content(screen_content_coding)
-        .with_implicit_rdpcm(false);
+        .with_implicit_rdpcm(rdpcm);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -717,6 +719,7 @@ fn encode_heic_inner(
     chroma_format: ChromaFormat,
     speed: hpvca::Speed,
     screen_content_coding: bool,
+    rdpcm: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(debug, "encode_heic_inner: format={:?}", bitmap_data.format);
     match bitmap_data.format {
@@ -733,6 +736,7 @@ fn encode_heic_inner(
                 chroma_format,
                 speed,
                 screen_content_coding,
+                rdpcm,
             )
         }
         BitmapPixelFormat::Rgb565 => {
@@ -748,6 +752,7 @@ fn encode_heic_inner(
                 chroma_format,
                 speed,
                 screen_content_coding,
+                rdpcm,
             )
         }
         BitmapPixelFormat::RgbaF16 => {
@@ -764,6 +769,7 @@ fn encode_heic_inner(
                 chroma_format,
                 speed,
                 screen_content_coding,
+                rdpcm,
             )
         }
         BitmapPixelFormat::Rgba1010102 => {
@@ -779,6 +785,7 @@ fn encode_heic_inner(
                 chroma_format,
                 speed,
                 screen_content_coding,
+                rdpcm,
             )
         }
         BitmapPixelFormat::A8 => {
@@ -813,11 +820,13 @@ pub unsafe extern "C" fn encode_heic_file(
     dbg_log!(
         debug,
         "encode_heic_file: color_space={} quality={} lossless={} \
-        chroma={:?} image_null={} exif_null={}",
+        chroma={:?} screen_content={} rdpcm={} image_null={} exif_null={}",
         options.color_space,
         options.quality,
         options.lossless,
         chroma_subsampling,
+        options.screen_content_coding,
+        options.rdpcm,
         image.is_null(),
         exif.is_null()
     );
@@ -888,6 +897,7 @@ pub unsafe extern "C" fn encode_heic_file(
                 chroma_subsampling,
                 encoding_speed,
                 options.screen_content_coding,
+                options.rdpcm,
             )?;
             dbg_log!(
                 debug,

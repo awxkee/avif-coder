@@ -70,13 +70,13 @@ mod heic_decode_android;
 ))]
 mod heic_encode_android;
 mod icc;
+mod image_info;
 mod native_color_space;
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 ))]
 mod orientation;
-mod image_info;
 mod rgb_to_yuv;
 mod scaling;
 mod support;
@@ -85,12 +85,12 @@ mod tonemapper;
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
-mod unsupported_encode_android;
+mod unsupported_av2_decode_android;
 #[cfg(not(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
-mod unsupported_av2_decode_android;
+mod unsupported_encode_android;
 #[cfg(not(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
@@ -125,7 +125,6 @@ pub use cvt::{
     weave_cvt_rgba16_to_rgba_f16, weave_premultiply_rgba_f16,
 };
 pub use encoding_options::{AvEncodingSpeed, AvifEncodingOptions, HevcEncodingOptions};
-pub use image_info::HeicInfo;
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
@@ -136,6 +135,7 @@ pub use heic_decode_android::{decode_heic_file, read_heic_file_info};
     any(target_arch = "aarch64", target_arch = "arm")
 ))]
 pub use heic_encode_android::encode_heic_file;
+pub use image_info::HeicInfo;
 pub use rgb_to_yuv::{weave_rgba8_to_y08, weave_rgba8_to_yuv8};
 pub use scaling::{
     ScalingFunction, ScalingResult, ScalingResultU16, WeaveScaleMode, weave_scale_f16,
@@ -146,14 +146,14 @@ pub use tonemapper::{FfiTrc, ToneMapping, apply_tone_mapping_rgba8, apply_tone_m
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
-pub use unsupported_encode_android::{
-    encode_avif_av1_file, encode_avif_av2_file, encode_heic_file,
-};
+pub use unsupported_av2_decode_android::{decode_av2_file, read_av2_file_info};
 #[cfg(not(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
 )))]
-pub use unsupported_av2_decode_android::{decode_av2_file, read_av2_file_info};
+pub use unsupported_encode_android::{
+    encode_avif_av1_file, encode_avif_av2_file, encode_heic_file,
+};
 #[cfg(not(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
