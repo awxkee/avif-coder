@@ -21,9 +21,9 @@ android_logger = { version = "0.15", optional = true }   # pulled in only by `lo
 anyhow = "1.0.102"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "arm"))'.dependencies]
-hpvcd = { version = "0.3.1", default-features = false }
-maroontree = {version = "0.1.11", default-features = false}
-hpvca = { version = "0.1.16", default-features = false }
+hpvcd = { version = "0.3.2", default-features = false }
+maroontree = {version = "0.1.12", default-features = false}
+hpvca = { version = "0.1.17", default-features = false }
 tealdust = { version = "0.1.4", default-features = false }
 
 [features]

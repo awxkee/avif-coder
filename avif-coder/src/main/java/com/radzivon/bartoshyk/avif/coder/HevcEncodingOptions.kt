@@ -39,9 +39,12 @@ data class HevcEncodingOptions @JvmOverloads constructor(
     /// Enables implicit RDPCM for lossless HEVC encoding.
     @get:Keep
     val rdpcm: Boolean = false,
-    /// Encodes lossless HEVC as YUV 4:4:4 with a BT.601 matrix instead of GBR.
+    /// Enables persistent Rice adaptation when supported by the HEVC profile.
     @get:Keep
-    val losslessYuvBt601: Boolean = false,
+    val persistentRice: Boolean = false,
+    /// Encodes lossless HEVC as BT.601 YCbCr instead of GBR, preserving the selected chroma.
+    @get:Keep
+    val losslessYcbcr: Boolean = false,
 ) {
     @Keep
     fun getQualityValue(): Int = quality.getRequiredQuality()

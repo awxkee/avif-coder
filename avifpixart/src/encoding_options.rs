@@ -56,5 +56,6 @@ pub struct HevcEncodingOptions {
     pub speed: i32,
     pub screen_content_coding: bool,
     pub rdpcm: bool,
-    pub lossless_yuv_bt601: bool,
+    pub persistent_rice: bool,
+    pub lossless_ycbcr: bool,
 }

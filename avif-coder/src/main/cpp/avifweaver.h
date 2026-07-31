@@ -13,26 +13,6 @@ enum class AvEncodingSpeed {
   Fast,
 };
 
-struct AvifEncodingOptions {
-  int32_t color_space;
-  int32_t quality;
-  bool lossless;
-  int32_t chroma_subsampling_code;
-  AvEncodingSpeed speed;
-  bool screen_content_coding;
-};
-
-struct HevcEncodingOptions {
-  int32_t color_space;
-  int32_t quality;
-  int32_t chroma_subsampling_code;
-  bool lossless;
-  int32_t speed;
-  bool screen_content_coding;
-  bool rdpcm;
-  bool lossless_yuv_bt601;
-};
-
 enum class WeaveScaleMode {
   JustResize,
   ScaleToFill,
@@ -131,11 +111,32 @@ enum class ToneMapping {
   Rec2408,
 };
 
+struct AvifEncodingOptions {
+  int32_t color_space;
+  int32_t quality;
+  bool lossless;
+  int32_t chroma_subsampling_code;
+  AvEncodingSpeed speed;
+  bool screen_content_coding;
+};
+
 struct HeicInfo {
   bool supported_image;
   uint32_t width;
   uint32_t height;
   uint32_t bit_depth;
+};
+
+struct HevcEncodingOptions {
+  int32_t color_space;
+  int32_t quality;
+  int32_t chroma_subsampling_code;
+  bool lossless;
+  int32_t speed;
+  bool screen_content_coding;
+  bool rdpcm;
+  bool persistent_rice;
+  bool lossless_ycbcr;
 };
 
 struct FfiProfileData {
@@ -239,10 +240,7 @@ jobject decode_heic_file(JNIEnv *env,
 
 HeicInfo read_heic_file_info(const uint8_t *data, uintptr_t length);
 
-jbyteArray encode_heic_file(JNIEnv *env,
-                            jobject image,
-                            jobject exif,
-                            HevcEncodingOptions options);
+jbyteArray encode_heic_file(JNIEnv *env, jobject image, jobject exif, HevcEncodingOptions options);
 
 void apply_icc_rgba8(const uint8_t *src_image,
                      uint32_t src_stride,
@@ -345,6 +343,41 @@ void apply_tone_mapping_rgba16(uint16_t *image,
                                FfiTrc trc,
                                ToneMapping mapping,
                                float brightness);
+
+jobject decode_av2_file(JNIEnv *env,
+                        const uint8_t *_data,
+                        uintptr_t _length,
+                        int32_t _scaled_width,
+                        int32_t _scaled_height,
+                        WeaveScaleMode _scale_mode,
+                        WeaverPreferredColorConfig _preferred_color_config);
+
+HeicInfo read_av2_file_info(const uint8_t *_data, uintptr_t _length);
+
+jbyteArray encode_avif_av1_file(JNIEnv *env,
+                                jobject _image,
+                                jobject _exif,
+                                AvifEncodingOptions _options);
+
+jbyteArray encode_avif_av2_file(JNIEnv *env,
+                                jobject _image,
+                                jobject _exif,
+                                AvifEncodingOptions _options);
+
+jbyteArray encode_heic_file(JNIEnv *env,
+                            jobject _image,
+                            jobject _exif,
+                            HevcEncodingOptions _options);
+
+jobject decode_heic_file(JNIEnv *env,
+                         const uint8_t *_data,
+                         uintptr_t _length,
+                         int32_t _scaled_width,
+                         int32_t _scaled_height,
+                         WeaveScaleMode _scale_mode,
+                         WeaverPreferredColorConfig _preferred_color_config);
+
+HeicInfo read_heic_file_info(const uint8_t *_data, uintptr_t _length);
 
 void weave_yuv8_to_rgba8(const uint8_t *y_plane,
                          uint32_t y_stride,

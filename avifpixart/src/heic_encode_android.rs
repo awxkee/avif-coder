@@ -251,7 +251,8 @@ fn encode_heic_inner_u8(
     speed: hpvca::Speed,
     screen_content_coding: bool,
     rdpcm: bool,
-    lossless_yuv_bt601: bool,
+    persistent_rice: bool,
+    lossless_ycbcr: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -351,8 +352,12 @@ fn encode_heic_inner_u8(
         planar_image.v_plane.borrow().len(),
     );
 
-    if !lossless {
-        dbg_log!(debug, "RGB→YUV path: yuv420 balanced (lossless)");
+    if !lossless || (!lossless_ycbcr && chroma_format != ChromaFormat::Yuv444) {
+        dbg_log!(
+            debug,
+            "RGB→YUV path: {:?} balanced (lossless={lossless})",
+            chroma_format
+        );
         let f = match chroma_format {
             ChromaFormat::Monochrome => unreachable!(),
             ChromaFormat::Yuv420 => rgba_to_yuv420,
@@ -371,10 +376,20 @@ fn encode_heic_inner_u8(
             dbg_log!(error, "rgba_to_yuv420 failed: {x}");
             anyhow::anyhow!(x)
         })?;
-    } else if lossless_yuv_bt601 {
-        dbg_log!(debug, "RGB→YUV path: lossless HEVC with BT.601 YUV444");
+    } else if lossless_ycbcr {
+        dbg_log!(
+            debug,
+            "RGB→YCbCr path: lossless HEVC with BT.601 {:?}",
+            chroma_format
+        );
         local_cicp.matrix = MatrixCoefficients::Smpte170m;
-        rgba_to_yuv444(
+        let f = match chroma_format {
+            ChromaFormat::Monochrome => unreachable!(),
+            ChromaFormat::Yuv420 => rgba_to_yuv420,
+            ChromaFormat::Yuv422 => rgba_to_yuv422,
+            ChromaFormat::Yuv444 => rgba_to_yuv444,
+        };
+        f(
             &mut planar_image,
             rgba.as_ref(),
             rgba_stride,
@@ -383,7 +398,7 @@ fn encode_heic_inner_u8(
             YuvConversionMode::Balanced,
         )
         .map_err(|x| {
-            dbg_log!(error, "lossless rgba_to_yuv444 BT.601 failed: {x}");
+            dbg_log!(error, "lossless RGB→YCbCr BT.601 failed: {x}");
             anyhow::anyhow!(x)
         })?;
     } else {
@@ -459,7 +474,9 @@ fn encode_heic_inner_u8(
         .with_lossless(lossless)
         .with_speed(speed)
         .with_screen_content(screen_content_coding)
-        .with_implicit_rdpcm(rdpcm);
+        .with_implicit_rdpcm(rdpcm)
+        .with_persistent_rice(persistent_rice)
+        .with_lossless_ycbcr(lossless_ycbcr);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -511,7 +528,8 @@ fn encode_heic_inner_u16_10_bit(
     speed: hpvca::Speed,
     screen_content_coding: bool,
     rdpcm: bool,
-    lossless_yuv_bt601: bool,
+    persistent_rice: bool,
+    lossless_ycbcr: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -611,8 +629,12 @@ fn encode_heic_inner_u16_10_bit(
         planar_image.v_plane.borrow().len(),
     );
 
-    if !lossless {
-        dbg_log!(debug, "RGB→YUV path: yuv420 (lossy)");
+    if !lossless || (!lossless_ycbcr && chroma_format != ChromaFormat::Yuv444) {
+        dbg_log!(
+            debug,
+            "RGB10→YUV10 path: {:?} (lossless={lossless})",
+            chroma_format
+        );
         let f = match chroma_format {
             ChromaFormat::Monochrome => unreachable!(),
             ChromaFormat::Yuv420 => rgba10_to_i010,
@@ -630,10 +652,20 @@ fn encode_heic_inner_u16_10_bit(
             dbg_log!(error, "rgba10_to_i010 failed: {x}");
             anyhow::anyhow!(x)
         })?;
-    } else if lossless_yuv_bt601 {
-        dbg_log!(debug, "RGB10→YUV10 path: lossless HEVC with BT.601 YUV444");
+    } else if lossless_ycbcr {
+        dbg_log!(
+            debug,
+            "RGB10→YCbCr10 path: lossless HEVC with BT.601 {:?}",
+            chroma_format
+        );
         local_cicp.matrix = MatrixCoefficients::Smpte170m;
-        rgba10_to_i410(
+        let f = match chroma_format {
+            ChromaFormat::Monochrome => unreachable!(),
+            ChromaFormat::Yuv420 => rgba10_to_i010,
+            ChromaFormat::Yuv422 => rgba10_to_i210,
+            ChromaFormat::Yuv444 => rgba10_to_i410,
+        };
+        f(
             &mut planar_image,
             rgba.as_ref(),
             rgba_stride,
@@ -641,7 +673,7 @@ fn encode_heic_inner_u16_10_bit(
             YuvStandardMatrix::Bt601,
         )
         .map_err(|x| {
-            dbg_log!(error, "lossless rgba10_to_i410 BT.601 failed: {x}");
+            dbg_log!(error, "lossless RGB10→YCbCr10 BT.601 failed: {x}");
             anyhow::anyhow!(x)
         })?;
     } else {
@@ -702,7 +734,9 @@ fn encode_heic_inner_u16_10_bit(
         .with_lossless(lossless)
         .with_speed(speed)
         .with_screen_content(screen_content_coding)
-        .with_implicit_rdpcm(rdpcm);
+        .with_implicit_rdpcm(rdpcm)
+        .with_persistent_rice(persistent_rice)
+        .with_lossless_ycbcr(lossless_ycbcr);
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -751,7 +785,8 @@ fn encode_heic_inner(
     speed: hpvca::Speed,
     screen_content_coding: bool,
     rdpcm: bool,
-    lossless_yuv_bt601: bool,
+    persistent_rice: bool,
+    lossless_ycbcr: bool,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(debug, "encode_heic_inner: format={:?}", bitmap_data.format);
     match bitmap_data.format {
@@ -769,7 +804,8 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
-                lossless_yuv_bt601,
+                persistent_rice,
+                lossless_ycbcr,
             )
         }
         BitmapPixelFormat::Rgb565 => {
@@ -786,7 +822,8 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
-                lossless_yuv_bt601,
+                persistent_rice,
+                lossless_ycbcr,
             )
         }
         BitmapPixelFormat::RgbaF16 => {
@@ -804,7 +841,8 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
-                lossless_yuv_bt601,
+                persistent_rice,
+                lossless_ycbcr,
             )
         }
         BitmapPixelFormat::Rgba1010102 => {
@@ -821,7 +859,8 @@ fn encode_heic_inner(
                 speed,
                 screen_content_coding,
                 rdpcm,
-                lossless_yuv_bt601,
+                persistent_rice,
+                lossless_ycbcr,
             )
         }
         BitmapPixelFormat::A8 => {
@@ -842,21 +881,18 @@ pub unsafe extern "C" fn encode_heic_file(
 ) -> jbyteArray {
     init_logging();
 
-    let chroma_subsampling = if options.lossless {
-        ChromaFormat::Yuv444
-    } else {
-        match options.chroma_subsampling_code {
-            2 => ChromaFormat::Yuv422,
-            3 => ChromaFormat::Yuv444,
-            4 => ChromaFormat::Monochrome,
-            _ => ChromaFormat::Yuv420,
-        }
+    let lossless_ycbcr = options.lossless && options.lossless_ycbcr;
+    let chroma_subsampling = match options.chroma_subsampling_code {
+        2 => ChromaFormat::Yuv422,
+        3 => ChromaFormat::Yuv444,
+        4 => ChromaFormat::Monochrome,
+        _ => ChromaFormat::Yuv420,
     };
 
     dbg_log!(
         debug,
         "encode_heic_file: color_space={} quality={} lossless={} \
-        chroma={:?} screen_content={} rdpcm={} lossless_yuv_bt601={} \
+        chroma={:?} screen_content={} rdpcm={} persistent_rice={} lossless_ycbcr={} \
         image_null={} exif_null={}",
         options.color_space,
         options.quality,
@@ -864,7 +900,8 @@ pub unsafe extern "C" fn encode_heic_file(
         chroma_subsampling,
         options.screen_content_coding,
         options.rdpcm,
-        options.lossless_yuv_bt601,
+        options.persistent_rice,
+        lossless_ycbcr,
         image.is_null(),
         exif.is_null()
     );
@@ -936,7 +973,8 @@ pub unsafe extern "C" fn encode_heic_file(
                 encoding_speed,
                 options.screen_content_coding,
                 options.rdpcm,
-                options.lossless_yuv_bt601,
+                options.persistent_rice,
+                lossless_ycbcr,
             )?;
             dbg_log!(
                 debug,
