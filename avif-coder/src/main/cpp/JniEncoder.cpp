@@ -204,12 +204,19 @@ bool readHevcEncodingOptions(JNIEnv *env,
     env->DeleteLocalRef(optionsClass);
     return false;
   }
-  jmethodID losslessYuvBt601Method = env->GetMethodID(
-      optionsClass, "getLosslessYuvBt601", "()Z"
+  jmethodID persistentRiceMethod = env->GetMethodID(
+      optionsClass, "getPersistentRice", "()Z"
+  );
+  if (persistentRiceMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID losslessYcbcrMethod = env->GetMethodID(
+      optionsClass, "getLosslessYcbcr", "()Z"
   );
   env->DeleteLocalRef(optionsClass);
 
-  if (losslessYuvBt601Method == nullptr) {
+  if (losslessYcbcrMethod == nullptr) {
     return false;
   }
 
@@ -239,8 +246,13 @@ bool readHevcEncodingOptions(JNIEnv *env,
   if (env->ExceptionCheck()) {
     return false;
   }
-  options->lossless_yuv_bt601 =
-      env->CallBooleanMethod(javaOptions, losslessYuvBt601Method) == JNI_TRUE;
+  options->persistent_rice =
+      env->CallBooleanMethod(javaOptions, persistentRiceMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->lossless_ycbcr =
+      env->CallBooleanMethod(javaOptions, losslessYcbcrMethod) == JNI_TRUE;
   return !env->ExceptionCheck();
 }
 
