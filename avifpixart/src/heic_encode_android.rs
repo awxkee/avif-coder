@@ -879,41 +879,45 @@ pub unsafe extern "C" fn encode_heic_file(
     exif: jobject,
     options: HevcEncodingOptions,
 ) -> jbyteArray {
-    init_logging();
-
-    let lossless_ycbcr = options.lossless && options.lossless_ycbcr;
-    let chroma_subsampling = match options.chroma_subsampling_code {
-        2 => ChromaFormat::Yuv422,
-        3 => ChromaFormat::Yuv444,
-        4 => ChromaFormat::Monochrome,
-        _ => ChromaFormat::Yuv420,
-    };
-
-    dbg_log!(
-        debug,
-        "encode_heic_file: color_space={} quality={} lossless={} \
-        chroma={:?} screen_content={} rdpcm={} persistent_rice={} lossless_ycbcr={} \
-        image_null={} exif_null={}",
-        options.color_space,
-        options.quality,
-        options.lossless,
-        chroma_subsampling,
-        options.screen_content_coding,
-        options.rdpcm,
-        options.persistent_rice,
-        lossless_ycbcr,
-        image.is_null(),
-        exif.is_null()
-    );
+    if env.is_null() {
+        return null_mut();
+    }
 
     let mut unowned = unsafe { EnvUnowned::from_raw(env) };
 
-    let encoding_speed: hpvca::Speed = match options.speed {
-        0 => hpvca::Speed::Fast,
-        _ => hpvca::Speed::Slow,
-    };
-
     let outcome = unowned.with_env(|env| -> Result<jobject, anyhow::Error> {
+        init_logging();
+
+        let lossless_ycbcr = options.lossless && options.lossless_ycbcr;
+        let chroma_subsampling = match options.chroma_subsampling_code {
+            2 => ChromaFormat::Yuv422,
+            3 => ChromaFormat::Yuv444,
+            4 => ChromaFormat::Monochrome,
+            _ => ChromaFormat::Yuv420,
+        };
+
+        dbg_log!(
+            debug,
+            "encode_heic_file: color_space={} quality={} lossless={} \
+            chroma={:?} screen_content={} rdpcm={} persistent_rice={} lossless_ycbcr={} \
+            image_null={} exif_null={}",
+            options.color_space,
+            options.quality,
+            options.lossless,
+            chroma_subsampling,
+            options.screen_content_coding,
+            options.rdpcm,
+            options.persistent_rice,
+            lossless_ycbcr,
+            image.is_null(),
+            exif.is_null()
+        );
+
+        let encoding_speed: hpvca::Speed = match options.speed {
+            0 => hpvca::Speed::Fast,
+            _ => hpvca::Speed::Slow,
+        };
+
         if chroma_subsampling == ChromaFormat::Monochrome {
             dbg_log!(
                 error,

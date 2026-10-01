@@ -40,7 +40,7 @@ use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
 use crate::support::{
     MIN_OS_AR30, MIN_OS_F16, PackedImageBuffer, PackedImageTransfer, android_os_version, dbg_log,
-    init_logging, try_vec,
+    init_logging, panic_payload_to_string, throw_runtime_exception_raw, try_vec,
 };
 use crate::weaver_error::WeaverError;
 use crate::{WeaveScaleMode, WeaverPreferredColorConfig, is_heic_image};
@@ -614,21 +614,28 @@ pub unsafe extern "C" fn decode_heic_file(
     scale_mode: WeaveScaleMode,
     preferred_color_config: WeaverPreferredColorConfig,
 ) -> jobject {
-    init_logging();
-
-    dbg_log!(
-        debug,
-        "decode_heic_file called: length={length}, \
-        target={}x{}, scale={:?}, color={:?}",
-        scaled_width,
-        scaled_height,
-        scale_mode,
-        preferred_color_config
-    );
+    if env.is_null() {
+        return null_mut();
+    }
 
     let mut unowned = unsafe { EnvUnowned::from_raw(env) };
 
     let outcome = unowned.with_env(|env| -> Result<jobject, jni::errors::Error> {
+        init_logging();
+
+        dbg_log!(
+            debug,
+            "decode_heic_file called: length={length}, \
+            target={}x{}, scale={:?}, color={:?}",
+            scaled_width,
+            scaled_height,
+            scale_mode,
+            preferred_color_config
+        );
+
+        if data.is_null() || length == 0 || length > isize::MAX as usize {
+            return Err(jni::errors::Error::NullPtr("image data"));
+        }
         let bytes = unsafe { slice::from_raw_parts(data, length) };
 
         let mut decoding_result = || -> Result<jobject, jni::errors::Error> {
@@ -674,17 +681,18 @@ pub unsafe extern "C" fn decode_heic_file(
     let o = outcome.into_outcome();
     match o {
         Outcome::Ok(v) => v,
-        Outcome::Err(_e) => {
-            dbg_log!(error, "JNI error in with_env: {_e:?}");
+        Outcome::Err(e) => {
+            unsafe {
+                throw_runtime_exception_raw(env, format!("JNI error while decoding HEIC: {e}"))
+            };
             null_mut()
         }
-        Outcome::Panic(_p) => {
-            let _msg = _p
-                .downcast_ref::<&str>()
-                .map(|s| s.to_string())
-                .or_else(|| _p.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "unknown panic".to_string());
-            dbg_log!(error, "panic in with_env: {_msg:?}");
+        Outcome::Panic(payload) => {
+            let message = format!(
+                "panic while decoding HEIC: {}",
+                panic_payload_to_string(payload.as_ref())
+            );
+            unsafe { throw_runtime_exception_raw(env, message) };
             null_mut()
         }
     }
@@ -692,29 +700,31 @@ pub unsafe extern "C" fn decode_heic_file(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn read_heic_file_info(data: *const u8, length: usize) -> HeicInfo {
-    if unsafe { !is_heic_image(data, length) } {
-        return HeicInfo::not_a_heic();
-    }
-    let bytes = unsafe { slice::from_raw_parts(data, length) };
-    match hpvcd::read_heic_info(bytes) {
-        Ok(i) => {
-            let (width, height) = match i.orientation {
-                Orientation::Rotate90
-                | Orientation::Rotate270
-                | Orientation::Transpose
-                | Orientation::Transverse => (i.height, i.width),
-                _ => (i.width, i.height),
-            };
-            HeicInfo {
-                width,
-                height,
-                supported_image: true,
-                bit_depth: i.bit_depth.bits() as u32,
+    crate::ffi_panic::catch_unwind_or(HeicInfo::not_a_heic(), || {
+        if unsafe { !is_heic_image(data, length) } {
+            return HeicInfo::not_a_heic();
+        }
+        let bytes = unsafe { slice::from_raw_parts(data, length) };
+        match hpvcd::read_heic_info(bytes) {
+            Ok(i) => {
+                let (width, height) = match i.orientation {
+                    Orientation::Rotate90
+                    | Orientation::Rotate270
+                    | Orientation::Transpose
+                    | Orientation::Transverse => (i.height, i.width),
+                    _ => (i.width, i.height),
+                };
+                HeicInfo {
+                    width,
+                    height,
+                    supported_image: true,
+                    bit_depth: i.bit_depth.bits() as u32,
+                }
+            }
+            Err(_v) => {
+                dbg_log!(error, "Failed to read HEIC info: {_v:?}");
+                HeicInfo::not_a_heic()
             }
         }
-        Err(_v) => {
-            dbg_log!(error, "Failed to read HEIC info: {_v:?}");
-            HeicInfo::not_a_heic()
-        }
-    }
+    })
 }

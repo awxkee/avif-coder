@@ -1138,36 +1138,40 @@ pub unsafe extern "C" fn encode_avif_av1_file(
     exif: jobject,
     options: AvifEncodingOptions,
 ) -> jbyteArray {
-    init_logging();
-
-    let chroma_subsampling = match options.chroma_subsampling_code {
-        2 => ChromaFormat::Yuv422,
-        3 => ChromaFormat::Yuv444,
-        4 => ChromaFormat::Monochrome,
-        _ => ChromaFormat::Yuv420,
-    };
-
-    dbg_log!(
-        debug,
-        "encode_avif_file: color_space={} quality={} lossless={} chroma={} ({}) \
-         image_null={} exif_null={}",
-        options.color_space,
-        options.quality,
-        options.lossless,
-        match chroma_subsampling {
-            ChromaFormat::Yuv420 => "4:2:0",
-            ChromaFormat::Yuv422 => "4:2:2",
-            ChromaFormat::Yuv444 => "4:4:4",
-            ChromaFormat::Monochrome => "Mono",
-        },
-        options.chroma_subsampling_code,
-        image.is_null(),
-        exif.is_null(),
-    );
+    if env.is_null() {
+        return null_mut();
+    }
 
     let mut unowned = unsafe { EnvUnowned::from_raw(env) };
 
     let outcome = unowned.with_env(|env| -> Result<jobject, jni::errors::Error> {
+        init_logging();
+
+        let chroma_subsampling = match options.chroma_subsampling_code {
+            2 => ChromaFormat::Yuv422,
+            3 => ChromaFormat::Yuv444,
+            4 => ChromaFormat::Monochrome,
+            _ => ChromaFormat::Yuv420,
+        };
+
+        dbg_log!(
+            debug,
+            "encode_avif_file: color_space={} quality={} lossless={} chroma={} ({}) \
+             image_null={} exif_null={}",
+            options.color_space,
+            options.quality,
+            options.lossless,
+            match chroma_subsampling {
+                ChromaFormat::Yuv420 => "4:2:0",
+                ChromaFormat::Yuv422 => "4:2:2",
+                ChromaFormat::Yuv444 => "4:4:4",
+                ChromaFormat::Monochrome => "Mono",
+            },
+            options.chroma_subsampling_code,
+            image.is_null(),
+            exif.is_null(),
+        );
+
         let result: Result<jobject, anyhow::Error> = (|| {
             let quality = options.quality.clamp(1, 100) as u32;
             dbg_log!(debug, "clamped quality={quality}");

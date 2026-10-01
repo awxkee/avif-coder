@@ -192,10 +192,12 @@ fn detect_container(bytes: &[u8]) -> ImageContainer {
 }
 
 fn detect_image_container(data: *const u8, len: usize) -> ImageContainer {
-    if len < 16 {
+    if data.is_null() || len < 16 || len > isize::MAX as usize {
         return ImageContainer::Unknown;
     }
-    detect_container(unsafe { slice::from_raw_parts(data, len) })
+    crate::ffi_panic::catch_unwind_or(ImageContainer::Unknown, || {
+        detect_container(unsafe { slice::from_raw_parts(data, len) })
+    })
 }
 
 #[unsafe(no_mangle)]
