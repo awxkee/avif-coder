@@ -1,0 +1,24 @@
+{
+    global:
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_destroy;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_createControllerFromByteArray;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_createControllerFromByteBuffer;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFramesCount;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getLoopsCountImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getTotalDurationImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameDurationImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getSizeImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_encodeAvifImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_encodeHeicImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_isHeifImageImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_isAvifImageImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_isSupportedImageImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_getSizeImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_isSupportedImageImplBB;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_detectContainerImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeImpl;
+        Java_com_radzivon_bartoshyk_avif_coder_Coder_decodeByteBufferImpl;
+    local:
+        *;
+};
