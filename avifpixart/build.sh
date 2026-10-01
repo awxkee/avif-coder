@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) Radzivon Bartoshyk. All rights reserved.
 #
@@ -27,18 +28,23 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-set -e
-rustup default nightly
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 rustup +nightly target add x86_64-linux-android aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
-RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C target-feature=+neon -C opt-level=3 -C strip=symbols" cargo +nightly build -Z build-std=std --target aarch64-linux-android --features rdm,i8mm,sve,logging --release --manifest-path Cargo.toml
+# Keep unwinding, but omit automatic panic backtraces, caller locations and detailed derived
+# Debug output. Rebuilding std applies the same size reductions to its panic paths.
+SIZE_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -Z location-detail=none -Z fmt-debug=shallow"
+STD_BUILD_FLAGS=(-Z build-std=std -Z build-std-features=panic-unwind)
 
-RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --no-default-features --target x86_64-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="$SIZE_RUSTFLAGS -C target-feature=+neon -C opt-level=3" cargo +nightly build "${STD_BUILD_FLAGS[@]}" --locked --target aarch64-linux-android --features rdm,i8mm,sve,logging --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --no-default-features --target armv7-linux-androideabi --release --manifest-path Cargo.toml
+RUSTFLAGS="$SIZE_RUSTFLAGS -C opt-level=z" cargo +nightly build "${STD_BUILD_FLAGS[@]}" --locked --no-default-features --target x86_64-linux-android --release --manifest-path Cargo.toml
 
-RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C opt-level=z -C strip=symbols" cargo +nightly build -Z build-std=std --target i686-linux-android --release --manifest-path Cargo.toml
+RUSTFLAGS="$SIZE_RUSTFLAGS -C opt-level=z" cargo +nightly build "${STD_BUILD_FLAGS[@]}" --locked --no-default-features --target armv7-linux-androideabi --release --manifest-path Cargo.toml
+
+RUSTFLAGS="$SIZE_RUSTFLAGS -C opt-level=z" cargo +nightly build "${STD_BUILD_FLAGS[@]}" --locked --target i686-linux-android --release --manifest-path Cargo.toml
 
 cp -r target/aarch64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/arm64-v8a/libavifweaver.a
 cp -r target/x86_64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/x86_64/libavifweaver.a

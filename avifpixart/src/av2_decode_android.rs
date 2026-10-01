@@ -39,7 +39,7 @@ use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
 use crate::support::{
     MIN_OS_AR30, MIN_OS_F16, PackedImageBuffer, PackedImageTransfer, android_os_version, dbg_log,
-    init_logging, try_vec,
+    init_logging, panic_payload_to_string, throw_runtime_exception_raw, try_vec,
 };
 use crate::weaver_error::WeaverError;
 use crate::{HeicInfo, WeaveScaleMode, WeaverPreferredColorConfig, is_av2_image};
@@ -773,21 +773,28 @@ pub unsafe extern "C" fn decode_av2_file(
     scale_mode: WeaveScaleMode,
     preferred_color_config: WeaverPreferredColorConfig,
 ) -> jobject {
-    init_logging();
-
-    dbg_log!(
-        debug,
-        "decode_heic_file called: length={length}, \
-        target={}x{}, scale={:?}, color={:?}",
-        scaled_width,
-        scaled_height,
-        scale_mode,
-        preferred_color_config
-    );
+    if env.is_null() {
+        return null_mut();
+    }
 
     let mut unowned = unsafe { EnvUnowned::from_raw(env) };
 
     let outcome = unowned.with_env(|env| -> Result<jobject, jni::errors::Error> {
+        init_logging();
+
+        dbg_log!(
+            debug,
+            "decode_heic_file called: length={length}, \
+            target={}x{}, scale={:?}, color={:?}",
+            scaled_width,
+            scaled_height,
+            scale_mode,
+            preferred_color_config
+        );
+
+        if data.is_null() || length == 0 || length > isize::MAX as usize {
+            return Err(jni::errors::Error::NullPtr("image data"));
+        }
         let bytes = unsafe { slice::from_raw_parts(data, length) };
 
         let mut decoding_result = || -> Result<jobject, jni::errors::Error> {
@@ -833,17 +840,18 @@ pub unsafe extern "C" fn decode_av2_file(
     let o = outcome.into_outcome();
     match o {
         Outcome::Ok(v) => v,
-        Outcome::Err(_e) => {
-            dbg_log!(error, "JNI error in with_env: {_e:?}");
+        Outcome::Err(e) => {
+            unsafe {
+                throw_runtime_exception_raw(env, format!("JNI error while decoding AV2: {e}"))
+            };
             null_mut()
         }
-        Outcome::Panic(_p) => {
-            let _msg = _p
-                .downcast_ref::<&str>()
-                .map(|s| s.to_string())
-                .or_else(|| _p.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "unknown panic".to_string());
-            dbg_log!(error, "panic in with_env: {_msg}");
+        Outcome::Panic(payload) => {
+            let message = format!(
+                "panic while decoding AV2: {}",
+                panic_payload_to_string(payload.as_ref())
+            );
+            unsafe { throw_runtime_exception_raw(env, message) };
             null_mut()
         }
     }
@@ -851,35 +859,37 @@ pub unsafe extern "C" fn decode_av2_file(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn read_av2_file_info(data: *const u8, length: usize) -> HeicInfo {
-    if unsafe { !is_av2_image(data, length) } {
-        return HeicInfo::not_a_heic();
-    }
-    let bytes = unsafe { slice::from_raw_parts(data, length) };
-    let mut settings = AvifSettings::default();
-    settings.decoder_settings.frame_size_limit = 16536 * 16536;
-    let image_info = match AvifDecoder::with_settings(bytes, settings).and_then(|x| x.image_info())
-    {
-        Ok(v) => v,
-        Err(_v) => {
-            dbg_log!(error, "Failed to read AV2 info: {_v:?}");
+    crate::ffi_panic::catch_unwind_or(HeicInfo::not_a_heic(), || {
+        if unsafe { !is_av2_image(data, length) } {
             return HeicInfo::not_a_heic();
         }
-    };
+        let bytes = unsafe { slice::from_raw_parts(data, length) };
+        let mut settings = AvifSettings::default();
+        settings.decoder_settings.frame_size_limit = 16536 * 16536;
+        let image_info =
+            match AvifDecoder::with_settings(bytes, settings).and_then(|x| x.image_info()) {
+                Ok(v) => v,
+                Err(_v) => {
+                    dbg_log!(error, "Failed to read AV2 info: {_v:?}");
+                    return HeicInfo::not_a_heic();
+                }
+            };
 
-    let (width, height) = match image_info
-        .orientation
-        .unwrap_or(tealdust::Orientation::Normal)
-    {
-        tealdust::Orientation::Rotate90
-        | tealdust::Orientation::Rotate270
-        | tealdust::Orientation::Transpose
-        | tealdust::Orientation::Transverse => (image_info.height, image_info.width),
-        _ => (image_info.width, image_info.height),
-    };
-    HeicInfo {
-        width,
-        height,
-        supported_image: true,
-        bit_depth: image_info.bits_per_component as u32,
-    }
+        let (width, height) = match image_info
+            .orientation
+            .unwrap_or(tealdust::Orientation::Normal)
+        {
+            tealdust::Orientation::Rotate90
+            | tealdust::Orientation::Rotate270
+            | tealdust::Orientation::Transpose
+            | tealdust::Orientation::Transverse => (image_info.height, image_info.width),
+            _ => (image_info.width, image_info.height),
+        };
+        HeicInfo {
+            width,
+            height,
+            supported_image: true,
+            bit_depth: image_info.bits_per_component as u32,
+        }
+    })
 }

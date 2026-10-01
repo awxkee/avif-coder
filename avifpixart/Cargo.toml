@@ -4,27 +4,27 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-num-traits = "0.2"
-pic-scale = { version = "0.7.11", default-features = false, features = ["nightly_f16"] }
-yuv = { version = "0.8.16", features = ["nightly_f16"], default-features = false }
-bytemuck = { version = "1.25", features = ["nightly_float"] }
-moxcms = { version = "0.9.0", default-features = false }
+num-traits = "0.2.19"
+pic-scale = { version = "0.7.12", default-features = false, features = ["nightly_f16"] }
+yuv = { version = "0.8.19", features = ["nightly_f16"], default-features = false }
+bytemuck = { version = "1.25.2", features = ["nightly_float"] }
+moxcms = { version = "0.9.1", default-features = false }
 gainforge = {version = "0.5.1", default-features = false}
-thiserror = "2.0.18"
-libc = "1.0.0-alpha.3"
-log = "0.4.32"
+thiserror = "2.0.21"
+libc = "1.0.0-alpha.4"
+log = "0.4.34"
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { version = "0.22.4", default-features = false }
-ndk-sys = "0.6"
-android_logger = { version = "0.15", optional = true }   # pulled in only by `logging`
-anyhow = "1.0.102"
+ndk-sys = "0.6.0"
+android_logger = { version = "0.15.1", optional = true }   # pulled in only by `logging`
+anyhow = "1.0.104"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "arm"))'.dependencies]
 hpvcd = { version = "0.3.2", default-features = false }
-maroontree = {version = "0.1.12", default-features = false}
-hpvca = { version = "0.1.17", default-features = false }
-tealdust = { version = "0.1.4", default-features = false }
+maroontree = {version = "0.1.13", default-features = false}
+hpvca = { version = "0.2.0", default-features = false }
+tealdust = { version = "0.1.5", default-features = false }
 
 [features]
 rdm = ["yuv/rdm", "pic-scale/rdm", "moxcms/neon_shaper_fixed_point_paths", "hpvcd/neon", "maroontree/neon"]
@@ -36,10 +36,13 @@ logging = ["dep:android_logger"]
 crate-type = ["cdylib", "staticlib"]
 
 [profile.release]
-strip = true
+strip = "symbols"
 opt-level = 3
-lto = true
+lto = "fat"
 codegen-units = 1
+panic = "unwind"
+debug = false
+incremental = false
 
 [build-dependencies]
 cbindgen = "0.29.4"

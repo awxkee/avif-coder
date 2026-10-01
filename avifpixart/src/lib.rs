@@ -30,6 +30,10 @@
 #![allow(clippy::missing_safety_doc, clippy::map_identity)]
 #![feature(f16)]
 
+// JNI error translation relies on catching Rust panics before returning to C++.
+#[cfg(not(panic = "unwind"))]
+compile_error!("avifweaver requires panic=unwind for JNI panic handling");
+
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
@@ -54,6 +58,7 @@ mod box_walker;
 mod cvt;
 mod encoding_options;
 mod ffi;
+mod ffi_panic;
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")

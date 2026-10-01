@@ -24,6 +24,16 @@ set_target_properties(avifweaver PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR
 
 target_link_options(coder PRIVATE "-Wl,-z,max-page-size=16384")
 
+# Only the JNI entry points form the shared library's public API. Hide symbols
+# from static dependencies too, so the linker can discard unused Rust/C++ code.
+set(CODER_VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/coder.map.txt")
+target_link_options(coder PRIVATE
+        "-Wl,--gc-sections"
+        "-Wl,--icf=safe"
+        "-Wl,--version-script,${CODER_VERSION_SCRIPT}"
+        "-Wl,--no-undefined-version")
+set_property(TARGET coder APPEND PROPERTY LINK_DEPENDS "${CODER_VERSION_SCRIPT}")
+
 add_library(cpufeatures STATIC ${ANDROID_NDK}/sources/android/cpufeatures/cpu-features.c)
 target_include_directories(cpufeatures PUBLIC ${ANDROID_NDK}/sources/android/cpufeatures)
 target_link_libraries(cpufeatures dl)
