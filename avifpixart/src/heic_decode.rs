@@ -27,6 +27,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::check_image_size_overflow;
+use crate::image_info::clap_rect;
 use crate::orientation::apply_orientation;
 use crate::support::try_vec;
 use crate::weaver_error::WeaverError;
@@ -71,41 +72,6 @@ pub(crate) struct DecodedHeicPacket<T> {
     pub(crate) icc: Option<Vec<u8>>,
     pub(crate) bit_depth: BitDepth,
     pub(crate) has_real_alpha: bool,
-}
-
-fn clap_rect(
-    width: usize,
-    height: usize,
-    clap: &hpvcd::CleanAperture,
-) -> Option<(usize, usize, usize, usize)> {
-    if clap.width_d == 0 || clap.height_d == 0 || clap.horiz_off_d == 0 || clap.vert_off_d == 0 {
-        return None;
-    }
-    let (img_w, img_h) = (width as i64, height as i64);
-
-    let crop_w = ((clap.width_n as i64) / (clap.width_d as i64)).min(img_w);
-    let crop_h = ((clap.height_n as i64) / (clap.height_d as i64)).min(img_h);
-    if crop_w <= 0 || crop_h <= 0 {
-        return None;
-    }
-
-    // ISO 14496-12: offsets locate the aperture *center* relative to image center.
-    //   left = horizOff + (W-1)/2 - (cropW-1)/2   (evaluated over denom 2*off_d)
-    let hd = clap.horiz_off_d as i64;
-    let vd = clap.vert_off_d as i64;
-    let left = (2 * (clap.horiz_off_n as i64) + hd * (img_w - 1) - hd * (crop_w - 1))
-        .div_euclid(2 * hd)
-        .clamp(0, img_w - crop_w);
-    let top = (2 * (clap.vert_off_n as i64) + vd * (img_h - 1) - vd * (crop_h - 1))
-        .div_euclid(2 * vd)
-        .clamp(0, img_h - crop_h);
-
-    Some((
-        left as usize,
-        top as usize,
-        crop_w as usize,
-        crop_h as usize,
-    ))
 }
 
 fn finalize<T: Copy + Default>(
@@ -795,6 +761,10 @@ pub(crate) fn decode_packed_heic(data: &[u8]) -> Result<PackedHeic, WeaverError>
     let decoded_heic =
         hpvcd::decode_heic_yuv(data).map_err(|x| WeaverError::FailedToDecodeHeic(x.to_string()))?;
 
+    pack_decoded_heic(&decoded_heic)
+}
+
+pub(crate) fn pack_decoded_heic(decoded_heic: &DecodedYuv) -> Result<PackedHeic, WeaverError> {
     match (decoded_heic.bit_depth, &decoded_heic.planes) {
         (BitDepth::Eight, YuvBuffer::U8(planes)) => Ok(PackedHeic::Regular(
             decode_inner_low_bit_depth(&decoded_heic, planes)?,

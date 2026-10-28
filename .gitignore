@@ -67,3 +67,4 @@ libheif/
 libwebp/
 aom/
 libavifweaver.a
+app/src/main/assets

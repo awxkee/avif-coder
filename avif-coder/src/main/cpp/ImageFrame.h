@@ -30,11 +30,21 @@
 #define AVIF_CODER_SRC_MAIN_CPP_IMAGEFRAME_H_
 
 #include <cstdint>
+#include <array>
+#include <optional>
 #include "definitions.h"
 
 struct AvifImageSize {
   uint32_t width;
   uint32_t height;
+};
+
+struct GainmapFrame {
+  aligned_uint8_vector store;
+  uint32_t width;
+  uint32_t height;
+  std::array<float, 19> metadata;
+  uint32_t bitDepth = 8;
 };
 
 struct AvifImageFrame {
@@ -44,6 +54,9 @@ struct AvifImageFrame {
   bool is16Bit;
   uint32_t bitDepth;
   bool hasAlpha;
+  std::optional<GainmapFrame> gainMap;
+  int colorPrimaries = 1;
+  int transferCharacteristics = 13;
 };
 
 #endif //AVIF_CODER_SRC_MAIN_CPP_IMAGEFRAME_H_

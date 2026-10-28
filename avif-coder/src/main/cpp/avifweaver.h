@@ -11,6 +11,7 @@ enum class AvEncodingSpeed {
   Slow,
   Medium,
   Fast,
+  ExtraSlow,
 };
 
 enum class WeaveScaleMode {
@@ -118,6 +119,7 @@ struct AvifEncodingOptions {
   int32_t chroma_subsampling_code;
   AvEncodingSpeed speed;
   bool screen_content_coding;
+  bool ignore_gainmap_errors;
 };
 
 struct HeicInfo {
@@ -137,6 +139,7 @@ struct HevcEncodingOptions {
   bool rdpcm;
   bool persistent_rice;
   bool lossless_ycbcr;
+  bool ignore_gainmap_errors;
 };
 
 struct FfiProfileData {

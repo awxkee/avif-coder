@@ -781,7 +781,9 @@ mod tests {
     fn resolve_dimensions_preserves_auto_single_axis_modes() {
         assert_eq!(resolve_dimensions(4000, 2000, 1000, -1), (1000, 500));
         assert_eq!(resolve_dimensions(4000, 2000, -1, 500), (1000, 500));
-        assert_eq!(resolve_dimensions(4000, 2001, 1000, -2), (1000, 502));
-        assert_eq!(resolve_dimensions(4001, 2000, -2, 500), (1002, 500));
+        assert_eq!(resolve_dimensions(4000, 2001, 1000, -2), (1000, 500));
+        assert_eq!(resolve_dimensions(4001, 2000, -2, 500), (1000, 500));
+        assert_eq!(resolve_dimensions(4000, 2004, 1000, -2), (1000, 502));
+        assert_eq!(resolve_dimensions(4004, 2000, -2, 500), (1002, 500));
     }
 }

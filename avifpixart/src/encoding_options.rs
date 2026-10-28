@@ -33,6 +33,7 @@ pub enum AvEncodingSpeed {
     Slow,
     Medium,
     Fast,
+    ExtraSlow,
 }
 
 #[repr(C)]
@@ -44,6 +45,7 @@ pub struct AvifEncodingOptions {
     pub chroma_subsampling_code: i32,
     pub speed: AvEncodingSpeed,
     pub screen_content_coding: bool,
+    pub ignore_gainmap_errors: bool,
 }
 
 #[repr(C)]
@@ -58,4 +60,5 @@ pub struct HevcEncodingOptions {
     pub rdpcm: bool,
     pub persistent_rice: bool,
     pub lossless_ycbcr: bool,
+    pub ignore_gainmap_errors: bool,
 }

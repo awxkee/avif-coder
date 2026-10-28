@@ -46,7 +46,8 @@ pub(crate) fn apply_orientation<T: Copy + Default>(
 }
 
 fn rotate_buf<T: Copy + Default>(w: usize, h: usize, px: &[T], o: Orientation) -> Vec<T> {
-    let pixels = px.as_chunks::<3>().0;
+    // Keep all four RGBA channels together, including alpha.
+    let pixels = px.as_chunks::<4>().0;
 
     match o {
         Orientation::Normal => px.to_vec(),
@@ -76,33 +77,36 @@ fn rotate_buf<T: Copy + Default>(w: usize, h: usize, px: &[T], o: Orientation) -
         // 90° CW:  dest(dr, dc) = source(h-1-dc, dr);  dims: w×h → h×w
         Orientation::Rotate90 => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| (h - 1 - dc) * w + dr))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
 
         // 90° CCW: dest(dr, dc) = source(dc, w-1-dr);  dims: w×h → h×w
         Orientation::Rotate270 => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| dc * w + (w - 1 - dr)))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
 
         // Main-diagonal reflection: dest(dr, dc) = source(dc, dr);  dims: w×h → h×w
         Orientation::Transpose => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| dc * w + dr))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
 
         // Anti-diagonal reflection: dest(dr, dc) = source(h-1-dc, w-1-dr);  dims: w×h → h×w
         Orientation::Transverse => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| (h - 1 - dc) * w + (w - 1 - dr)))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
     }
 }
 
 /// Generic pixel-buffer rotation; works for both `u8` and `u16` samples.
-#[cfg(all(
-    target_os = "android",
-    any(target_arch = "aarch64", target_arch = "arm")
+#[cfg(any(
+    test,
+    all(
+        target_os = "android",
+        any(target_arch = "aarch64", target_arch = "arm")
+    )
 ))]
 pub(crate) fn apply_orientation_av2<T: Copy + Default>(
     rgba: &[T],
@@ -120,9 +124,12 @@ pub(crate) fn apply_orientation_av2<T: Copy + Default>(
     (rotate_buf_av2(w, h, rgba, o), nw, nh)
 }
 
-#[cfg(all(
-    target_os = "android",
-    any(target_arch = "aarch64", target_arch = "arm")
+#[cfg(any(
+    test,
+    all(
+        target_os = "android",
+        any(target_arch = "aarch64", target_arch = "arm")
+    )
 ))]
 fn rotate_buf_av2<T: Copy + Default>(
     w: usize,
@@ -130,7 +137,8 @@ fn rotate_buf_av2<T: Copy + Default>(
     px: &[T],
     o: tealdust::Orientation,
 ) -> Vec<T> {
-    let pixels = px.as_chunks::<3>().0;
+    // Keep all four RGBA channels together, including alpha.
+    let pixels = px.as_chunks::<4>().0;
 
     match o {
         tealdust::Orientation::Normal => px.to_vec(),
@@ -160,25 +168,25 @@ fn rotate_buf_av2<T: Copy + Default>(
         // 90° CW:  dest(dr, dc) = source(h-1-dc, dr);  dims: w×h → h×w
         tealdust::Orientation::Rotate90 => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| (h - 1 - dc) * w + dr))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
 
         // 90° CCW: dest(dr, dc) = source(dc, w-1-dr);  dims: w×h → h×w
         tealdust::Orientation::Rotate270 => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| dc * w + (w - 1 - dr)))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
 
         // Main-diagonal reflection: dest(dr, dc) = source(dc, dr);  dims: w×h → h×w
         tealdust::Orientation::Transpose => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| dc * w + dr))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
 
         // Anti-diagonal reflection: dest(dr, dc) = source(h-1-dc, w-1-dr);  dims: w×h → h×w
         tealdust::Orientation::Transverse => (0..w)
             .flat_map(|dr| (0..h).map(move |dc| (h - 1 - dc) * w + (w - 1 - dr)))
-            .flat_map(|si| [px[si * 3], px[si * 3 + 1], px[si * 3 + 2]])
+            .flat_map(|si| pixels[si])
             .collect(),
     }
 }

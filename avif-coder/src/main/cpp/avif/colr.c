@@ -72,18 +72,26 @@ avifColorPrimaries avifColorPrimariesFind(const float inPrimaries[8], const char
 
 avifResult avifTransferCharacteristicsGetGamma(avifTransferCharacteristics atc, float * gamma)
 {
+    if (gamma == NULL) {
+        return AVIF_RESULT_INVALID_ARGUMENT;
+    }
+
     switch (atc) {
         case AVIF_TRANSFER_CHARACTERISTICS_BT470M:
             *gamma = 2.2f;
             return AVIF_RESULT_OK;
+
         case AVIF_TRANSFER_CHARACTERISTICS_BT470BG:
             *gamma = 2.8f;
             return AVIF_RESULT_OK;
+
         case AVIF_TRANSFER_CHARACTERISTICS_LINEAR:
             *gamma = 1.0f;
             return AVIF_RESULT_OK;
+
         default:
-            return AVIF_RESULT_INVALID_ARGUMENT;
+            // Not representable as a single gamma value (e.g. sRGB, BT.709, PQ, HLG, etc.).
+            return AVIF_RESULT_NOT_IMPLEMENTED;
     }
 }
 
@@ -194,7 +202,7 @@ void avifCalcYUVCoefficients(const avifImage * image, float * outR, float * outG
 //   https://chromium.googlesource.com/webm/libwebp/+/25d94f473b10882b8bee9288d00539001b692042
 // - In this file, PQ and HLG return "extended SDR" linear values in [0.0, 10000/203] and
 //   [0.0, 1000/203] respectively, where a value of 1.0 means SDR white brightness (203 nits), and any
-//   value above 1.0 is brigther.
+//   value above 1.0 is brighter.
 // See git history for further changes.
 
 struct avifTransferCharacteristicsTable
@@ -309,7 +317,7 @@ static float avifToGammaLog100Sqrt10(float linear)
 static float avifToLinearIEC61966(float gamma)
 {
     if (gamma < -4.5f * 0.018053968510807f) {
-        return powf((-gamma + 0.09929682680944f) / -1.09929682680944f, 1.0f / 0.45f);
+        return -powf((gamma - 0.09929682680944f) / -1.09929682680944f, 1.0f / 0.45f);
     } else if (gamma < 4.5f * 0.018053968510807f) {
         return gamma / 4.5f;
     } else {

@@ -32,5 +32,5 @@ import androidx.annotation.Keep
 
 @Keep
 enum class AvSpeed(internal val value: Int) {
-    FAST(0), MEDIUM(1), SLOW(2)
+    FAST(0), MEDIUM(1), SLOW(2), EXTRA_SLOW(3)
 }

@@ -24,48 +24,25 @@
 #
 #
 
-set -e
-
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
-
-destination_directory=dav1d
-if [ ! -d "$destination_directory" ]; then
-    git clone https://code.videolan.org/videolan/dav1d -b 1.5.1
-else
-    echo "Destination directory '$destination_directory' already exists. Cloning skipped."
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+REPO_DIR="$PWD"
+DAV1D_VERSION=1.5.3
+NDK_PATH="${NDK_PATH:-${ANDROID_HOME:-$HOME/Library/Android/sdk}/ndk/28.2.13676358}"
+export NDK_PATH
+DAV1D_SOURCE_DIR="${DAV1D_SOURCE_DIR:-$REPO_DIR/dav1d}"
+if [[ ! -d "$DAV1D_SOURCE_DIR" ]]; then
+  git clone --depth 1 --branch "$DAV1D_VERSION" https://code.videolan.org/videolan/dav1d "$DAV1D_SOURCE_DIR"
 fi
-
-cp -r ./conf/dav1d_conf_build.sh ./dav1d/build.sh
-
-cd dav1d
-
-ABI_LIST="arm arm64 x86 x86_64"
-ARMEABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
-
-for ARCH in ${ABI_LIST}; do
-  case "${ARCH}" in
-    'arm')
-    ABI=armeabi-v7a ;;
-    'arm64')
-        ABI=arm64-v8a ;;
-    *)
-        ABI=${ARCH} ;;
-    esac
-  if [[ ! -d dist-${ABI} ]]; then
-    export LOCAL_PATH=../$pwd
-    ( . build.sh -a ${ARCH} )
-    # shellcheck disable=SC2116
-    current_folder=$(echo pwd)
-    echo "libdav1d has built for arch ${abi} at path ${current_folder}/$ARCH"
-  fi
+if [[ "$(git -C "$DAV1D_SOURCE_DIR" describe --tags --exact-match)" != "$DAV1D_VERSION" ]]; then
+  echo "Expected dav1d $DAV1D_VERSION. Set DAV1D_SOURCE_DIR to a fresh directory." >&2
+  exit 1
+fi
+cd "$DAV1D_SOURCE_DIR"
+for arch in arm arm64 x86 x86_64; do
+  bash "$REPO_DIR/conf/dav1d_conf_build.sh" -a "$arch"
 done
-
-for abi in ${ARMEABI_LIST}; do
-  mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
-#  rm "build-${abi}/src/libdav1d.so" "build-${abi}/src/libdav1d.so.7"
-#  mv "build-${abi}/src/libdav1d.so.7.0.0" "build-${abi}/src/libdav1d.so"
-  cp -r "build-${abi}/src/libdav1d.so" "../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so"
-#  cp -r "build-${abi}/src/libdav1d.so.7" "../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so.7"
-  echo "build-${abi}/src/libdav1d.so was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libdav1d.so!"
+for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+  cp "build-$abi/src/libdav1d.so" "$REPO_DIR/avif-coder/src/main/cpp/lib/$abi/libdav1d.so"
 done
-
+cp include/dav1d/*.h "$REPO_DIR/avif-coder/src/main/cpp/avif/dav1d/"

@@ -284,6 +284,7 @@ fn encode_avif_inner_mono_u16(
         .get();
     dbg_log!(debug, "encoder threads={threads}");
 
+    let gain_map = config.gain_map.clone();
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
@@ -292,6 +293,10 @@ fn encode_avif_inner_mono_u16(
         .with_speed(config.speed.to_maroontree())
         .with_screen_content(config.screen_content_coding)
         .with_intrabc(config.screen_content_coding);
+
+    if let Some(gain_map) = gain_map {
+        config = config.with_gain_map(gain_map);
+    }
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -452,6 +457,7 @@ fn encode_avif_inner_mono_u8(
         .get();
     dbg_log!(debug, "encoder threads={threads}");
 
+    let gain_map = config.gain_map.clone();
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
@@ -460,6 +466,10 @@ fn encode_avif_inner_mono_u8(
         .with_speed(config.speed.to_maroontree())
         .with_screen_content(config.screen_content_coding)
         .with_intrabc(config.screen_content_coding);
+
+    if let Some(gain_map) = gain_map {
+        config = config.with_gain_map(gain_map);
+    }
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -706,6 +716,7 @@ fn encode_av1_inner_u8(
         .get();
     dbg_log!(debug, "encoder threads={threads}");
 
+    let gain_map = config.gain_map.clone();
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
@@ -714,6 +725,10 @@ fn encode_av1_inner_u8(
         .with_speed(config.speed.to_maroontree())
         .with_screen_content(config.screen_content_coding)
         .with_intrabc(config.screen_content_coding);
+
+    if let Some(gain_map) = gain_map {
+        config = config.with_gain_map(gain_map);
+    }
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -967,6 +982,7 @@ fn encode_av1_inner_u16_10_bit(
         .get();
     dbg_log!(debug, "encoder threads={threads}");
 
+    let gain_map = config.gain_map.clone();
     let mut config = maroontree::EncodeConfig::new()
         .with_cicp(local_cicp)
         .with_quality(quality as u8)
@@ -975,6 +991,10 @@ fn encode_av1_inner_u16_10_bit(
         .with_speed(config.speed.to_maroontree())
         .with_screen_content(config.screen_content_coding)
         .with_intrabc(config.screen_content_coding);
+
+    if let Some(gain_map) = gain_map {
+        config = config.with_gain_map(gain_map);
+    }
 
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
@@ -1119,6 +1139,7 @@ pub(crate) struct AvEncodingConfig {
     pub(crate) lossless: bool,
     pub(crate) speed: AvEncodingSpeed,
     pub(crate) screen_content_coding: bool,
+    pub(crate) gain_map: Option<maroontree::GainMap>,
 }
 
 impl AvEncodingSpeed {
@@ -1127,6 +1148,7 @@ impl AvEncodingSpeed {
             AvEncodingSpeed::Slow => maroontree::Speed::Slow,
             AvEncodingSpeed::Medium => maroontree::Speed::Medium,
             AvEncodingSpeed::Fast => maroontree::Speed::Fast,
+            AvEncodingSpeed::ExtraSlow => maroontree::Speed::ExtraSlow,
         }
     }
 }
@@ -1213,22 +1235,27 @@ pub unsafe extern "C" fn encode_avif_av1_file(
                     .map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
             );
 
-            let encoded_data = encode_av1_inner(
+            let mut config = AvEncodingConfig {
+                cicp,
+                quality,
+                lossless: options.lossless,
+                exif: exif_data.map(|x| x.to_vec()),
+                chroma: chroma_subsampling,
+                speed: options.speed,
+                screen_content_coding: options.screen_content_coding,
+                gain_map: None,
+            };
+            let encoded_data = crate::gainmap::encode_with_gainmap(
+                env,
+                image,
                 &mut bitmap_data,
-                &AvEncodingConfig {
-                    cicp,
-                    quality,
-                    lossless: options.lossless,
-                    exif: exif_data.map(|x| x.to_vec()),
-                    chroma: chroma_subsampling,
-                    speed: options.speed,
-                    screen_content_coding: options.screen_content_coding,
+                options.ignore_gainmap_errors,
+                |gainmap| gainmap.to_avif(),
+                |bitmap_data, gain_map| {
+                    config.gain_map = gain_map;
+                    encode_av1_inner(bitmap_data, &config)
                 },
-            )
-            .map_err(|x| {
-                dbg_log!(error, "encode_av1_inner failed: {x:#}");
-                x
-            })?;
+            )?;
             dbg_log!(
                 debug,
                 "encode complete: {} bytes output",

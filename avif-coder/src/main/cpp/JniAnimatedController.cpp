@@ -31,6 +31,7 @@
 #include "JniException.h"
 #include "aligned_allocator.h"
 #include "JniBitmap.h"
+#include "JniGainmap.h"
 #include "ReformatBitmap.h"
 
 extern "C"
@@ -215,8 +216,11 @@ Java_com_radzivon_bartoshyk_avif_coder_AvifAnimatedDecoder_getFrameImpl(JNIEnv *
                                frame.height, &stride, &useBitmapHalf16Floats, &hwBuffer,
                                false, frame.hasAlpha);
 
-    return createBitmap(env, ref(frame.store), imageConfig, stride, frame.width, frame.height,
-                        useBitmapHalf16Floats, hwBuffer);
+    auto
+        bitmap = createBitmap(env, ref(frame.store), imageConfig, stride, frame.width, frame.height,
+                              useBitmapHalf16Floats, hwBuffer);
+    attachGainmap(env, bitmap, frame);
+    return env->ExceptionCheck() ? nullptr : bitmap;
   } catch (std::bad_alloc &err) {
     std::string exception = "Not enough memory to decode this image";
     throwException(env, exception);

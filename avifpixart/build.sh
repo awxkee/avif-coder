@@ -46,6 +46,8 @@ RUSTFLAGS="$SIZE_RUSTFLAGS -C opt-level=z" cargo +nightly build "${STD_BUILD_FLA
 
 RUSTFLAGS="$SIZE_RUSTFLAGS -C opt-level=z" cargo +nightly build "${STD_BUILD_FLAGS[@]}" --locked --target i686-linux-android --release --manifest-path Cargo.toml
 
+cp include/avifweaver.h ../avif-coder/src/main/cpp/avifweaver.h
+
 cp -r target/aarch64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/arm64-v8a/libavifweaver.a
 cp -r target/x86_64-linux-android/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/x86_64/libavifweaver.a
 cp -r target/armv7-linux-androideabi/release/libavifweaver.a ../avif-coder/src/main/cpp/lib/armeabi-v7a/libavifweaver.a

@@ -46,3 +46,66 @@ impl HeicInfo {
         }
     }
 }
+
+// HEIC metadata and decoding must crop in coded space before orientation.
+#[cfg(any(target_arch = "aarch64", target_arch = "arm"))]
+impl HeicInfo {
+    pub(crate) fn from_heic_info(info: &hpvcd::ImageInfo) -> Self {
+        let (mut width, mut height) = (info.coded_width as usize, info.coded_height as usize);
+        if let Some(clap) = info.clean_aperture.as_ref()
+            && let Some((_, _, crop_width, crop_height)) = clap_rect(width, height, clap)
+        {
+            width = crop_width;
+            height = crop_height;
+        }
+        let (width, height) = match info.orientation {
+            hpvcd::Orientation::Rotate90
+            | hpvcd::Orientation::Rotate270
+            | hpvcd::Orientation::Transpose
+            | hpvcd::Orientation::Transverse => (height, width),
+            _ => (width, height),
+        };
+        Self {
+            width: width as u32,
+            height: height as u32,
+            supported_image: true,
+            bit_depth: info.bit_depth.bits() as u32,
+        }
+    }
+}
+
+#[cfg(any(target_arch = "aarch64", target_arch = "arm"))]
+pub(crate) fn clap_rect(
+    width: usize,
+    height: usize,
+    clap: &hpvcd::CleanAperture,
+) -> Option<(usize, usize, usize, usize)> {
+    if clap.width_d == 0 || clap.height_d == 0 || clap.horiz_off_d == 0 || clap.vert_off_d == 0 {
+        return None;
+    }
+    let (img_w, img_h) = (width as i64, height as i64);
+
+    let crop_w = ((clap.width_n as i64) / (clap.width_d as i64)).min(img_w);
+    let crop_h = ((clap.height_n as i64) / (clap.height_d as i64)).min(img_h);
+    if crop_w <= 0 || crop_h <= 0 {
+        return None;
+    }
+
+    // ISO 14496-12: offsets locate the aperture *center* relative to image center.
+    //   left = horizOff + (W-1)/2 - (cropW-1)/2   (evaluated over denom 2*off_d)
+    let hd = clap.horiz_off_d as i64;
+    let vd = clap.vert_off_d as i64;
+    let left = (2 * (clap.horiz_off_n as i64) + hd * (img_w - 1) - hd * (crop_w - 1))
+        .div_euclid(2 * hd)
+        .clamp(0, img_w - crop_w);
+    let top = (2 * (clap.vert_off_n as i64) + vd * (img_h - 1) - vd * (crop_h - 1))
+        .div_euclid(2 * vd)
+        .clamp(0, img_h - crop_h);
+
+    Some((
+        left as usize,
+        top as usize,
+        crop_w as usize,
+        crop_h as usize,
+    ))
+}

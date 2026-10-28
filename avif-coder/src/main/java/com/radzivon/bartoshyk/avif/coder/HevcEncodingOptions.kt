@@ -45,6 +45,9 @@ data class HevcEncodingOptions @JvmOverloads constructor(
     /// Encodes lossless HEVC as BT.601 YCbCr instead of GBR, preserving the selected chroma.
     @get:Keep
     val losslessYcbcr: Boolean = false,
+    /** Omit an unreadable or unsupported gainmap; false requires it to encode successfully. */
+    @get:Keep
+    val ignoreGainmapErrors: Boolean = true,
 ) {
     @Keep
     fun getQualityValue(): Int = quality.getRequiredQuality()

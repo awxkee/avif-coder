@@ -33,7 +33,7 @@ plugins {
 
 task("androidSourcesJar", Jar::class) {
     archiveClassifier.set("sources")
-    from(android.sourceSets.getByName("main").java.srcDirs)
+    from("src/main/java")
 }
 
 afterEvaluate {
@@ -60,7 +60,7 @@ android {
     }
 
     namespace = "com.github.awxkee.avifcoil"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 24
@@ -78,12 +78,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    kotlin {
+        jvmToolchain(17)
     }
 }
 
 dependencies {
     api(project(":avif-coder"))
-    api("io.coil-kt:coil:2.5.0")
+    api("io.coil-kt:coil:2.7.0")
 }

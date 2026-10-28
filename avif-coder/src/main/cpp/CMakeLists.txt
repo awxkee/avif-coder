@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("coder")
 
-add_library(coder SHARED JniEncoder.cpp JniException.cpp SizeScaler.cpp
+add_library(coder SHARED JniEncoder.cpp JniException.cpp JniGainmap.cpp SizeScaler.cpp
         colorspace/colorspace.cpp
         imagebits/RgbaF16bitToNBitU16.cpp imagebits/Rgb1010102.cpp
         imagebits/CopyUnalignedRGBA.cpp JniDecoder.cpp imagebits/Rgba8ToF16.cpp
