@@ -5,7 +5,7 @@ set(AVIF_CODEC_DAV1D "LOCAL" CACHE STRING "" FORCE)
 set(AVIF_LIBYUV "LOCAL" CACHE STRING "" FORCE)
 
 add_library(avif_shared STATIC alpha.c avif.c colr.c colrconvert.c
-        diag.c exif.c gainmap.c io.c mem.c obu.c
+        diag.c exif.c gainmap.c properties.c sampletransform.c io.c mem.c obu.c
         rawdata.c read.c reformat.c reformat_libyuv.c
         scale.c stream.c utils.c write.c codec_dav1d.c reformat_libsharpyuv.c)
 

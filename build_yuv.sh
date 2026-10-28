@@ -24,58 +24,26 @@
 #
 #
 
-set -e
-
-export NDK_PATH="/Users/radzivon/Library/Android/sdk/ndk/28.0.12674087"
-
-export NDK=$NDK_PATH
-
-destination_directory=libyuv
-if [ ! -d "$destination_directory" ]; then
-    git clone https://chromium.googlesource.com/libyuv/libyuv --branch stable
-else
-    echo "Destination directory '$destination_directory' already exists. Cloning skipped."
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+REPO_DIR="$PWD"
+LIBYUV_REVISION=4bc04198654971d9190475bbc9bbef8ae3b97aa7
+NDK_PATH="${NDK_PATH:-${ANDROID_HOME:-$HOME/Library/Android/sdk}/ndk/28.2.13676358}"
+LIBYUV_SOURCE_DIR="${LIBYUV_SOURCE_DIR:-$REPO_DIR/libyuv}"
+if [[ ! -d "$LIBYUV_SOURCE_DIR" ]]; then
+  git clone https://chromium.googlesource.com/libyuv/libyuv "$LIBYUV_SOURCE_DIR"
+  git -C "$LIBYUV_SOURCE_DIR" checkout "$LIBYUV_REVISION"
 fi
-
-cd libyuv
-
-if [ -z "$INCLUDE_X86" ]; then
-  ABI_LIST="armeabi-v7a arm64-v8a x86_64"
-  echo "X86 won't be included into a build"
-else
-  ABI_LIST="armeabi-v7a arm64-v8a x86 x86_64"
+if [[ "$(git -C "$LIBYUV_SOURCE_DIR" rev-parse HEAD)" != "$LIBYUV_REVISION" ]]; then
+  echo "Expected libyuv $LIBYUV_REVISION. Set LIBYUV_SOURCE_DIR to a fresh directory." >&2
+  exit 1
 fi
-
-for abi in ${ABI_LIST}; do
-  rm -rf "build-${abi}"
-  mkdir "build-${abi}"
-  cd "build-${abi}"
-
-  echo $ARCH_OPTIONS
-
-  cmake .. \
-    -G "Unix Makefiles" \
-    -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=${abi} -DCMAKE_ANDROID_ARCH_ABI=${abi} \
-    -DANDROID_NDK=${NDK} \
-    -DANDROID_PLATFORM=android-24 \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-    -DCMAKE_SYSTEM_NAME=Generic \
-    -DCMAKE_ANDROID_STL_TYPE=c++_shared \
-    -DCMAKE_SYSTEM_NAME=Android \
-    -DLIBYUV_DISABLE_SME=1 \
-    -DCMAKE_THREAD_PREFER_PTHREAD=TRUE \
-    -DTHREADS_PREFER_PTHREAD_FLAG=TRUE \
-    -DBUILD_STATIC_LIBS=ON
-
-  cmake --build .
-  cd ..
+for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+  cmake -S "$LIBYUV_SOURCE_DIR" -B "$LIBYUV_SOURCE_DIR/build-$abi" -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE="$NDK_PATH/build/cmake/android.toolchain.cmake" \
+    -DANDROID_ABI="$abi" -DANDROID_PLATFORM=android-24 -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DLIBYUV_DISABLE_JPEG=ON
+  cmake --build "$LIBYUV_SOURCE_DIR/build-$abi" --target yuv --parallel
+  cp "$LIBYUV_SOURCE_DIR/build-$abi/libyuv.a" "$REPO_DIR/avif-coder/src/main/cpp/lib/$abi/libyuv.a"
 done
-
-for abi in ${ABI_LIST}; do
-  mkdir -p "../avif-coder/src/main/cpp/lib/${abi}"
-  cp -r "build-${abi}/libyuv.a" "../avif-coder/src/main/cpp/lib/${abi}/libyuv.a"
-  echo "build-${abi}/libyuv.a was successfully copied to ../avif-coder/src/main/cpp/lib/${abi}/libyuv.a!"
-done
+cp -R "$LIBYUV_SOURCE_DIR/include/." "$REPO_DIR/avif-coder/src/main/cpp/libyuv/"

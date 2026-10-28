@@ -102,14 +102,14 @@ mavenPublishing {
 
 android {
     namespace = "com.github.awxkee.avifcoder"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 24
 
         externalNativeBuild {
             cmake {
-                ndkVersion = "26.1.10909125"
+                ndkVersion = "28.2.13676358"
                 cppFlags.addAll(
                     listOf(
                         "-std=c++20",
@@ -163,5 +163,5 @@ android {
 }
 
 dependencies {
-    implementation("androidx.annotation:annotation-jvm:1.10.0")
+    implementation("androidx.annotation:annotation-jvm:1.11.0")
 }

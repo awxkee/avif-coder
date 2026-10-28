@@ -39,6 +39,9 @@ data class AvifEncodingOptions @JvmOverloads constructor(
     // Better screenshots compression for higher encoding times
     @get:Keep
     val screenContentCoding: Boolean = false,
+    /** Omit an unreadable or unsupported gainmap; false requires it to encode successfully. */
+    @get:Keep
+    val ignoreGainmapErrors: Boolean = true,
 ) {
     init {
         require(quality in 0..100) {

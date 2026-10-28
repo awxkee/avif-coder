@@ -4,8 +4,10 @@
 #include "avif/internal.h"
 
 #include "svt-av1/EbSvtAv1.h"
+
 #include "svt-av1/EbSvtAv1Enc.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -42,13 +44,20 @@ typedef struct avifCodecInternal
 static avifBool allocate_svt_buffers(EbBufferHeaderType ** input_buf);
 static avifResult dequeue_frame(avifCodec * codec, avifCodecEncodeOutput * output, avifBool done_sending_pics);
 
+static int svtQualityToQuantizer(int quality)
+{
+    const int quantizer = ((100 - quality) * 63 + 50) / 100;
+
+    return quantizer;
+}
+
 static avifResult svtCodecEncodeImage(avifCodec * codec,
                                       avifEncoder * encoder,
                                       const avifImage * image,
                                       avifBool alpha,
                                       int tileRowsLog2,
                                       int tileColsLog2,
-                                      int quantizer,
+                                      int quality,
                                       avifEncoderChanges encoderChanges,
                                       avifBool disableLaggedOutput,
                                       uint32_t addImageFlags,
@@ -83,10 +92,26 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
     int y_shift = 0;
     EbColorRange svt_range;
     if (alpha) {
+        // AV1-AVIF specification, Section 4 "Auxiliary Image Items and Sequences":
+        //   The color_range field in the Sequence Header OBU shall be set to 1.
         svt_range = EB_CR_FULL_RANGE;
+
+        // AV1-AVIF specification, Section 4 "Auxiliary Image Items and Sequences":
+        //   The mono_chrome field in the Sequence Header OBU shall be set to 1.
+        // Some encoders do not support 4:0:0 and encode alpha as 4:2:0 so it is not always respected.
         y_shift = 1;
+
+        // CICP (CP/TC/MC) does not apply to the alpha auxiliary image.
+        // Use Unspecified (2) colour primaries, transfer characteristics, and matrix coefficients below.
     } else {
+        // AV1-ISOBMFF specification, Section 2.3.4:
+        //   The value of full_range_flag in the 'colr' box SHALL match the color_range
+        //   flag in the Sequence Header OBU.
         svt_range = (image->yuvRange == AVIF_RANGE_FULL) ? EB_CR_FULL_RANGE : EB_CR_STUDIO_RANGE;
+
+        // AV1-AVIF specification, Section 2.2.1. "AV1 Item Configuration Property":
+        //   The values of the fields in the AV1CodecConfigurationBox shall match those
+        //   of the Sequence Header OBU in the AV1 Image Item Data.
         switch (image->yuvFormat) {
             case AVIF_PIXEL_FORMAT_YUV444:
                 color_format = EB_YUV444;
@@ -113,26 +138,43 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
         // See https://gitlab.com/AOMediaCodec/SVT-AV1/-/issues/1697.
         memset(svt_config, 0, sizeof(EbSvtAv1EncConfiguration));
 
+#if SVT_AV1_CHECK_VERSION(3, 0, 0)
+        res = svt_av1_enc_init_handle(&codec->internal->svt_encoder, svt_config);
+#else
         res = svt_av1_enc_init_handle(&codec->internal->svt_encoder, NULL, svt_config);
+#endif
         if (res != EB_ErrorNone) {
             goto cleanup;
         }
         svt_config->encoder_color_format = color_format;
         svt_config->encoder_bit_depth = (uint8_t)image->depth;
+
+        // AVIF specification, Section 2.2.1. "AV1 Item Configuration Property":
+        //   The values of the fields in the AV1CodecConfigurationBox shall match those
+        //   of the Sequence Header OBU in the AV1 Image Item Data.
+        // CICP values could be set to 2/2/2 (Unspecified) in the Sequence Header OBU for
+        // simplicity and to save 3 bytes, but some decoders ignore the colr box and rely
+        // on the OBU contents instead. See #2850.
+        svt_config->color_primaries = (EbColorPrimaries)image->colorPrimaries;
+        svt_config->transfer_characteristics = (EbTransferCharacteristics)image->transferCharacteristics;
+        svt_config->matrix_coefficients = (EbMatrixCoefficients)image->matrixCoefficients;
+
         svt_config->color_range = svt_range;
 #if !SVT_AV1_CHECK_VERSION(0, 9, 0)
         svt_config->is_16bit_pipeline = image->depth > 8;
 #endif
-
-        // Follow comment in svt header: set if input is HDR10 BT2020 using SMPTE ST2084 (PQ).
-        svt_config->high_dynamic_range_input = (image->depth == 10 && image->colorPrimaries == AVIF_COLOR_PRIMARIES_BT2020 &&
-                                                image->transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_SMPTE2084 &&
-                                                image->matrixCoefficients == AVIF_MATRIX_COEFFICIENTS_BT2020_NCL);
-
         svt_config->source_width = image->width;
         svt_config->source_height = image->height;
+#if SVT_AV1_CHECK_VERSION(3, 0, 0)
+        svt_config->level_of_parallelism = encoder->maxThreads;
+#else
         svt_config->logical_processors = encoder->maxThreads;
+#endif
+#if SVT_AV1_CHECK_VERSION(4, 0, 0)
+        svt_config->aq_mode = 2;
+#else
         svt_config->enable_adaptive_quantization = 2;
+#endif
         // disable 2-pass
 #if SVT_AV1_CHECK_VERSION(0, 9, 0)
         svt_config->rc_stats_buffer = (SvtAv1FixedBuf) { NULL, 0 };
@@ -143,13 +185,13 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
 
         svt_config->rate_control_mode = 0; // CRF because enable_adaptive_quantization is 2
         if (alpha) {
-            svt_config->min_qp_allowed = AVIF_CLAMP(encoder->minQuantizerAlpha, 0, 63);
+            svt_config->min_qp_allowed = AVIF_CLAMP(encoder->minQuantizerAlpha, 0, 62);
             svt_config->max_qp_allowed = AVIF_CLAMP(encoder->maxQuantizerAlpha, 0, 63);
         } else {
-            svt_config->min_qp_allowed = AVIF_CLAMP(encoder->minQuantizer, 0, 63);
+            svt_config->min_qp_allowed = AVIF_CLAMP(encoder->minQuantizer, 0, 62);
             svt_config->max_qp_allowed = AVIF_CLAMP(encoder->maxQuantizer, 0, 63);
         }
-        svt_config->qp = quantizer;
+        svt_config->qp = svtQualityToQuantizer(quality);
 
         if (tileRowsLog2 != 0) {
             svt_config->tile_rows = tileRowsLog2;
@@ -174,7 +216,7 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
 
         // In order for SVT-AV1 to force keyframes by setting pic_type to
         // EB_AV1_KEY_PICTURE on any frame, force_key_frames has to be set.
-        svt_config->force_key_frames = TRUE;
+        svt_config->force_key_frames = true;
 
         // keyframeInterval == 1 case is handled when encoding each frame by
         // setting pic_type to EB_AV1_KEY_PICTURE. For keyframeInterval > 1,
@@ -186,7 +228,7 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
 
 #if SVT_AV1_CHECK_VERSION(0, 9, 1)
         for (uint32_t i = 0; i < codec->csOptions->count; ++i) {
-            avifCodecSpecificOption * entry = &codec->csOptions->entries[i];
+            const avifCodecSpecificOption * entry = &codec->csOptions->entries[i];
             if (svt_av1_enc_parse_parameter(svt_config, entry->key, entry->value) < 0) {
                 avifDiagnosticsPrintf(codec->diag, "Invalid value for %s: %s.", entry->key, entry->value);
                 result = AVIF_RESULT_INVALID_CODEC_SPECIFIC_OPTION;
@@ -199,6 +241,16 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
             result = AVIF_RESULT_INVALID_CODEC_SPECIFIC_OPTION;
             goto cleanup;
         }
+#endif
+
+#if SVT_AV1_CHECK_VERSION(3, 0, 0)
+        svt_config->lossless = quality == AVIF_QUALITY_LOSSLESS;
+#endif
+
+#if SVT_AV1_CHECK_VERSION(4, 0, 0)
+        // Although the `avif` option was added in v3.0.0, it had a serious bug that was not fixed
+        // until v4.0.0. See https://gitlab.com/AOMediaCodec/SVT-AV1/-/issues/2245.
+        svt_config->avif = (addImageFlags & AVIF_ADD_IMAGE_FLAG_SINGLE) != 0;
 #endif
 
         res = svt_av1_enc_set_parameter(codec->internal->svt_encoder, svt_config);
@@ -222,22 +274,32 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
     if (alpha) {
         input_picture_buffer->y_stride = image->alphaRowBytes / bytesPerPixel;
         input_picture_buffer->luma = image->alphaPlane;
-        input_buffer->n_filled_len = image->alphaRowBytes * image->height;
+        const size_t alphaSize = (size_t)image->alphaRowBytes * image->height;
+        if (alphaSize > UINT32_MAX) {
+            goto cleanup;
+        }
+        input_buffer->n_filled_len = (uint32_t)alphaSize;
 
 #if SVT_AV1_CHECK_VERSION(1, 8, 0)
         // Simulate 4:2:0 UV planes. SVT-AV1 does not support 4:0:0 samples.
         const uint32_t uvWidth = (image->width + y_shift) >> y_shift;
         const uint32_t uvRowBytes = uvWidth * bytesPerPixel;
-        const uint32_t uvSize = uvRowBytes * uvHeight;
+        const size_t uvSize = (size_t)uvRowBytes * uvHeight;
+        if (uvSize > UINT32_MAX / 2) {
+            goto cleanup;
+        }
+        if (uvSize * 2 > UINT32_MAX - input_buffer->n_filled_len) {
+            goto cleanup;
+        }
         uvPlanes = avifAlloc(uvSize);
         if (uvPlanes == NULL) {
             goto cleanup;
         }
         memset(uvPlanes, 0, uvSize);
         input_picture_buffer->cb = uvPlanes;
-        input_buffer->n_filled_len += uvSize;
+        input_buffer->n_filled_len += (uint32_t)uvSize;
         input_picture_buffer->cr = uvPlanes;
-        input_buffer->n_filled_len += uvSize;
+        input_buffer->n_filled_len += (uint32_t)uvSize;
         input_picture_buffer->cb_stride = uvWidth;
         input_picture_buffer->cr_stride = uvWidth;
 #else
@@ -248,11 +310,23 @@ static avifResult svtCodecEncodeImage(avifCodec * codec,
     } else {
         input_picture_buffer->y_stride = image->yuvRowBytes[0] / bytesPerPixel;
         input_picture_buffer->luma = image->yuvPlanes[0];
-        input_buffer->n_filled_len = image->yuvRowBytes[0] * image->height;
+        const size_t ySize = (size_t)image->yuvRowBytes[0] * image->height;
+        if (ySize > UINT32_MAX) {
+            goto cleanup;
+        }
+        input_buffer->n_filled_len = (uint32_t)ySize;
         input_picture_buffer->cb = image->yuvPlanes[1];
-        input_buffer->n_filled_len += image->yuvRowBytes[1] * uvHeight;
+        const size_t uSize = (size_t)image->yuvRowBytes[1] * uvHeight;
+        if (uSize > UINT32_MAX - input_buffer->n_filled_len) {
+            goto cleanup;
+        }
+        input_buffer->n_filled_len += (uint32_t)uSize;
         input_picture_buffer->cr = image->yuvPlanes[2];
-        input_buffer->n_filled_len += image->yuvRowBytes[2] * uvHeight;
+        const size_t vSize = (size_t)image->yuvRowBytes[2] * uvHeight;
+        if (vSize > UINT32_MAX - input_buffer->n_filled_len) {
+            goto cleanup;
+        }
+        input_buffer->n_filled_len += (uint32_t)vSize;
         input_picture_buffer->cb_stride = image->yuvRowBytes[1] / bytesPerPixel;
         input_picture_buffer->cr_stride = image->yuvRowBytes[2] / bytesPerPixel;
     }

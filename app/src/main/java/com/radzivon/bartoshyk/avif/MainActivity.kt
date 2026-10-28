@@ -105,11 +105,7 @@ class MainActivity : AppCompatActivity() {
 //            }
             val coder = Coder()
             val allFiles1 =
-                getAllFilesFromAssets().filter {
-                    it.contains(".avif") || it.contains(".heic") || it.contains(
-                        ".heif"
-                    )
-                }
+                getAllFilesFromAssets("gainmaps")
             val allFiles2 =
                 getAllFilesFromAssets(path = "hdr").filter {
                     it.contains(".avif") || it.contains(".heic") || it.contains(
@@ -117,9 +113,8 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             var allFiles = mutableListOf<String>()
-            allFiles.addAll(allFiles2)
             allFiles.addAll(allFiles1)
-            allFiles = allFiles.filter { it.contains("ok444_b10.avif") }.toMutableList()
+            allFiles.addAll(allFiles2)
             for (file in allFiles) {
                 try {
                     Log.d("AVIF", "start processing $file")
@@ -146,33 +141,33 @@ class MainActivity : AppCompatActivity() {
                             binding.scrollViewContainer.addView(imageView.root)
                         }
 
-                        val bitmap0 = coder.decodeSampled(
-                            buffer,
-                            if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
-                            if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
-                            PreferredColorConfig.RGBA_8888,
-                            ScaleMode.FIT
-                        )
-                        var start = System.currentTimeMillis()
-                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
-
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            val imageView = BindingImageViewBinding.inflate(
-                                layoutInflater,
-                                binding.scrollViewContainer,
-                                false
-                            )
-                            imageView.root.setImageBitmap(bitmap0)
-                            binding.scrollViewContainer.addView(imageView.root)
-                        }
-
+//                        val bitmap0 = coder.decodeSampled(
+//                            buffer,
+//                            if (size.width > 1800 || size.height > 1800) size.width / 4 else size.width,
+//                            if (size.width > 1800 || size.height > 1800) size.height / 4 else size.height,
+//                            PreferredColorConfig.RGBA_8888,
+//                            ScaleMode.FIT
+//                        )
+//                        var start = System.currentTimeMillis()
+//                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
+//
+//                        lifecycleScope.launch(Dispatchers.Main) {
+//                            val imageView = BindingImageViewBinding.inflate(
+//                                layoutInflater,
+//                                binding.scrollViewContainer,
+//                                false
+//                            )
+//                            imageView.root.setImageBitmap(bitmap0)
+//                            binding.scrollViewContainer.addView(imageView.root)
+//                        }
+//
                         val encoded = coder.encodeHeic(
-                            bitmap0,
+                            bitmap00,
                             options = HevcEncodingOptions(
                                 preciseMode = PreciseMode.LOSSLESS,
                                 quality = HeifQualityArg.Quality(70),
                                 chromaSubsampling = HeicChromaSubsampling.YUV420,
-                                losslessYuvBt601 = true,
+                                losslessYcbcr = false,
                             )
                         )
 
@@ -185,22 +180,22 @@ class MainActivity : AppCompatActivity() {
                             PreferredColorConfig.RGBA_8888,
                             ScaleMode.FIT
                         )
-
-                        start = System.currentTimeMillis()
-                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
-
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            val imageView = BindingImageViewBinding.inflate(
-                                layoutInflater,
-                                binding.scrollViewContainer,
-                                false
-                            )
-                            imageView.root.setImageBitmap(bitmap1)
-                            binding.scrollViewContainer.addView(imageView.root)
-                        }
-
+//
+//                        start = System.currentTimeMillis()
+//                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
+//
+//                        lifecycleScope.launch(Dispatchers.Main) {
+//                            val imageView = BindingImageViewBinding.inflate(
+//                                layoutInflater,
+//                                binding.scrollViewContainer,
+//                                false
+//                            )
+//                            imageView.root.setImageBitmap(bitmap1)
+//                            binding.scrollViewContainer.addView(imageView.root)
+//                        }
+//
                         val encodedAvif = coder.encodeAvif(
-                            bitmap1,
+                            bitmap00,
                             options = AvifEncodingOptions(
                                 quality = 60,
                                 preciseMode = PreciseMode.LOSSY,
@@ -217,8 +212,8 @@ class MainActivity : AppCompatActivity() {
                             PreferredColorConfig.RGBA_8888,
                             ScaleMode.FIT
                         )
-                        start = System.currentTimeMillis()
-                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
+//                        start = System.currentTimeMillis()
+//                        Log.d("AVIFFFF", "Decode time ${System.currentTimeMillis() - start}")
 
                         lifecycleScope.launch(Dispatchers.Main) {
                             val imageView = BindingImageViewBinding.inflate(

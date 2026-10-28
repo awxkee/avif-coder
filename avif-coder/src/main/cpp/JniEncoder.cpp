@@ -117,6 +117,13 @@ bool readAvifEncodingOptions(JNIEnv *env,
     env->DeleteLocalRef(optionsClass);
     return false;
   }
+  jmethodID ignoreGainmapErrorsMethod = env->GetMethodID(
+      optionsClass, "getIgnoreGainmapErrors", "()Z"
+  );
+  if (ignoreGainmapErrorsMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
   env->DeleteLocalRef(optionsClass);
 
   options->color_space = dataSpace;
@@ -146,13 +153,17 @@ bool readAvifEncodingOptions(JNIEnv *env,
     options->speed = AvEncodingSpeed::Medium;
   } else if (speed == 2) {
     options->speed = AvEncodingSpeed::Slow;
+  } else if (speed == 3) {
+    options->speed = AvEncodingSpeed::ExtraSlow;
   }
   options->screen_content_coding =
       env->CallBooleanMethod(javaOptions, screenContentMethod) == JNI_TRUE;
   if (env->ExceptionCheck()) {
     return false;
   }
-  return true;
+  options->ignore_gainmap_errors =
+      env->CallBooleanMethod(javaOptions, ignoreGainmapErrorsMethod) == JNI_TRUE;
+  return !env->ExceptionCheck();
 }
 
 bool readHevcEncodingOptions(JNIEnv *env,
@@ -214,9 +225,16 @@ bool readHevcEncodingOptions(JNIEnv *env,
   jmethodID losslessYcbcrMethod = env->GetMethodID(
       optionsClass, "getLosslessYcbcr", "()Z"
   );
+  if (losslessYcbcrMethod == nullptr) {
+    env->DeleteLocalRef(optionsClass);
+    return false;
+  }
+  jmethodID ignoreGainmapErrorsMethod = env->GetMethodID(
+      optionsClass, "getIgnoreGainmapErrors", "()Z"
+  );
   env->DeleteLocalRef(optionsClass);
 
-  if (losslessYcbcrMethod == nullptr) {
+  if (ignoreGainmapErrorsMethod == nullptr) {
     return false;
   }
 
@@ -253,6 +271,11 @@ bool readHevcEncodingOptions(JNIEnv *env,
   }
   options->lossless_ycbcr =
       env->CallBooleanMethod(javaOptions, losslessYcbcrMethod) == JNI_TRUE;
+  if (env->ExceptionCheck()) {
+    return false;
+  }
+  options->ignore_gainmap_errors =
+      env->CallBooleanMethod(javaOptions, ignoreGainmapErrorsMethod) == JNI_TRUE;
   return !env->ExceptionCheck();
 }
 

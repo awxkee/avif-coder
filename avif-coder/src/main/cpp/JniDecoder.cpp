@@ -17,6 +17,7 @@
 #include "AvifDecoderController.h"
 #include "ReformatBitmap.h"
 #include "JniBitmap.h"
+#include "JniGainmap.h"
 #include <dlfcn.h>
 #include "avifweaver.h"
 
@@ -105,8 +106,10 @@ jobject decodeImplementationNative(JNIEnv *env, jobject thiz,
       return static_cast<jobject>(nullptr);
     }
 
-    return createBitmap(env, ref(frame.store), imageConfig, stride, frame.width, frame.height,
+    auto bitmap = createBitmap(env, ref(frame.store), imageConfig, stride, frame.width, frame.height,
                         useBitmapHalf16Floats, hwBuffer);
+    attachGainmap(env, bitmap, frame);
+    return env->ExceptionCheck() ? nullptr : bitmap;
   } catch (std::runtime_error &err) {
     string exception(err.what());
     throwException(env, exception);

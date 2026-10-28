@@ -908,6 +908,12 @@ pub unsafe extern "C" fn encode_avif_av2_file(
         );
 
         let result: Result<jobject, anyhow::Error> = (|| {
+            if !options.ignore_gainmap_errors {
+                anyhow::ensure!(
+                    !crate::gainmap::has_gainmap(env, image)?,
+                    "AV2 gainmap encoding is not supported by MaroonTree; use AV1 or enable ignoreGainmapErrors"
+                );
+            }
             let quality = options.quality.clamp(1, 100) as u32;
             dbg_log!(debug, "clamped quality={quality}");
 
@@ -958,6 +964,8 @@ pub unsafe extern "C" fn encode_avif_av2_file(
                     chroma: chroma_subsampling,
                     speed: options.speed,
                     screen_content_coding: options.screen_content_coding,
+                    // Lenient AV2 encoding does not inspect the optional gainmap.
+                    gain_map: None,
                 },
             )
             .map_err(|x| {

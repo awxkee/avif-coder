@@ -43,7 +43,7 @@ import coil.fetch.SourceResult
 import coil.request.Options
 import coil.size.Scale
 import coil.size.pxOrElse
-import com.radzivon.bartoshyk.avif.coder.HeifCoder
+import com.radzivon.bartoshyk.avif.coder.Coder
 import com.radzivon.bartoshyk.avif.coder.PreferredColorConfig
 import com.radzivon.bartoshyk.avif.coder.ScaleMode
 import kotlinx.coroutines.runInterruptible
@@ -56,10 +56,9 @@ class HeifDecoder(
     private val imageLoader: ImageLoader,
 ) : Decoder {
 
-    private val coder = HeifCoder(context)
+    private val coder = Coder()
 
     override suspend fun decode(): DecodeResult? = runInterruptible {
-        // ColorSpace is preferred to be ignored due to lib is trying to handle all color profile by itself
         val sourceData = source.source.source().readByteArray()
 
         var mPreferredColorConfig: PreferredColorConfig = when (options.config) {

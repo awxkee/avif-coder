@@ -34,7 +34,7 @@ use crate::ffi::{
     MIN_OS_BITMAP_COLOR_SPACE, create_rgba8888_hardware_buffer,
     create_rgba8888_hardware_buffer_from_u16, software_bitmap, wrap_hardware_buffer,
 };
-use crate::heic_decode::{DecodedHeicPacket, PackedHeic, decode_packed_heic};
+use crate::heic_decode::{DecodedHeicPacket, PackedHeic};
 use crate::image_info::HeicInfo;
 use crate::native_color_space::NativeColorSpace;
 use crate::scaling::{internal_scale_u8, internal_scale_u16};
@@ -44,7 +44,7 @@ use crate::support::{
 };
 use crate::weaver_error::WeaverError;
 use crate::{WeaveScaleMode, WeaverPreferredColorConfig, is_heic_image};
-use hpvcd::{BitDepth, Cicp, Orientation, Primaries, TransferFunction};
+use hpvcd::{BitDepth, Cicp, Primaries, TransferFunction};
 use jni::objects::JObject;
 use jni::strings::JNIString;
 use jni::sys::jobject;
@@ -303,9 +303,31 @@ fn decode_pipeline<'local>(
     scale_mode: WeaveScaleMode,
     preferred_color: WeaverPreferredColorConfig,
 ) -> Result<JObject<'local>, anyhow::Error> {
-    let decode = decode_packed_heic(data).map_err(|x| anyhow::anyhow!(x))?;
+    let settings = hpvcd::HeicSettings::default().with_decode_gain_map(android_os_version() >= 34);
+    let decoded = hpvcd::decode_heic_yuv_with_settings(data, &settings)?;
+    let gain_map = if android_os_version() >= 34 {
+        decoded
+            .gain_map
+            .as_ref()
+            .map(|g| {
+                crate::gainmap::apple_bitmap(
+                    env,
+                    g,
+                    &decoded,
+                    scaled_width,
+                    scaled_height,
+                    scale_mode,
+                )
+            })
+            .transpose()?
+            .flatten()
+    } else {
+        None
+    };
+    let decode = crate::heic_decode::pack_decoded_heic(&decoded)?;
+    drop(decoded);
     let mut color_transform_done = false;
-    match decode {
+    let bitmap = match decode {
         PackedHeic::Regular(regular_image) => {
             let DecodedHeicPacket {
                 data: source_data,
@@ -429,7 +451,7 @@ fn decode_pipeline<'local>(
                 None
             };
 
-            let result = Ok(match transfer {
+            let result: Result<JObject<'_>, anyhow::Error> = Ok(match transfer {
                 PackedImageTransfer::Image(image) => {
                     dbg_log!(
                         debug,
@@ -601,7 +623,11 @@ fn decode_pipeline<'local>(
                 }
             })
         }
+    }?;
+    if let Some((contents, metadata)) = gain_map {
+        crate::gainmap::attach_gainmap(env, &bitmap, &contents, &metadata)?;
     }
+    Ok(bitmap)
 }
 
 #[unsafe(no_mangle)]
@@ -706,21 +732,7 @@ pub unsafe extern "C" fn read_heic_file_info(data: *const u8, length: usize) -> 
         }
         let bytes = unsafe { slice::from_raw_parts(data, length) };
         match hpvcd::read_heic_info(bytes) {
-            Ok(i) => {
-                let (width, height) = match i.orientation {
-                    Orientation::Rotate90
-                    | Orientation::Rotate270
-                    | Orientation::Transpose
-                    | Orientation::Transverse => (i.height, i.width),
-                    _ => (i.width, i.height),
-                };
-                HeicInfo {
-                    width,
-                    height,
-                    supported_image: true,
-                    bit_depth: i.bit_depth.bits() as u32,
-                }
-            }
+            Ok(i) => HeicInfo::from_heic_info(&i),
             Err(_v) => {
                 dbg_log!(error, "Failed to read HEIC info: {_v:?}");
                 HeicInfo::not_a_heic()

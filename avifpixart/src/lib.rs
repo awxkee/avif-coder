@@ -64,6 +64,8 @@ mod ffi_panic;
     any(target_arch = "aarch64", target_arch = "arm")
 ))]
 mod heic_decode;
+#[cfg(all(target_os = "android", any(target_arch = "aarch64", target_arch = "arm")))]
+mod gainmap;
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")

@@ -253,6 +253,7 @@ fn encode_heic_inner_u8(
     rdpcm: bool,
     persistent_rice: bool,
     lossless_ycbcr: bool,
+    gain_map: Option<&hpvca::GainMap>,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -478,6 +479,10 @@ fn encode_heic_inner_u8(
         .with_persistent_rice(persistent_rice)
         .with_lossless_ycbcr(lossless_ycbcr);
 
+    if let Some(gain_map) = gain_map {
+        config = config.with_gain_map(gain_map.clone());
+    }
+
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
         config = config.with_exif(exif.to_vec());
@@ -530,6 +535,7 @@ fn encode_heic_inner_u16_10_bit(
     rdpcm: bool,
     persistent_rice: bool,
     lossless_ycbcr: bool,
+    gain_map: Option<&hpvca::GainMap>,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(
         debug,
@@ -738,6 +744,10 @@ fn encode_heic_inner_u16_10_bit(
         .with_persistent_rice(persistent_rice)
         .with_lossless_ycbcr(lossless_ycbcr);
 
+    if let Some(gain_map) = gain_map {
+        config = config.with_gain_map(gain_map.clone());
+    }
+
     if let Some(exif) = exif {
         dbg_log!(debug, "attaching exif: {} bytes", exif.len());
         config = config.with_exif(exif.to_vec());
@@ -787,6 +797,7 @@ fn encode_heic_inner(
     rdpcm: bool,
     persistent_rice: bool,
     lossless_ycbcr: bool,
+    gain_map: Option<&hpvca::GainMap>,
 ) -> Result<Vec<u8>, anyhow::Error> {
     dbg_log!(debug, "encode_heic_inner: format={:?}", bitmap_data.format);
     match bitmap_data.format {
@@ -806,6 +817,7 @@ fn encode_heic_inner(
                 rdpcm,
                 persistent_rice,
                 lossless_ycbcr,
+                gain_map,
             )
         }
         BitmapPixelFormat::Rgb565 => {
@@ -824,6 +836,7 @@ fn encode_heic_inner(
                 rdpcm,
                 persistent_rice,
                 lossless_ycbcr,
+                gain_map,
             )
         }
         BitmapPixelFormat::RgbaF16 => {
@@ -843,6 +856,7 @@ fn encode_heic_inner(
                 rdpcm,
                 persistent_rice,
                 lossless_ycbcr,
+                gain_map,
             )
         }
         BitmapPixelFormat::Rgba1010102 => {
@@ -861,6 +875,7 @@ fn encode_heic_inner(
                 rdpcm,
                 persistent_rice,
                 lossless_ycbcr,
+                gain_map,
             )
         }
         BitmapPixelFormat::A8 => {
@@ -967,18 +982,28 @@ pub unsafe extern "C" fn encode_heic_file(
                     .map_or_else(|| "none".to_string(), |e| format!("{} bytes", e.len()))
             );
 
-            let encoded_data = encode_heic_inner(
+            let encoded_data = crate::gainmap::encode_with_gainmap(
+                env,
+                image,
                 &mut bitmap_data,
-                cicp,
-                quality,
-                options.lossless,
-                exif_data.as_deref(),
-                chroma_subsampling,
-                encoding_speed,
-                options.screen_content_coding,
-                options.rdpcm,
-                options.persistent_rice,
-                lossless_ycbcr,
+                options.ignore_gainmap_errors,
+                |gainmap| gainmap.to_heic(),
+                |bitmap_data, gain_map| {
+                    encode_heic_inner(
+                        bitmap_data,
+                        cicp,
+                        quality,
+                        options.lossless,
+                        exif_data.as_deref(),
+                        chroma_subsampling,
+                        encoding_speed,
+                        options.screen_content_coding,
+                        options.rdpcm,
+                        options.persistent_rice,
+                        lossless_ycbcr,
+                        gain_map.as_ref(),
+                    )
+                },
             )?;
             dbg_log!(
                 debug,

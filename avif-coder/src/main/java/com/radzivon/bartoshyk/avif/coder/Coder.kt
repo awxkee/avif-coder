@@ -60,6 +60,7 @@ class Coder {
         return getSizeImpl(bytes)
     }
 
+    /** Decodes the base image and attaches supported gainmaps on Android 14+. */
     fun decode(
         byteArray: ByteArray,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT
@@ -111,7 +112,9 @@ class Coder {
     }
 
     /**
-     * Encodes an avif image
+     * Encodes an AVIF image. AV1 includes the Bitmap gainmap on Android 14+;
+     * AV2 ignores it by default. Set [AvifEncodingOptions.ignoreGainmapErrors]
+     * to false to report unreadable, unsupported, or unencodable gainmaps.
      *
      * @param options AVIF encoder configuration
      */
@@ -128,6 +131,11 @@ class Coder {
         return encodeAvifImpl(bitmap, exif, dataSpace, options)
     }
 
+    /**
+     * Encodes HEIC, preserving compatible Bitmap gainmaps on Android 14+.
+     * Unsupported gainmaps are omitted by default. Set
+     * [HevcEncodingOptions.ignoreGainmapErrors] to false for strict errors.
+     */
     fun encodeHeic(
         bitmap: Bitmap,
         exif: ByteBuffer? = null,

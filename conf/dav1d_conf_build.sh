@@ -115,7 +115,7 @@ strip = '${CROSS_PREFIX}/llvm-strip'
 needs_exe_wrapper = true
 
 [host_machine]
-system = 'linux'
+system = 'android'
 cpu_family = '${CPU_FAMILY}'
 cpu = '${CPU_FAMILY}'
 endian = 'little'
