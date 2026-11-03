@@ -60,7 +60,10 @@ class Coder {
         return getSizeImpl(bytes)
     }
 
-    /** Decodes the base image and attaches supported gainmaps on Android 14+. */
+    /**
+     * Decodes gainmaps to SDR on older Android versions and attaches supported
+     * gainmaps on Android 14+. HDR-base maps require Android 16 for attachment.
+     */
     fun decode(
         byteArray: ByteArray,
         preferredColorConfig: PreferredColorConfig = PreferredColorConfig.DEFAULT

@@ -59,6 +59,7 @@ mod cvt;
 mod encoding_options;
 mod ffi;
 mod ffi_panic;
+mod gainmap_render;
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")
@@ -132,6 +133,7 @@ pub use cvt::{
     weave_cvt_rgba16_to_rgba_f16, weave_premultiply_rgba_f16,
 };
 pub use encoding_options::{AvEncodingSpeed, AvifEncodingOptions, HevcEncodingOptions};
+pub use gainmap_render::{GainmapRenderImage, weave_render_gainmap_sdr};
 #[cfg(all(
     target_os = "android",
     any(target_arch = "aarch64", target_arch = "arm")

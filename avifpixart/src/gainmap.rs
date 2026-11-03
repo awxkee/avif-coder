@@ -315,16 +315,37 @@ pub(crate) fn apple_bitmap<'local>(
         rgba.push(4095);
     }
     let (mut width, mut height) = (width, height);
+    // Match the base grid before integer crops. Mapping crop endpoints with
+    // floor/ceil at auxiliary resolution shifts odd and offset apertures.
+    // This also resolves FIT/FILL and -1/-2 dimensions against the base.
+    if (scaled_width != 0 || scaled_height != 0 || parent.clean_aperture.is_some())
+        && (width != parent.width() || height != parent.height())
+    {
+        let aligned = crate::scaling::internal_scale_u16(
+            std::borrow::Cow::Owned(rgba),
+            width * 4,
+            width as u32,
+            height as u32,
+            parent.width() as i32,
+            parent.height() as i32,
+            12,
+            false,
+            crate::WeaveScaleMode::JustResize,
+        )?;
+        width = aligned.width;
+        height = aligned.height;
+        rgba = match aligned.buffer {
+            pic_scale::BufferStore::Owned(pixels) => pixels,
+            pic_scale::BufferStore::Borrowed(pixels) => pixels.to_vec(),
+        };
+    }
     // The base clap is in coded coordinates. Crop the corresponding map region
     // before applying display orientation or a sampled center crop.
     if let Some(clap) = parent.clean_aperture.as_ref()
         && let Some((left, top, cw, ch)) =
             crate::image_info::clap_rect(parent.width(), parent.height(), clap)
     {
-        let x0 = left * width / parent.width();
-        let y0 = top * height / parent.height();
-        let x1 = ((left + cw) * width).div_ceil(parent.width()).min(width);
-        let y1 = ((top + ch) * height).div_ceil(parent.height()).min(height);
+        let (x0, y0, x1, y1) = (left, top, left + cw, top + ch);
         let mut cropped = Vec::with_capacity((x1 - x0) * (y1 - y0) * 4);
         for y in y0..y1 {
             cropped.extend_from_slice(&rgba[(y * width + x0) * 4..(y * width + x1) * 4]);

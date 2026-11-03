@@ -37,6 +37,7 @@
 #include "avifweaver.h"
 #include <android/log.h>
 #include "JniException.h"
+#include "GainmapRenderer.h"
 #include <cmath>
 
 class AvifUniqueImage {
@@ -308,80 +309,53 @@ AvifImageFrame AvifDecoderController::getFrame(uint32_t frame,
 
   aligned_uint8_vector imageStore;
 
-  imageStore = RescaleSourceImage(avifUniqueImage.rgbImage.pixels, &stride,
+  std::optional<GainmapFrame> gainMap;
+  const auto gain = decoder->image->gainMap;
+  bool gainmapToneMapped = false;
+  avifRGBImage toneMapped{};
+  avif::RGBImageCleanup toneMappedCleanup(&toneMapped);
+  const avifRGBImage *baseRgb = &avifUniqueImage.rgbImage;
+  if (gain && gain->image && gain->image->yuvPlanes[0]) {
+    if (!gain->baseHdrHeadroom.d || !gain->alternateHdrHeadroom.d)
+      throw std::runtime_error("Invalid gainmap headroom");
+    const bool hdrBase =
+        static_cast<double>(gain->baseHdrHeadroom.n) / gain->baseHdrHeadroom.d >
+        static_cast<double>(gain->alternateHdrHeadroom.n) / gain->alternateHdrHeadroom.d;
+    if (androidOSVersion() < 34 || (hdrBase && androidOSVersion() < 36)) {
+      // An SDR base already is the correct zero-headroom rendition. For an HDR
+      // base use the actual ISO map, not a generic PQ/HLG tone curve. Render
+      // before resizing so nonlinear gains and nonzero offsets stay correct.
+      if (hdrBase) {
+        RenderGainmapToSdr(*baseRgb, colorPrimaries, transferCharacteristics, *gain, toneMapped);
+        baseRgb = &toneMapped;
+        stride = toneMapped.rowBytes;
+        gainmapToneMapped = true;
+        colorPrimaries = AVIF_COLOR_PRIMARIES_BT709;
+        transferCharacteristics = AVIF_TRANSFER_CHARACTERISTICS_SRGB;
+      }
+    } else {
+      auto decodedGain = DecodeGainmap(*gain);
+      RescaleGainmap(decodedGain, imageWidth, imageHeight, scaledWidth, scaledHeight,
+                     javaScaleMode, scalingQuality);
+      gainMap = std::move(decodedGain);
+    }
+  }
+
+  imageStore = RescaleSourceImage(baseRgb->pixels, &stride,
                                   bitDepth, isImageRequires64Bit, &imageWidth,
                                   &imageHeight, scaledWidth, scaledHeight, javaScaleMode,
                                   scalingQuality, imageUsesAlpha);
 
   avifUniqueImage.clear();
-
-  std::optional<GainmapFrame> gainMap;
-  const auto gain = decoder->image->gainMap;
-  if (androidOSVersion() >= 34 && gain && gain->image && gain->image->yuvPlanes[0]) {
-    auto fraction = [](auto f) -> float {
-      if (!f.d) throw std::runtime_error("Invalid gainmap fraction");
-      return static_cast<float>(f.n) / static_cast<float>(f.d);
-    };
-    GainmapFrame decodedGain{};
-    for (int c = 0; c < 3; ++c) {
-      decodedGain.metadata[c] = fraction(gain->gainMapMin[c]);
-      decodedGain.metadata[3 + c] = fraction(gain->gainMapMax[c]);
-      decodedGain.metadata[6 + c] = fraction(gain->gainMapGamma[c]);
-      decodedGain.metadata[9 + c] = fraction(gain->baseOffset[c]);
-      decodedGain.metadata[12 + c] = fraction(gain->alternateOffset[c]);
-    }
-    decodedGain.metadata[15] = fraction(gain->baseHdrHeadroom);
-    decodedGain.metadata[16] = fraction(gain->alternateHdrHeadroom);
-    decodedGain.metadata[17] = gain->useBaseColorSpace ? 1.f : 0.f;
-    // Android data spaces for the supported alternate primaries.
-    decodedGain.metadata[18] = -1.f;
-    if (gain->altColorPrimaries == AVIF_COLOR_PRIMARIES_BT709)
-      decodedGain.metadata[18] = 0x08810000;
-    else if (gain->altColorPrimaries == AVIF_COLOR_PRIMARIES_SMPTE432)
-      decodedGain.metadata[18] = 0x088A0000;
-    else if (gain->altColorPrimaries == AVIF_COLOR_PRIMARIES_BT2020)
-      decodedGain.metadata[18] = 0x08C60000;
-    const bool hdrBase = decodedGain.metadata[15] > decodedGain.metadata[16];
-    if (!hdrBase || androidOSVersion() >= 36) {
-      avifRGBImage rgb{};
-      avifRGBImageSetDefaults(&rgb, gain->image);
-      rgb.format = AVIF_RGB_FORMAT_RGBA;
-      rgb.depth = gain->image->depth;
-      // Bitmap storage must have opaque alpha. ignoreAlpha leaves that byte
-      // unwritten, causing Android to unpremultiply arbitrary alpha values.
-      rgb.ignoreAlpha = AVIF_FALSE;
-      if (avifRGBImageAllocatePixels(&rgb) != AVIF_RESULT_OK)
-        throw std::runtime_error("Cannot allocate gainmap pixels");
-      struct PixelsGuard { avifRGBImage *rgb; ~PixelsGuard() { avifRGBImageFreePixels(rgb); }}
-          pixelsGuard{&rgb};
-      if (avifImageYUVToRGB(gain->image, &rgb) != AVIF_RESULT_OK)
-        throw std::runtime_error("Cannot decode gainmap pixels");
-      decodedGain.width = rgb.width;
-      decodedGain.height = rgb.height;
-      decodedGain.bitDepth = rgb.depth;
-      auto gainStride = rgb.rowBytes;
-      decodedGain.store = RescaleSourceImage(rgb.pixels,
-                                             &gainStride,
-                                             rgb.depth,
-                                             rgb.depth > 8,
-                                             &decodedGain.width,
-                                             &decodedGain.height,
-                                             scaledWidth,
-                                             scaledHeight,
-                                             javaScaleMode,
-                                             scalingQuality,
-                                             false);
-      gainMap = std::move(decodedGain);
-    }
-  }
+  avifRGBImageFreePixels(&toneMapped);
 
   // Keep the base rendition in its original color space: converting it alone
   // would change the meaning of per-channel gains and offsets.
-  if (!gainMap && !iccProfile.empty()) {
+  if (!gainMap && !gainmapToneMapped && !iccProfile.empty()) {
     convertUseICC(imageStore, stride, imageWidth, imageHeight, iccProfile.data(),
                   iccProfile.size(),
                   isImageRequires64Bit, bitDepth);
-  } else if (!gainMap && (transferCharacteristics != AVIF_TRANSFER_CHARACTERISTICS_UNSPECIFIED
+  } else if (!gainMap && !gainmapToneMapped && (transferCharacteristics != AVIF_TRANSFER_CHARACTERISTICS_UNSPECIFIED
       || colorPrimaries != AVIF_COLOR_PRIMARIES_UNSPECIFIED)) {
     Eigen::Matrix<float, 3, 2> primaries;
     float imagePrimaries[8] = {0.64f, 0.33f, 0.3f, 0.6f, 0.15f, 0.06f, 0.3127f, 0.329f};
@@ -510,8 +484,7 @@ void AvifDecoderController::attachBuffer(uint8_t *data, uint32_t bufferSize) {
   this->decoder->ignoreExif = false;
   this->decoder->ignoreXMP = false;
   this->decoder->strictFlags = AVIF_STRICT_DISABLED;
-  this->decoder->imageContentToDecode =
-      androidOSVersion() >= 34 ? AVIF_IMAGE_CONTENT_ALL : AVIF_IMAGE_CONTENT_COLOR_AND_ALPHA;
+  this->decoder->imageContentToDecode = AVIF_IMAGE_CONTENT_ALL;
 
   uint32_t hwThreads = std::thread::hardware_concurrency();
   this->decoder->maxThreads = static_cast<int>(hwThreads);

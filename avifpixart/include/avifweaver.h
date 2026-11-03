@@ -129,6 +129,15 @@ struct HeicInfo {
   uint32_t bit_depth;
 };
 
+struct GainmapRenderImage {
+  const uint8_t *pixels;
+  /// Bytes per row, including any padding.
+  uintptr_t stride;
+  uint32_t width;
+  uint32_t height;
+  uint32_t bit_depth;
+};
+
 struct HevcEncodingOptions {
   int32_t color_space;
   int32_t quality;
@@ -232,6 +241,19 @@ void weave_cvt_rgba16_to_rgba_f16(const uint16_t *rgba16,
                                   uint32_t rgba_f16_stride,
                                   uint32_t width,
                                   uint32_t height);
+
+/// Render zero display headroom (SDR) to RGBA at the base image's bit depth.
+/// Metadata uses the same 19-float ISO layout as Android gainmap interop.
+/// All image buffers must be valid and output must not overlap either input.
+/// Returns false on invalid parameters or a caught panic; discard output then.
+bool weave_render_gainmap_sdr(GainmapRenderImage base,
+                              GainmapRenderImage gain,
+                              const float *metadata,
+                              uint16_t base_primaries,
+                              uint16_t base_transfer,
+                              uint16_t alternate_primaries,
+                              uint8_t *output,
+                              uintptr_t output_stride);
 
 jobject decode_heic_file(JNIEnv *env,
                          const uint8_t *data,

@@ -303,7 +303,9 @@ fn decode_pipeline<'local>(
     scale_mode: WeaveScaleMode,
     preferred_color: WeaverPreferredColorConfig,
 ) -> Result<JObject<'local>, anyhow::Error> {
-    let settings = hpvcd::HeicSettings::default().with_decode_gain_map(android_os_version() >= 34);
+    // Apple gainmaps have an SDR base: at zero display headroom the base is
+    // already the SDR rendition. Still parse them on every supported OS.
+    let settings = hpvcd::HeicSettings::default().with_decode_gain_map(true);
     let decoded = hpvcd::decode_heic_yuv_with_settings(data, &settings)?;
     let gain_map = if android_os_version() >= 34 {
         decoded
