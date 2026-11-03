@@ -30,7 +30,7 @@
 #define AVIF_SIZESCALER_H
 
 #include <vector>
-#include <jni.h>
+#include <cstdint>
 #include "definitions.h"
 
 enum ScaleMode {

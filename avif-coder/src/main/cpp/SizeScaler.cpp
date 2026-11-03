@@ -30,8 +30,8 @@
 #include <vector>
 #include "imagebits/CopyUnalignedRGBA.h"
 #include <string>
-#include <jni.h>
-#include "JniException.h"
+#include <cstring>
+#include <stdexcept>
 #include "definitions.h"
 #include "avifweaver.h"
 
@@ -48,7 +48,7 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
                                         bool isRgba) {
   uint32_t imageWidth = *imageWidthPtr;
   uint32_t imageHeight = *imageHeightPtr;
-  if ((scaledHeight != 0 || scaledWidth != 0) && (scaledWidth != 0 && scaledHeight != 0)) {
+  if (scaledHeight != 0 || scaledWidth != 0) {
     WeaveScaleMode mScaleMode = WeaveScaleMode::JustResize;
     switch (scaleMode) {
       case Fit:mScaleMode = WeaveScaleMode::ScaleToFit;
@@ -131,6 +131,7 @@ aligned_uint8_vector RescaleSourceImage(uint8_t *sourceData,
 
     *imageWidthPtr = imageWidth;
     *imageHeightPtr = imageHeight;
+    *stride = newStride;
     return dataStore;
   }
 }
